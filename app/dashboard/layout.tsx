@@ -9,11 +9,7 @@ import { getUser, getUserProfile } from '@/lib/db/auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getUser()
   const profile = await getUserProfile()
 
@@ -22,43 +18,53 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-slate-50">
       {/* Navigation */}
-      <nav className="bg-white shadow-sm">
+      <nav className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <Link href="/dashboard" className="text-xl font-bold text-gray-900">
+                <Link
+                  href="/dashboard"
+                  className="text-xl font-bold text-slate-900 hover:text-primary-600 transition-colors"
+                >
                   Vehicle Valuation
                 </Link>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 <Link
                   href="/dashboard"
-                  className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900"
+                  className="inline-flex items-center px-1 pt-1 border-b-2 border-primary-600 text-sm font-medium text-slate-900"
                 >
                   Dashboard
                 </Link>
                 <Link
                   href="/reports"
-                  className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 hover:text-gray-900"
+                  className="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors"
                 >
                   Reports
                 </Link>
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center space-x-4">
               <div className="flex-shrink-0">
-                <span className="text-sm text-gray-700">
-                  {profile?.full_name || user.email}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-500 to-emerald-600 flex items-center justify-center">
+                    <span className="text-white text-sm font-semibold">
+                      {(profile?.full_name || user.email).charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-sm font-medium text-slate-700">
+                    {profile?.full_name || user.email}
+                  </span>
+                </div>
               </div>
               <div className="ml-4">
                 <form action="/api/auth/logout" method="POST">
                   <button
                     type="submit"
-                    className="text-sm text-gray-700 hover:text-gray-900"
+                    className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-primary-600 rounded-lg hover:bg-slate-100 transition-colors"
                   >
                     Sign out
                   </button>

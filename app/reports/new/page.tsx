@@ -52,13 +52,17 @@ export default function NewReportPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || 'Failed to create report')
+        // Handle rate limit error with detailed message
+        if (data.error === 'RATE_LIMIT_EXCEEDED' && data.message) {
+          setError(data.message)
+        } else {
+          setError(data.error || 'Failed to create report')
+        }
         return
       }
 
       // Success! Redirect to report details
       router.push(`/reports/${data.report.id}`)
-
     } catch (err) {
       console.error('Error creating report:', err)
       setError('An unexpected error occurred')
@@ -68,20 +72,24 @@ export default function NewReportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50 relative overflow-hidden">
+      {/* Background decorative blobs */}
+      <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary-500/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-600/10 rounded-full blur-[80px] pointer-events-none" />
+
       {/* Navigation */}
-      <nav className="bg-white shadow-sm">
+      <nav className="bg-white shadow-sm relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <Link href="/dashboard" className="text-2xl font-bold text-gray-900">
+              <Link href="/dashboard" className="text-2xl font-bold text-slate-900">
                 Vehicle Valuation
               </Link>
             </div>
             <div className="flex items-center">
               <Link
                 href="/dashboard"
-                className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                className="text-slate-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 Back to Dashboard
               </Link>
@@ -91,16 +99,14 @@ export default function NewReportPage() {
       </nav>
 
       {/* Main Content */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white shadow rounded-lg">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+        <div className="glass-card rounded-2xl shadow-xl">
           <div className="px-6 py-8">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">
-                Create New Report
-              </h1>
-              <p className="mt-2 text-sm text-gray-600">
-                Enter your vehicle's VIN to get started with a professional valuation report.
+              <h1 className="text-3xl font-bold text-slate-900">Create New Report</h1>
+              <p className="mt-2 text-sm text-slate-600">
+                Enter your vehicle&apos;s VIN to get started with a professional valuation report.
               </p>
             </div>
 
@@ -108,10 +114,7 @@ export default function NewReportPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* VIN Input */}
               <div>
-                <label
-                  htmlFor="vin"
-                  className="block text-sm font-medium text-gray-700"
-                >
+                <label htmlFor="vin" className="block text-sm font-semibold text-slate-700 mb-2">
                   Vehicle Identification Number (VIN)
                 </label>
                 <div className="mt-1">
@@ -123,16 +126,18 @@ export default function NewReportPage() {
                     onChange={handleVinChange}
                     maxLength={17}
                     placeholder="Enter 17-character VIN"
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
+                    className="appearance-none block w-full px-4 py-3 border-2 border-slate-200 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base font-mono transition-all"
                     disabled={loading}
                     required
                   />
                 </div>
-                <p className="mt-2 text-sm text-gray-500">
-                  The VIN is typically found on the driver's side dashboard or door jamb.
+                <p className="mt-2 text-sm text-slate-500">
+                  The VIN is typically found on the driver&apos;s side dashboard or door jamb.
                 </p>
                 {vin.length > 0 && (
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p
+                    className={`mt-1 text-sm font-medium ${vin.length === 17 ? 'text-primary-600' : 'text-slate-500'}`}
+                  >
                     {vin.length}/17 characters
                   </p>
                 )}
@@ -165,11 +170,11 @@ export default function NewReportPage() {
               )}
 
               {/* Info Box */}
-              <div className="rounded-md bg-blue-50 p-4">
+              <div className="rounded-xl bg-primary-50 border border-primary-100 p-5">
                 <div className="flex">
                   <div className="flex-shrink-0">
                     <svg
-                      className="h-5 w-5 text-blue-400"
+                      className="h-6 w-6 text-primary-600"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -183,14 +188,14 @@ export default function NewReportPage() {
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800">
-                      What happens next?
-                    </h3>
-                    <div className="mt-2 text-sm text-blue-700">
+                    <h3 className="text-sm font-semibold text-primary-900">What happens next?</h3>
+                    <div className="mt-2 text-sm text-primary-800">
                       <ul className="list-disc pl-5 space-y-1">
-                        <li>We'll validate your VIN and retrieve vehicle information</li>
-                        <li>You'll review the details and select a report type ($29 or $49)</li>
-                        <li>After payment, we'll generate your comprehensive report</li>
+                        <li>We&apos;ll validate your VIN and retrieve vehicle information</li>
+                        <li>
+                          You&apos;ll review the details and select a report type ($29 or $49)
+                        </li>
+                        <li>After payment, we&apos;ll generate your comprehensive report</li>
                         <li>Reports are typically ready within 24-48 hours</li>
                       </ul>
                     </div>
@@ -199,17 +204,17 @@ export default function NewReportPage() {
               </div>
 
               {/* Submit Button */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pt-4">
                 <Link
                   href="/dashboard"
-                  className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors"
                 >
                   Cancel
                 </Link>
                 <button
                   type="submit"
                   disabled={loading || vin.length !== 17}
-                  className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex justify-center py-3 px-8 border border-transparent shadow-md text-base font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
                 >
                   {loading ? (
                     <>
@@ -245,9 +250,12 @@ export default function NewReportPage() {
 
         {/* Help Section */}
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-slate-600">
             Need help finding your VIN?{' '}
-            <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
+            <a
+              href="#"
+              className="font-semibold text-primary-600 hover:text-primary-700 transition-colors"
+            >
               View our guide
             </a>
           </p>

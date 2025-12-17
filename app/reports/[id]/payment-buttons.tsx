@@ -3,7 +3,7 @@
 /**
  * Payment Buttons Component
  *
- * Client-side buttons to initiate Stripe checkout for Basic and Premium reports.
+ * Client-side buttons to initiate Lemon Squeezy checkout for Basic and Premium reports.
  */
 
 import { useState } from 'react'
@@ -21,8 +21,8 @@ export function PaymentButtons({ reportId }: PaymentButtonsProps) {
     setError(null)
 
     try {
-      // Call the create-checkout API
-      const response = await fetch('/api/stripe/create-checkout', {
+      // Call the Lemon Squeezy create-checkout API
+      const response = await fetch('/api/lemonsqueezy/create-checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -39,9 +39,9 @@ export function PaymentButtons({ reportId }: PaymentButtonsProps) {
         throw new Error(data.error || 'Failed to create checkout session')
       }
 
-      // Redirect to Stripe Checkout
-      if (data.url) {
-        window.location.href = data.url
+      // Redirect to Lemon Squeezy Checkout
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl
       } else {
         throw new Error('No checkout URL received')
       }
@@ -143,11 +143,7 @@ export function PaymentButtons({ reportId }: PaymentButtonsProps) {
             </ul>
             {loading === 'BASIC' ? (
               <div className="flex items-center justify-center">
-                <svg
-                  className="animate-spin h-5 w-5 text-blue-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
                   <circle
                     className="opacity-25"
                     cx="12"
@@ -254,11 +250,7 @@ export function PaymentButtons({ reportId }: PaymentButtonsProps) {
             </ul>
             {loading === 'PREMIUM' ? (
               <div className="flex items-center justify-center">
-                <svg
-                  className="animate-spin h-5 w-5 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                   <circle
                     className="opacity-25"
                     cx="12"
@@ -297,7 +289,7 @@ export function PaymentButtons({ reportId }: PaymentButtonsProps) {
             d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
           />
         </svg>
-        Secure payment powered by Stripe
+        Secure payment powered by Lemon Squeezy
       </div>
     </div>
   )

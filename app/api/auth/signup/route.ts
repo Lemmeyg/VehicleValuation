@@ -7,8 +7,19 @@
 
 import { createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import { NextResponse } from 'next/server'
+import { signupLimiter } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
+  // Rate limiting: 3 signup attempts per minute per IP
+  try {
+    await signupLimiter.check(request, 3)
+  } catch {
+    return NextResponse.json(
+      { error: 'Too many signup attempts. Please try again in a minute.' },
+      { status: 429 }
+    )
+  }
+
   try {
     const supabase = await createRouteHandlerSupabaseClient()
 
@@ -18,10 +29,7 @@ export async function POST(request: Request) {
 
     // Validate required fields
     if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     }
 
     // Validate password strength
@@ -49,16 +57,10 @@ export async function POST(request: Request) {
 
       // Handle specific error cases
       if (signUpError.message.includes('already registered')) {
-        return NextResponse.json(
-          { error: 'Email already registered' },
-          { status: 409 }
-        )
+        return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
       }
 
-      return NextResponse.json(
-        { error: signUpError.message },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: signUpError.message }, { status: 400 })
     }
 
     // If email confirmation is enabled, user needs to verify email
@@ -90,9 +92,6 @@ export async function POST(request: Request) {
     )
   } catch (error) {
     console.error('Signup exception:', error)
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 })
   }
 }

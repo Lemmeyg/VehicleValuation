@@ -5,16 +5,15 @@
  */
 
 import { getUser } from './auth'
-import { createServerSupabaseClient } from './supabase'
+import { supabaseAdmin } from './supabase'
 
 /**
  * Check if user is an admin
  */
 export async function isAdmin(userId: string): Promise<boolean> {
-  const supabase = await createServerSupabaseClient()
-
-  // Check if user has admin role in user_metadata or a separate admins table
-  const { data: user, error } = await supabase.auth.admin.getUserById(userId)
+  // Use service role client for admin operations
+  // This is required because auth.admin API requires service role key
+  const { data: user, error } = await supabaseAdmin.auth.admin.getUserById(userId)
 
   if (error || !user) {
     return false

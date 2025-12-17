@@ -5,20 +5,86 @@
  */
 
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/db/auth'
+import { requireAuth, checkIfUserIsAdmin } from '@/lib/db/auth'
 import { createRouteHandlerSupabaseClient, supabaseAdmin } from '@/lib/db/supabase'
 import { getVinValidationError, sanitizeVin } from '@/lib/utils/vin-validator'
-import {
-  fetchVinAuditDataMock,
-  type VinAuditVehicleData,
-} from '@/lib/api/vinaudit-client'
+import { fetchVinAuditDataMock, type VinAuditVehicleData } from '@/lib/api/vinaudit-client'
 import { fetchAutoDevDataMock, type AutoDevAccidentData } from '@/lib/api/autodev-client'
 import { fetchCarsXEDataMock, type MarketValuation } from '@/lib/api/carsxe-client'
+import { reportCreationLimiter } from '@/lib/rate-limit'
+
+const WEEKLY_LIMIT_HOURS = 168 // 7 days = 168 hours
+const DISABLE_RATE_LIMIT = process.env.DISABLE_RATE_LIMIT === 'true' // Development flag
 
 export async function POST(request: Request) {
   try {
     // Require authentication
     const user = await requireAuth()
+
+    // Weekly rate limit check: 1 report per 7 days (non-admin users)
+    const isAdmin = await checkIfUserIsAdmin(user.id)
+
+    console.log('[RATE_LIMIT_CHECK]', {
+      userId: user.id,
+      email: user.email,
+      isAdmin,
+      disableRateLimit: DISABLE_RATE_LIMIT,
+      willCheckRateLimit: !isAdmin && !DISABLE_RATE_LIMIT,
+    })
+
+    if (!isAdmin && !DISABLE_RATE_LIMIT) {
+      const supabase = await createRouteHandlerSupabaseClient()
+      const { data: lastReport, error: rateCheckError } = await supabase
+        .from('reports')
+        .select('created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (!rateCheckError && lastReport) {
+        const lastCreated = new Date(lastReport.created_at)
+        const now = new Date()
+        const hoursSinceLastReport = (now.getTime() - lastCreated.getTime()) / (1000 * 60 * 60)
+
+        if (hoursSinceLastReport < WEEKLY_LIMIT_HOURS) {
+          const hoursRemaining = WEEKLY_LIMIT_HOURS - hoursSinceLastReport
+          const daysRemaining = Math.floor(hoursRemaining / 24)
+          const hoursRemainingAfterDays = Math.ceil(hoursRemaining % 24)
+          const nextAvailableDate = new Date(
+            lastCreated.getTime() + WEEKLY_LIMIT_HOURS * 60 * 60 * 1000
+          )
+
+          console.warn('[RATE_LIMIT] Weekly limit exceeded:', {
+            userId: user.id,
+            hoursRemaining: Math.ceil(hoursRemaining),
+            daysRemaining,
+            hoursRemainingAfterDays,
+          })
+
+          return NextResponse.json(
+            {
+              error: 'RATE_LIMIT_EXCEEDED',
+              message: `You can create one report per week. Your next report will be available in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} and ${hoursRemainingAfterDays} hour${hoursRemainingAfterDays !== 1 ? 's' : ''}.`,
+              daysRemaining,
+              hoursRemaining: hoursRemainingAfterDays,
+              nextAvailableDate: nextAvailableDate.toISOString(),
+            },
+            { status: 429 }
+          )
+        }
+      }
+    }
+
+    // Rate limiting: 10 reports per hour per user
+    try {
+      await reportCreationLimiter.check(request, 10, user.id)
+    } catch {
+      return NextResponse.json(
+        { error: 'Too many reports created. Please try again in an hour.' },
+        { status: 429 }
+      )
+    }
 
     // Parse request body
     const body = await request.json()
@@ -50,10 +116,7 @@ export async function POST(request: Request) {
 
     if (reportError) {
       console.error('Error creating report:', reportError)
-      return NextResponse.json(
-        { error: 'Failed to create report' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Failed to create report' }, { status: 500 })
     }
 
     // Fetch data from external APIs (in parallel for speed)
@@ -70,14 +133,7 @@ export async function POST(request: Request) {
       vehicleData = vinAuditResult.value.data!
 
       // Log API call
-      await logApiCall(
-        report.id,
-        'vinaudit',
-        '/decode_vin',
-        true,
-        Date.now() - startTime,
-        0.02
-      )
+      await logApiCall(report.id, 'vinaudit', '/decode_vin', true, Date.now() - startTime, 0.02)
     } else {
       await logApiCall(
         report.id,
@@ -86,9 +142,7 @@ export async function POST(request: Request) {
         false,
         Date.now() - startTime,
         0.02,
-        vinAuditResult.status === 'fulfilled'
-          ? vinAuditResult.value.error
-          : 'Request failed'
+        vinAuditResult.status === 'fulfilled' ? vinAuditResult.value.error : 'Request failed'
       )
     }
 
@@ -97,14 +151,7 @@ export async function POST(request: Request) {
     if (autoDevResult.status === 'fulfilled' && autoDevResult.value.success) {
       accidentDetails = autoDevResult.value.data!.accidents
 
-      await logApiCall(
-        report.id,
-        'autodev',
-        '/history',
-        true,
-        Date.now() - startTime,
-        0.0
-      )
+      await logApiCall(report.id, 'autodev', '/history', true, Date.now() - startTime, 0.0)
     } else {
       await logApiCall(
         report.id,
@@ -113,9 +160,7 @@ export async function POST(request: Request) {
         false,
         Date.now() - startTime,
         0.0,
-        autoDevResult.status === 'fulfilled'
-          ? autoDevResult.value.error
-          : 'Request failed'
+        autoDevResult.status === 'fulfilled' ? autoDevResult.value.error : 'Request failed'
       )
     }
 
@@ -132,14 +177,7 @@ export async function POST(request: Request) {
       if (carsXEResult.success) {
         valuationResult = carsXEResult.data!.valuation
 
-        await logApiCall(
-          report.id,
-          'carsxe',
-          '/market',
-          true,
-          Date.now() - startTime,
-          0.0
-        )
+        await logApiCall(report.id, 'carsxe', '/market', true, Date.now() - startTime, 0.0)
       } else {
         await logApiCall(
           report.id,
@@ -166,10 +204,7 @@ export async function POST(request: Request) {
 
     if (updateError) {
       console.error('Error updating report:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to update report data' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Failed to update report data' }, { status: 500 })
     }
 
     // Return report with data
@@ -194,10 +229,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 })
   }
 }
 

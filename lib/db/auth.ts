@@ -124,11 +124,29 @@ export async function getUserProfile() {
     .from('user_profiles')
     .select('*')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (error) {
     console.error('Error fetching user profile:', error)
-    return null
+    // Return a fallback profile from auth.user data if user_profiles table doesn't exist or profile is missing
+    return {
+      id: user.id,
+      email: user.email,
+      full_name: user.user_metadata?.full_name || '',
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    }
+  }
+
+  // If no profile exists, return fallback from auth.user
+  if (!data) {
+    return {
+      id: user.id,
+      email: user.email,
+      full_name: user.user_metadata?.full_name || '',
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    }
   }
 
   return data
@@ -151,6 +169,50 @@ export async function getUserProfile() {
 export async function signOut() {
   const supabase = await createServerSupabaseClient()
   await supabase.auth.signOut()
+}
+
+/**
+ * Check if a user has admin privileges
+ *
+ * Checks user_metadata.is_admin flag to determine if user has admin access
+ *
+ * @param userId - The user ID to check
+ * @returns true if user has admin privileges, false otherwise
+ *
+ * @example
+ * ```tsx
+ * import { checkIfUserIsAdmin } from '@/lib/db/auth'
+ *
+ * export async function GET(request: Request) {
+ *   const user = await requireAuth()
+ *   const isAdmin = await checkIfUserIsAdmin(user.id)
+ *   if (!isAdmin) {
+ *     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+ *   }
+ *   // Proceed with admin-only logic
+ * }
+ * ```
+ */
+export async function checkIfUserIsAdmin(userId: string): Promise<boolean> {
+  const supabase = await createServerSupabaseClient()
+
+  try {
+    // Get current user
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+
+    if (error || !user || user.id !== userId) {
+      return false
+    }
+
+    // Check is_admin in user_metadata
+    return user.user_metadata?.is_admin === true
+  } catch (error) {
+    console.error('Error checking admin status:', error)
+    return false
+  }
 }
 
 /**

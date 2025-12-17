@@ -7,8 +7,19 @@
 
 import { createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import { NextResponse } from 'next/server'
+import { loginLimiter } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
+  // Rate limiting: 5 login attempts per minute per IP
+  try {
+    await loginLimiter.check(request, 5)
+  } catch {
+    return NextResponse.json(
+      { error: 'Too many login attempts. Please try again in a minute.' },
+      { status: 429 }
+    )
+  }
+
   try {
     const supabase = await createRouteHandlerSupabaseClient()
 
@@ -18,10 +29,7 @@ export async function POST(request: Request) {
 
     // Validate required fields
     if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     }
 
     // Attempt to sign in
@@ -34,10 +42,7 @@ export async function POST(request: Request) {
       console.error('Login error:', signInError)
 
       // Generic error message for security (don't reveal if email exists)
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
     // Fetch user profile
@@ -66,9 +71,6 @@ export async function POST(request: Request) {
     )
   } catch (error) {
     console.error('Login exception:', error)
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 })
   }
 }
