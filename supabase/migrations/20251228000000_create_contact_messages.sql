@@ -28,16 +28,18 @@ CREATE POLICY "Anyone can submit contact messages"
   WITH CHECK (true);
 
 -- Policy: Only admins can read messages
+-- Note: You'll need to manually update this policy with your admin user IDs
+-- or implement a proper admin role system in your auth.users metadata
 CREATE POLICY "Only admins can read contact messages"
   ON contact_messages
   FOR SELECT
   TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid()
-      AND users.role = 'admin'
-    )
+    -- Check if user has admin role in metadata
+    (auth.jwt() ->> 'role' = 'admin')
+    OR
+    -- Fallback: Check raw user metadata
+    (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin')
   );
 
 -- Policy: Only admins can update messages (mark as read, add notes, etc.)
@@ -46,18 +48,14 @@ CREATE POLICY "Only admins can update contact messages"
   FOR UPDATE
   TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid()
-      AND users.role = 'admin'
-    )
+    (auth.jwt() ->> 'role' = 'admin')
+    OR
+    (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin')
   )
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid()
-      AND users.role = 'admin'
-    )
+    (auth.jwt() ->> 'role' = 'admin')
+    OR
+    (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin')
   );
 
 -- Policy: Only admins can delete messages
@@ -66,11 +64,9 @@ CREATE POLICY "Only admins can delete contact messages"
   FOR DELETE
   TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid()
-      AND users.role = 'admin'
-    )
+    (auth.jwt() ->> 'role' = 'admin')
+    OR
+    (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin')
   );
 
 -- Add updated_at trigger
