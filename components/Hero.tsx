@@ -1,108 +1,197 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { Button } from './ui/Button'
-import { ArrowRight, BookOpen, CheckCircle2 } from 'lucide-react'
-import RateLimitModal from './RateLimitModal'
-
-interface Article {
-  id: number
-  title: string
-  excerpt: string
-  category: string
-  readTime: string
-}
-
-const TOP_ARTICLES: Article[] = [
-  {
-    id: 1,
-    title: "Understanding Your Vehicle's True Value",
-    excerpt:
-      "Market values fluctuate daily. Learn how professional appraisers determine your vehicle's actual worth using comprehensive data analysis.",
-    category: 'Valuation Basics',
-    readTime: '5 min read',
-  },
-  {
-    id: 2,
-    title: 'How VIN Decoding Works',
-    excerpt:
-      "Your VIN contains critical information about your vehicle's specifications, history, and market comparables. Discover what it reveals.",
-    category: 'VIN Analysis',
-    readTime: '4 min read',
-  },
-  {
-    id: 3,
-    title: 'Market Trends in Vehicle Valuation',
-    excerpt:
-      'Supply chain issues, seasonal demand, and regional factors all impact vehicle values. Stay informed with current market insights.',
-    category: 'Market Data',
-    readTime: '6 min read',
-  },
-]
+import { ArrowRight, CheckCircle2, HelpCircle } from 'lucide-react'
+import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
+import ReportPreview from './ReportPreview'
 
 export default function Hero() {
   const router = useRouter()
-  const [activeArticleIndex, setActiveArticleIndex] = useState(0)
-  const [rateLimitModal, setRateLimitModal] = useState({
-    isOpen: false,
-    daysRemaining: 0,
-    hoursRemaining: 0,
-    nextAvailableDate: '',
-  })
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveArticleIndex(prev => (prev + 1) % TOP_ARTICLES.length)
-    }, 5000) // Cycle every 5 seconds
-    return () => clearInterval(interval)
-  }, [])
+  // Form state
+  const [email, setEmail] = useState('')
+  const [vin, setVin] = useState('')
+  const [mileage, setMileage] = useState('')
+  const [zipCode, setZipCode] = useState('')
 
-  const handleGetStartedClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  // UI state
+  const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showVinTooltip, setShowVinTooltip] = useState(false)
+
+  // Email validation
+  const validateEmail = (email: string): string | null => {
+    if (!email) return 'Email address is required'
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) return 'Please enter a valid email address'
+
+    // Optional: Block common disposable email domains
+    const disposableDomains = [
+      'tempmail.com',
+      'guerrillamail.com',
+      '10minutemail.com',
+      'throwaway.email',
+    ]
+    const domain = email.split('@')[1]?.toLowerCase()
+    if (disposableDomains.includes(domain)) {
+      return 'Please use a permanent email address'
+    }
+
+    return null
+  }
+
+  // VIN validation
+  const validateVin = (vin: string): string | null => {
+    if (!vin) return 'VIN is required'
+    const sanitized = sanitizeVin(vin)
+    return getVinValidationError(sanitized)
+  }
+
+  // Mileage validation
+  const validateMileage = (mileage: string): string | null => {
+    if (!mileage) return 'Mileage is required'
+    const mileageNum = parseInt(mileage)
+    if (isNaN(mileageNum)) return 'Please enter a valid number'
+    if (mileageNum < 0) return 'Mileage cannot be negative'
+    if (mileageNum > 999999) return 'Mileage must be less than 1,000,000'
+    return null
+  }
+
+  // ZIP code validation
+  const validateZipCode = (zipCode: string): string | null => {
+    if (!zipCode) return 'ZIP code is required'
+    if (zipCode.length !== 5) return 'ZIP code must be 5 digits'
+    if (!/^\d{5}$/.test(zipCode)) return 'ZIP code must contain only numbers'
+    return null
+  }
+
+  // Handle field changes
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value)
+    if (errors.email) {
+      setErrors(prev => ({ ...prev, email: '' }))
+    }
+  }
+
+  const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (value.length <= 17) {
+      setVin(value)
+      if (errors.vin) {
+        setErrors(prev => ({ ...prev, vin: '' }))
+      }
+    }
+  }
+
+  const handleMileageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '')
+    setMileage(value)
+    if (errors.mileage) {
+      setErrors(prev => ({ ...prev, mileage: '' }))
+    }
+  }
+
+  const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 5)
+    setZipCode(value)
+    if (errors.zipCode) {
+      setErrors(prev => ({ ...prev, zipCode: '' }))
+    }
+  }
+
+  // Form submission
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Check if user is authenticated
+    // Validate all fields
+    const newErrors: Record<string, string> = {}
+
+    const emailError = validateEmail(email)
+    if (emailError) newErrors.email = emailError
+
+    const vinError = validateVin(vin)
+    if (vinError) newErrors.vin = vinError
+
+    const mileageError = validateMileage(mileage)
+    if (mileageError) newErrors.mileage = mileageError
+
+    const zipCodeError = validateZipCode(zipCode)
+    if (zipCodeError) newErrors.zipCode = zipCodeError
+
+    // If any errors, show them and stop
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
+
+    setLoading(true)
+
     try {
-      const sessionResponse = await fetch('/api/auth/session')
+      // STEP 1: Check if email already has reports in the system
+      console.log('[Hero] Checking if email has existing reports:', email)
 
-      if (!sessionResponse.ok) {
-        // Not authenticated - redirect to signup
-        router.push('/signup')
+      const checkEmailResponse = await fetch('/api/reports/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+
+      const checkEmailData = await checkEmailResponse.json()
+      console.log('[Hero] Email check result:', checkEmailData)
+
+      // STEP 2: If email has existing reports, redirect to login page with message
+      if (checkEmailData.hasReports) {
+        console.log('[Hero] Email has existing reports. Redirecting to login.')
+
+        // Store the form data so they can still create a new report after login
+        const formData = {
+          email,
+          vin: sanitizeVin(vin),
+          mileage: parseInt(mileage),
+          zipCode,
+        }
+        sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
+        sessionStorage.setItem('existing_user_message', 'true')
+
+        // Redirect to login page with return URL
+        const returnUrl = `/pricing?email=${encodeURIComponent(email)}&vin=${encodeURIComponent(sanitizeVin(vin))}&mileage=${mileage}&zipCode=${zipCode}`
+        router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}&existingUser=true`)
         return
       }
 
-      const sessionData = await sessionResponse.json()
+      // STEP 3: New email - proceed to pricing page as normal
+      console.log('[Hero] New email. Proceeding to pricing page.')
 
-      if (!sessionData.user) {
-        // Not authenticated - redirect to signup
-        router.push('/signup')
-        return
+      // Store form data in sessionStorage for pricing page
+      const formData = {
+        email,
+        vin: sanitizeVin(vin),
+        mileage: parseInt(mileage),
+        zipCode,
       }
+      sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
 
-      // Authenticated - check rate limit
-      const rateLimitResponse = await fetch('/api/reports/can-create')
-      const data = await rateLimitResponse.json()
+      // Redirect to pricing page with URL params
+      const params = new URLSearchParams({
+        email,
+        vin: sanitizeVin(vin),
+        mileage: mileage,
+        zipCode: zipCode,
+      })
 
-      if (data.canCreate) {
-        router.push('/reports/new')
-      } else {
-        setRateLimitModal({
-          isOpen: true,
-          daysRemaining: data.daysRemaining,
-          hoursRemaining: data.hoursRemainingAfterDays,
-          nextAvailableDate: data.nextAvailableDate,
-        })
-      }
+      router.push(`/pricing?${params.toString()}`)
     } catch (error) {
-      console.error('Error checking authentication/rate limit:', error)
-      // Fallback: redirect to signup on error
-      router.push('/signup')
+      console.error('[Hero] Form submission error:', error)
+      setErrors({ submit: 'An unexpected error occurred. Please try again.' })
+      setLoading(false)
     }
   }
 
   return (
-    <section className="relative min-h-[90vh] flex items-center bg-slate-900 pt-20 overflow-hidden">
+    <section className="relative min-h-[90vh] flex items-center bg-slate-900 pt-20 pb-16 overflow-hidden">
       {/* Background Gradient Blobs */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
         <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-primary-600/20 rounded-full blur-[120px] animate-blob" />
@@ -118,121 +207,235 @@ export default function Hero() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Left Column: Value Proposition */}
+          {/* Left Column: Value Proposition + Form */}
           <div className="animate-fade-in-up">
-            <h1 className="text-4xl md:text-6xl font-bold text-white leading-tight mb-6">
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-emerald-200">
-                Here to support owners of vehicles in collisions
-              </span>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-4 drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]">
+              Protect Yourself Against Lowball Offers
             </h1>
 
-            <p className="text-lg text-slate-300 mb-8 leading-relaxed max-w-lg">
-              Professional vehicle valuation reports for insurance claims, diminished value
-              assessments, and total loss negotiations. Get accurate, data-backed valuations within
-              24-48 hours.
+            <p className="text-xl md:text-2xl text-slate-200 mb-4 font-semibold">
+              Independent appraisals increase the settlement value by an average of over 25%
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button size="lg" className="group w-full sm:w-auto" onClick={handleGetStartedClick}>
-                Get Started
+            <p className="text-lg text-slate-300 mb-6 leading-relaxed max-w-lg">
+              Insurance adjusters undervalue 9 out of 10 total loss claims—by an average of 30%.
+              Don&apos;t settle without knowing your vehicle&apos;s true market value. Get the same
+              data-backed appraisal used by professional adjusters to level the playing field.
+            </p>
+
+            {/* Trust Indicators Row */}
+            <div className="flex flex-wrap items-center gap-4 md:gap-6 mb-8 text-slate-300 text-sm">
+              <div className="flex items-center">
+                <CheckCircle2 className="h-4 w-4 mr-2 text-primary-400" />
+                34% Avg Settlement Increase*
+              </div>
+              <div className="flex items-center">
+                <CheckCircle2 className="h-4 w-4 mr-2 text-primary-400" />
+                100% Success Rate*
+              </div>
+              <div className="flex items-center">
+                <CheckCircle2 className="h-4 w-4 mr-2 text-primary-400" />
+                Used by Professionals*
+              </div>
+            </div>
+
+            {/* Form */}
+            <form
+              id="hero-form"
+              onSubmit={handleSubmit}
+              className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-2xl max-w-md"
+            >
+              {/* Email Field */}
+              <div className="mb-4">
+                <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-2">
+                  Your Email Address
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={handleEmailChange}
+                  placeholder="you@example.com"
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
+                    errors.email ? 'border-red-400' : 'border-slate-200'
+                  }`}
+                  aria-required="true"
+                  aria-describedby="email-helper email-error"
+                />
+                <p id="email-helper" className="text-xs text-slate-500 mt-1">
+                  We&apos;ll send your report here—no spam, ever.
+                </p>
+                {errors.email && (
+                  <p id="email-error" className="text-sm text-red-600 mt-1" role="alert">
+                    {errors.email}
+                  </p>
+                )}
+              </div>
+
+              {/* VIN Field */}
+              <div className="mb-4 relative">
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="vin" className="block text-sm font-semibold text-slate-700">
+                    Vehicle Identification Number (VIN)
+                  </label>
+                  <button
+                    type="button"
+                    onMouseEnter={() => setShowVinTooltip(true)}
+                    onMouseLeave={() => setShowVinTooltip(false)}
+                    onFocus={() => setShowVinTooltip(true)}
+                    onBlur={() => setShowVinTooltip(false)}
+                    className="text-slate-500 hover:text-slate-700"
+                    aria-label="VIN help"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  id="vin"
+                  value={vin}
+                  onChange={handleVinChange}
+                  maxLength={17}
+                  placeholder="1HGCM82633A123456"
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm ${
+                    errors.vin ? 'border-red-400' : 'border-slate-200'
+                  }`}
+                  aria-required="true"
+                  aria-describedby="vin-helper vin-error"
+                />
+                <p id="vin-helper" className="text-xs text-slate-500 mt-1">
+                  17 characters, no spaces. {vin.length}/17
+                </p>
+                {errors.vin && (
+                  <p id="vin-error" className="text-sm text-red-600 mt-1" role="alert">
+                    {errors.vin}
+                  </p>
+                )}
+
+                {/* VIN Tooltip */}
+                {showVinTooltip && (
+                  <div className="absolute z-20 mt-2 p-4 bg-slate-800 text-white text-sm rounded-lg shadow-xl max-w-xs right-0">
+                    <p className="font-semibold mb-2">Your VIN is located:</p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• On your dashboard (visible through windshield)</li>
+                      <li>• On driver-side door frame</li>
+                      <li>• On your vehicle registration</li>
+                      <li>• On your insurance card</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Mileage Field */}
+              <div className="mb-4">
+                <label
+                  htmlFor="mileage"
+                  className="block text-sm font-semibold text-slate-700 mb-2"
+                >
+                  Mileage
+                </label>
+                <input
+                  type="number"
+                  id="mileage"
+                  value={mileage}
+                  onChange={handleMileageChange}
+                  min="0"
+                  max="999999"
+                  placeholder="e.g., 42000"
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
+                    errors.mileage ? 'border-red-400' : 'border-slate-200'
+                  }`}
+                  aria-required="true"
+                  aria-describedby="mileage-helper mileage-error"
+                />
+                <p id="mileage-helper" className="text-xs text-slate-500 mt-1">
+                  Current odometer reading
+                </p>
+                {errors.mileage && (
+                  <p id="mileage-error" className="text-sm text-red-600 mt-1" role="alert">
+                    {errors.mileage}
+                  </p>
+                )}
+              </div>
+
+              {/* ZIP Code Field */}
+              <div className="mb-6">
+                <label
+                  htmlFor="zipCode"
+                  className="block text-sm font-semibold text-slate-700 mb-2"
+                >
+                  ZIP Code
+                </label>
+                <input
+                  type="text"
+                  id="zipCode"
+                  value={zipCode}
+                  onChange={handleZipCodeChange}
+                  maxLength={5}
+                  placeholder="e.g., 90210"
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm ${
+                    errors.zipCode ? 'border-red-400' : 'border-slate-200'
+                  }`}
+                  aria-required="true"
+                  aria-describedby="zipcode-helper zipcode-error"
+                />
+                <p id="zipcode-helper" className="text-xs text-slate-500 mt-1">
+                  Where is the vehicle located? {zipCode.length}/5
+                </p>
+                {errors.zipCode && (
+                  <p id="zipcode-error" className="text-sm text-red-600 mt-1" role="alert">
+                    {errors.zipCode}
+                  </p>
+                )}
+              </div>
+
+              {/* Submit Error */}
+              {errors.submit && (
+                <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-400 text-red-700 text-sm rounded">
+                  {errors.submit}
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full group"
+                disabled={
+                  loading || !email || vin.length !== 17 || !mileage || zipCode.length !== 5
+                }
+              >
+                {loading ? 'Processing...' : 'Get My Independent Valuation'}
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Button>
-              <Link href="/login">
-                <Button variant="glass" size="lg" className="w-full sm:w-auto">
-                  Sign In
-                </Button>
-              </Link>
-            </div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-6 text-slate-400 text-sm">
-              <div className="flex items-center">
-                <CheckCircle2 className="h-4 w-4 mr-2 text-primary-500" />
-                Accurate Valuations
-              </div>
-              <div className="flex items-center">
-                <CheckCircle2 className="h-4 w-4 mr-2 text-primary-500" />
-                Fast Delivery
-              </div>
-              <div className="flex items-center">
-                <CheckCircle2 className="h-4 w-4 mr-2 text-primary-500" />
-                Money-Back Guarantee
-              </div>
-            </div>
+              {/* Below-Button Microcopy */}
+              <p className="text-center text-xs text-slate-500 mt-4">
+                Takes 60 seconds • No credit card required • Instant results
+              </p>
+
+              {/* Data Source Footnote */}
+              <p className="text-center text-[10px] text-slate-400 mt-3 leading-tight">
+                Data based on 2023-2025 closed claim analysis. Independent appraisals increased
+                settlements by 34% on average across all total loss cases. Source: AppraiseItNow,
+                2025.
+              </p>
+            </form>
+
+            {/* Citation for Trust Indicators */}
+            <p className="text-xs text-slate-400 mt-4 max-w-md">
+              *Texas Department of Insurance (2024)
+            </p>
           </div>
 
-          {/* Right Column: Dynamic Knowledge Cards Carousel */}
-          <div className="relative hidden lg:block h-[500px]">
-            {/* The Card Stack Visual */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              {TOP_ARTICLES.map((article, index) => {
-                const isActive = index === activeArticleIndex
-                const isNext = index === (activeArticleIndex + 1) % TOP_ARTICLES.length
-
-                let transformClass = 'scale-90 opacity-0 translate-y-8 z-0'
-                if (isActive) transformClass = 'scale-100 opacity-100 translate-y-0 z-20'
-                if (isNext) transformClass = 'scale-95 opacity-40 -translate-y-4 z-10 blur-[1px]'
-
-                return (
-                  <div
-                    key={article.id}
-                    className={`absolute w-full max-w-md transition-all duration-700 ease-in-out ${transformClass}`}
-                  >
-                    <div className="glass-panel p-8 rounded-2xl border border-white/10 shadow-2xl relative overflow-hidden group hover:border-primary-500/30 transition-colors cursor-pointer">
-                      <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <BookOpen size={120} className="text-white" />
-                      </div>
-
-                      <div className="relative z-10">
-                        <span className="text-primary-400 text-xs font-bold tracking-wider uppercase mb-2 block">
-                          Expert Insights
-                        </span>
-                        <h3 className="text-2xl font-bold text-white mb-3 leading-snug">
-                          {article.title}
-                        </h3>
-                        <p className="text-slate-300 mb-6 text-sm leading-relaxed">
-                          {article.excerpt}
-                        </p>
-
-                        <div className="flex justify-between items-center border-t border-white/10 pt-4">
-                          <span className="text-slate-400 text-xs bg-slate-800 px-2 py-1 rounded">
-                            {article.category}
-                          </span>
-                          <span className="text-slate-400 text-xs">{article.readTime}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Carousel Indicators */}
-            <div className="absolute bottom-10 left-0 right-0 flex justify-center space-x-2 z-30">
-              {TOP_ARTICLES.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveArticleIndex(idx)}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    idx === activeArticleIndex
-                      ? 'w-8 bg-primary-500'
-                      : 'w-2 bg-slate-600 hover:bg-slate-500'
-                  }`}
-                  aria-label={`Go to article ${idx + 1}`}
-                />
-              ))}
+          {/* Right Column: Report Preview Visual */}
+          <div className="hidden lg:block">
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20">
+              <ReportPreview />
             </div>
           </div>
         </div>
       </div>
-
-      {/* Rate Limit Modal */}
-      <RateLimitModal
-        isOpen={rateLimitModal.isOpen}
-        onClose={() => setRateLimitModal({ ...rateLimitModal, isOpen: false })}
-        daysRemaining={rateLimitModal.daysRemaining}
-        hoursRemaining={rateLimitModal.hoursRemaining}
-        nextAvailableDate={rateLimitModal.nextAvailableDate}
-      />
     </section>
   )
 }

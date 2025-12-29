@@ -2,14 +2,15 @@
  * Home Page / Landing Page
  *
  * Main landing page for the Vehicle Valuation SaaS application.
+ * Updated with new funnel flow: Hero (with form) → Problem Statement → Knowledge Base → Directory → Value Props & CTA
  */
 
 import Navbar from '@/components/Navbar'
 import Hero from '@/components/Hero'
-import FeatureCards from '@/components/FeatureCards'
-import VehicleValuation from '@/components/VehicleValuation'
+import ProblemStatement from '@/components/ProblemStatement'
 import KnowledgeBase from '@/components/KnowledgeBase'
 import Directory from '@/components/Directory'
+import Testimonials from '@/components/Testimonials'
 import Footer from '@/components/Footer'
 
 export default function Home() {
@@ -18,20 +19,20 @@ export default function Home() {
       {/* Navigation */}
       <Navbar />
 
-      {/* Hero Section */}
+      {/* Hero Section with Email + VIN + Mileage + ZIP Form */}
       <Hero />
 
-      {/* Feature Cards - Replaces "Why Choose Us" */}
-      <FeatureCards />
-
-      {/* Vehicle Valuation Section with VIN input and Pricing */}
-      <VehicleValuation />
+      {/* Problem Statement Section */}
+      <ProblemStatement />
 
       {/* Knowledge Base Section with Rotating Articles */}
       <KnowledgeBase />
 
       {/* Directory Section with 5-Profile Carousel */}
       <Directory />
+
+      {/* Value Propositions & CTA Section (formerly Testimonials) */}
+      <Testimonials />
 
       {/* Footer */}
       <Footer />

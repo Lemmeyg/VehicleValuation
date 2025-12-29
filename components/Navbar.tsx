@@ -7,10 +7,9 @@ import { Button } from './ui/Button'
 import { Menu, X, LogOut, LayoutDashboard } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { label: 'Vehicle Valuation', href: '#valuation' },
-  { label: 'Directory', href: '/directory' },
-  { label: 'Knowledge Base', href: '#knowledge-base' },
-  { label: 'Pricing', href: '#valuation' },
+  { label: 'Vehicle Valuation Report', href: '#hero-form' },
+  { label: 'Articles', href: '#knowledge-base' },
+  { label: 'Professional Services Directory', href: '#services-directory' },
 ]
 
 export default function Navbar() {
@@ -100,7 +99,7 @@ export default function Navbar() {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className={`text-sm font-medium hover:text-primary-500 transition-colors ${
+                  className={`text-base font-medium hover:text-primary-500 transition-colors ${
                     isScrolled ? 'text-slate-600' : 'text-slate-200 hover:text-white'
                   }`}
                 >
@@ -111,7 +110,7 @@ export default function Navbar() {
                   key={item.label}
                   href={item.href}
                   onClick={e => handleNavClick(e, item.href)}
-                  className={`text-sm font-medium hover:text-primary-500 transition-colors cursor-pointer ${
+                  className={`text-base font-medium hover:text-primary-500 transition-colors cursor-pointer ${
                     isScrolled ? 'text-slate-600' : 'text-slate-200 hover:text-white'
                   }`}
                 >
