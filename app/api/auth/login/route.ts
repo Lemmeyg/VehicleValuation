@@ -5,7 +5,7 @@
  * Returns session data on success.
  */
 
-import { createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
+import { createRouteHandlerSupabaseClient, supabaseAdmin } from '@/lib/db/supabase'
 import { NextResponse } from 'next/server'
 import { loginLimiter } from '@/lib/rate-limit'
 
@@ -55,6 +55,37 @@ export async function POST(request: Request) {
     if (profileError) {
       console.error('Profile fetch error:', profileError)
       // Profile should exist due to trigger, but continue anyway
+    }
+
+    // Link any anonymous reports with this email to the authenticated user
+    if (data.user.email) {
+      const normalizedEmail = data.user.email.toLowerCase().trim()
+
+      console.log('[login] Linking anonymous reports for email:', normalizedEmail)
+
+      try {
+        const { data: linkedReports, error: linkError } = await supabaseAdmin
+          .from('reports')
+          .update({ user_id: data.user.id })
+          .ilike('email', normalizedEmail)
+          .is('user_id', null) // Only link anonymous reports
+          .select()
+
+        if (linkError) {
+          console.error('[login] Error linking reports:', linkError)
+          // Continue with login even if linking fails
+        } else {
+          const linkedCount = linkedReports?.length || 0
+          console.log(`[login] Successfully linked ${linkedCount} anonymous report(s) to user ${data.user.id}`)
+
+          if (linkedReports && linkedReports.length > 0) {
+            console.log('[login] Linked report IDs:', linkedReports.map(r => r.id))
+          }
+        }
+      } catch (linkException) {
+        console.error('[login] Exception while linking reports:', linkException)
+        // Continue with login even if linking fails
+      }
     }
 
     return NextResponse.json(

@@ -45,10 +45,19 @@ async function applyMigrations() {
   const migration1Path = resolve(__dirname, '../supabase/migrations/20241210000000_initial_schema.sql')
   const migration1SQL = readFileSync(migration1Path, 'utf-8')
 
-  const { error: error1 } = await supabase.rpc('exec_sql', { sql: migration1SQL }).catch(() => {
+  let error1 = null
+  try {
+    const result = await supabase.rpc('exec_sql', { sql: migration1SQL })
+    error1 = result.error
+  } catch (e) {
     // RPC might not exist, try direct execution
-    return supabase.from('_http').select('*').limit(0).then(() => ({ error: null }))
-  })
+    try {
+      await supabase.from('_http').select('*').limit(0)
+      error1 = null
+    } catch (innerE) {
+      error1 = innerE
+    }
+  }
 
   // Since RPC might not work, let's use a workaround with individual statements
   console.log('  Executing schema creation...')
@@ -68,10 +77,14 @@ async function applyMigrations() {
       continue
     }
 
-    const { error } = await supabase.rpc('exec_sql', { sql: statement }).catch(async () => {
+    let error: any = null
+    try {
+      const result = await supabase.rpc('exec_sql', { sql: statement })
+      error = result.error
+    } catch (e) {
       // If RPC doesn't work, this migration needs to be done via Supabase dashboard
-      return { error: 'RPC not available' }
-    })
+      error = 'RPC not available'
+    }
 
     if (error) {
       if (error === 'RPC not available') {
@@ -112,9 +125,13 @@ async function applyMigrations() {
       continue
     }
 
-    const { error } = await supabase.rpc('exec_sql', { sql: statement }).catch(() => ({
-      error: 'RPC not available',
-    }))
+    let error: any = null
+    try {
+      const result = await supabase.rpc('exec_sql', { sql: statement })
+      error = result.error
+    } catch (e) {
+      error = 'RPC not available'
+    }
 
     if (error && error !== 'RPC not available') {
       errorCount++

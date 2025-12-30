@@ -111,7 +111,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
 
     // Generate PDF asynchronously
     // Note: In production, consider using a queue for this
-    generateAndUploadPDF(reportId).catch(error => {
+    generateAndUploadPDF({ reportId }).catch(error => {
       console.error(`PDF generation failed for report ${reportId}:`, error)
       // Optionally: Update report status to 'failed' or send alert
     })

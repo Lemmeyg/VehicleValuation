@@ -7,7 +7,7 @@
  * Redirects to dashboard on success or to redirect parameter if provided.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
@@ -15,13 +15,23 @@ import { Eye, EyeOff } from 'lucide-react'
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const redirectTo = searchParams.get('returnUrl') || searchParams.get('redirect') || '/dashboard'
+  const isExistingUser = searchParams.get('existingUser') === 'true'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showExistingUserMessage, setShowExistingUserMessage] = useState(isExistingUser)
+
+  useEffect(() => {
+    // Pre-fill email if provided in URL
+    const emailParam = searchParams.get('email')
+    if (emailParam) {
+      setEmail(decodeURIComponent(emailParam))
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,6 +79,49 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
+
+        {/* Existing User Message */}
+        {showExistingUserMessage && (
+          <div className="rounded-md bg-blue-50 border border-blue-200 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-5 w-5 text-blue-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-blue-800">
+                  Welcome Back!
+                </h3>
+                <div className="mt-2 text-sm text-blue-700">
+                  <p>
+                    You already have reports associated with this email address.
+                    Please sign in to continue creating your new report.
+                  </p>
+                  <p className="mt-2">
+                    <strong>Don't have a password yet?</strong>{' '}
+                    <Link
+                      href="/forgot-password"
+                      className="underline hover:text-blue-900 font-medium"
+                    >
+                      Click here to set one up
+                    </Link>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
@@ -132,7 +185,7 @@ export default function LoginPage() {
                 href="/forgot-password"
                 className="font-medium text-blue-600 hover:text-blue-500"
               >
-                Forgot your password?
+                Forgot password?
               </Link>
             </div>
           </div>

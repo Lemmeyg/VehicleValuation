@@ -30,6 +30,16 @@ export default async function DashboardPage() {
 
   const reportCount = reports?.length || 0
 
+  // Fetch user's lead submissions
+  const { data: leads } = await supabase
+    .from('supplier_leads')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(5)
+
+  const leadCount = leads?.length || 0
+
   return (
     <div className="animate-fade-in-up">
       <div className="mb-8">
@@ -105,8 +115,8 @@ export default async function DashboardPage() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-semibold text-slate-600 truncate">Saved Services</dt>
-                  <dd className="text-2xl font-bold text-slate-900">0</dd>
+                  <dt className="text-sm font-semibold text-slate-600 truncate">Lead Submissions</dt>
+                  <dd className="text-2xl font-bold text-slate-900">{leadCount}</dd>
                 </dl>
               </div>
             </div>
@@ -116,7 +126,7 @@ export default async function DashboardPage() {
               href="/directory"
               className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 flex items-center group-hover:translate-x-1 transition-transform"
             >
-              Browse directory →
+              {leadCount > 0 ? 'View your leads →' : 'Browse directory →'}
             </Link>
           </div>
         </div>
@@ -126,7 +136,7 @@ export default async function DashboardPage() {
           <div className="p-6 bg-gradient-to-br from-white to-slate-50">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className="h-12 w-12 rounded-lg bg-blue-600 flex items-center justify-center">
+                <div className="h-12 w-12 rounded-lg bg-emerald-600 flex items-center justify-center">
                   <svg
                     className="h-6 w-6 text-white"
                     fill="none"
@@ -152,8 +162,8 @@ export default async function DashboardPage() {
           </div>
           <div className="bg-slate-50 border-t border-slate-100 px-6 py-3">
             <Link
-              href="/#knowledge-base"
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center group-hover:translate-x-1 transition-transform"
+              href="/knowledge-base"
+              className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 flex items-center group-hover:translate-x-1 transition-transform"
             >
               Browse articles →
             </Link>
@@ -163,6 +173,7 @@ export default async function DashboardPage() {
 
       {/* Reports Section */}
       <div className="mt-8 glass-card rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+        {/* Fixed Header - Always visible */}
         <div className="px-6 py-4 bg-gradient-to-r from-primary-50 to-emerald-50 border-b border-slate-200">
           <div className="flex items-center justify-between">
             <div>
@@ -207,8 +218,8 @@ export default async function DashboardPage() {
             </div>
           </div>
         ) : (
-          /* Reports List */
-          <div className="divide-y divide-slate-100">
+          /* Scrollable Reports List with fixed height and visible scrollbar */
+          <div className="h-[500px] overflow-y-scroll divide-y divide-slate-100">
             {reports?.map(report => (
               <Link
                 key={report.id}
@@ -237,12 +248,12 @@ export default async function DashboardPage() {
                         <p className="text-sm font-medium text-slate-900">
                           VIN: <span className="font-mono">{report.vin}</span>
                         </p>
-                        {report.vehicle_data?.year &&
-                          report.vehicle_data?.make &&
-                          report.vehicle_data?.model && (
+                        {report.autodev_vin_data?.vehicle?.year &&
+                          report.autodev_vin_data?.make &&
+                          report.autodev_vin_data?.model && (
                             <p className="text-sm text-slate-600">
-                              {report.vehicle_data.year} {report.vehicle_data.make}{' '}
-                              {report.vehicle_data.model}
+                              {report.autodev_vin_data.vehicle.year} {report.autodev_vin_data.make}{' '}
+                              {report.autodev_vin_data.model}
                             </p>
                           )}
                         <p className="text-xs text-slate-500 mt-1">
@@ -290,6 +301,98 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Recent Lead Submissions Section */}
+      {leadCount > 0 && (
+        <div className="mt-8 glass-card rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+          <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-blue-50 border-b border-slate-200">
+            <h2 className="text-xl font-bold text-slate-900">Your Lead Submissions</h2>
+            <p className="text-sm text-slate-600 mt-1">
+              {leadCount} lead{leadCount !== 1 ? 's' : ''} submitted to service providers
+            </p>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {leads?.map(lead => (
+              <div key={lead.id} className="p-6 hover:bg-slate-50 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="flex-shrink-0">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                          <svg
+                            className="h-5 w-5 text-emerald-700"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">
+                          {lead.supplier_slug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                        </h3>
+                        <p className="text-xs text-slate-600">
+                          Service: {lead.service_needed?.replace(/_/g, ' ')}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-700 line-clamp-2 ml-13">
+                      {lead.message}
+                    </p>
+                    <div className="flex items-center gap-4 mt-3 ml-13">
+                      <p className="text-xs text-slate-500">
+                        Submitted{' '}
+                        {new Date(lead.created_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Prefer: {lead.preferred_contact_method}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center ml-4">
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                        lead.status === 'converted'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : lead.status === 'contacted'
+                            ? 'bg-blue-100 text-blue-800'
+                            : lead.status === 'new'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-slate-100 text-slate-800'
+                      }`}
+                    >
+                      {lead.status.charAt(0).toUpperCase() + lead.status.slice(1)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {leadCount > 5 && (
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 text-center">
+              <Link
+                href="/directory"
+                className="text-sm font-semibold text-emerald-600 hover:text-emerald-700"
+              >
+                View all {leadCount} leads →
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

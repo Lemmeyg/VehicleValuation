@@ -46,10 +46,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                   Payments
                 </Link>
                 <Link
+                  href="/admin/api-logs"
+                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700"
+                >
+                  API Logs
+                </Link>
+                <Link
                   href="/admin/users"
                   className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700"
                 >
                   Users
+                </Link>
+                <Link
+                  href="/admin/knowledge-base"
+                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700"
+                >
+                  Knowledge Base
+                </Link>
+                <Link
+                  href="/admin/directory"
+                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700"
+                >
+                  Directory
                 </Link>
               </div>
             </div>

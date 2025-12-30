@@ -12,8 +12,12 @@ const NAV_ITEMS = [
   { label: 'Professional Services Directory', href: '#services-directory' },
 ]
 
-export default function Navbar() {
-  const [isScrolled, setIsScrolled] = useState(false)
+interface NavbarProps {
+  alwaysScrolled?: boolean
+}
+
+export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
+  const [isScrolled, setIsScrolled] = useState(alwaysScrolled)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
@@ -21,12 +25,18 @@ export default function Navbar() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // If alwaysScrolled is true, don't attach scroll listener
+    if (alwaysScrolled) {
+      setIsScrolled(true)
+      return
+    }
+
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20)
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+  }, [alwaysScrolled])
 
   useEffect(() => {
     const checkAuth = async () => {

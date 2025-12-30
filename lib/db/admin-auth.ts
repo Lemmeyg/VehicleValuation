@@ -16,12 +16,20 @@ export async function isAdmin(userId: string): Promise<boolean> {
   const { data: user, error } = await supabaseAdmin.auth.admin.getUserById(userId)
 
   if (error || !user) {
+    console.log('[ADMIN_CHECK] Failed to fetch user:', { userId, error: error?.message })
     return false
   }
 
   // Check user_metadata for admin flag
   // In production, you'd query a separate admins or user_roles table
   const isAdmin = user.user.user_metadata?.is_admin === true
+
+  console.log('[ADMIN_CHECK] User admin status:', {
+    userId,
+    email: user.user.email,
+    isAdmin,
+    userMetadata: user.user.user_metadata,
+  })
 
   return isAdmin
 }

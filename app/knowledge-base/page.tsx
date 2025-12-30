@@ -7,65 +7,16 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { BookOpen, Clock, Tag } from 'lucide-react'
+import { getAllArticles } from '@/lib/knowledge-base-db'
+import Link from 'next/link'
 
-interface Article {
-  id: number
-  title: string
-  description: string
-  category: 'new' | 'popular'
-  readTime: string
-  tags: string[]
+export const metadata = {
+  title: 'Knowledge Base | Vehicle Valuation Authority',
+  description: 'Expert guides and resources to help you understand vehicle valuation, insurance claims, and your rights',
 }
 
-const ARTICLES: Article[] = [
-  {
-    id: 1,
-    title: 'Understanding VIN Numbers',
-    description:
-      "Learn what each digit in your VIN reveals about your vehicle's specifications and history.",
-    category: 'popular',
-    readTime: '5 min read',
-    tags: ['VIN', 'Vehicle Info'],
-  },
-  {
-    id: 2,
-    title: "Market Factors Affecting Your Car's Value",
-    description:
-      'Discover how seasonal demand, regional trends, and supply chain impact vehicle valuations.',
-    category: 'new',
-    readTime: '7 min read',
-    tags: ['Valuation', 'Market Trends'],
-  },
-  {
-    id: 3,
-    title: 'How to Prepare for an Appraisal',
-    description:
-      'Get the best valuation by following these professional appraisal preparation steps.',
-    category: 'popular',
-    readTime: '4 min read',
-    tags: ['Appraisal', 'Tips'],
-  },
-  {
-    id: 4,
-    title: 'Total Loss Claims: What You Need to Know',
-    description:
-      'Navigate the total loss process and ensure you receive fair compensation for your vehicle.',
-    category: 'new',
-    readTime: '6 min read',
-    tags: ['Insurance', 'Total Loss'],
-  },
-  {
-    id: 5,
-    title: 'Diminished Value Explained',
-    description:
-      "Understanding how accidents affect your vehicle's resale value and how to claim diminished value.",
-    category: 'popular',
-    readTime: '5 min read',
-    tags: ['Diminished Value', 'Claims'],
-  },
-]
-
-export default function KnowledgeBasePage() {
+export default async function KnowledgeBasePage() {
+  const articles = await getAllArticles()
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -83,26 +34,21 @@ export default function KnowledgeBasePage() {
 
           {/* Articles Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {ARTICLES.map(article => (
-              <div
-                key={article.id}
+            {articles.map(article => (
+              <Link
+                key={article.slug}
+                href={`/knowledge-base/${article.slug}`}
                 className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all cursor-pointer group border border-slate-100 hover:border-primary-200"
               >
                 <div className="p-6">
                   {/* Badge */}
                   <div className="flex items-center justify-between mb-4">
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                        article.category === 'new'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-primary-100 text-primary-700'
-                      }`}
-                    >
+                    <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase bg-primary-100 text-primary-700">
                       {article.category}
                     </span>
                     <div className="flex items-center text-slate-500 text-sm">
                       <Clock className="h-4 w-4 mr-1" />
-                      {article.readTime}
+                      {article.readingTime}
                     </div>
                   </div>
 
@@ -135,7 +81,7 @@ export default function KnowledgeBasePage() {
                   </div>
 
                   {/* Read More */}
-                  <button className="text-primary-600 font-semibold text-sm hover:text-primary-700 flex items-center">
+                  <div className="text-primary-600 font-semibold text-sm hover:text-primary-700 flex items-center">
                     Read Article
                     <svg
                       className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform"
@@ -150,9 +96,9 @@ export default function KnowledgeBasePage() {
                         d="M9 5l7 7-7 7"
                       />
                     </svg>
-                  </button>
+                  </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

@@ -80,19 +80,19 @@ export default function Directory() {
   }
 
   return (
-    <section id="directory" className="py-24 bg-slate-900 relative overflow-hidden">
+    <section id="services-directory" className="py-24 bg-gradient-to-b from-white to-slate-50 relative overflow-hidden">
       {/* Background blob */}
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-emerald-900/20 rounded-full blur-[100px] pointer-events-none animate-blob" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center mb-16">
-          <span className="text-emerald-400 font-semibold tracking-wide uppercase text-sm">
+          <span className="text-emerald-600 font-semibold tracking-wide uppercase text-sm">
             Professional Network
           </span>
-          <h2 className="text-3xl md:text-4xl font-bold text-white mt-3 mb-6">
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-3 mb-6">
             Connect with Trusted Professionals
           </h2>
-          <p className="text-slate-400 max-w-2xl mx-auto text-lg">
+          <p className="text-slate-600 max-w-2xl mx-auto text-lg">
             Find certified experts who understand your challenges and fight for fair compensation.
           </p>
         </div>
@@ -124,41 +124,41 @@ export default function Directory() {
             >
               {PROFESSIONALS.map(pro => (
                 <div key={pro.id} className="w-full flex-shrink-0 px-4">
-                  <div className="glass-panel p-8 rounded-2xl hover:bg-white/10 transition-colors">
+                  <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
                     <div className="flex items-start justify-between mb-6">
                       <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-full border-2 border-emerald-500/30 bg-gradient-to-br from-primary-500 to-emerald-600 flex items-center justify-center">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-emerald-600 flex items-center justify-center shadow-lg">
                           <User className="h-8 w-8 text-white" />
                         </div>
                         <div>
-                          <h3 className="text-white font-bold text-xl">{pro.name}</h3>
-                          <p className="text-emerald-400 text-sm">{pro.role}</p>
+                          <h3 className="text-slate-900 font-bold text-xl">{pro.name}</h3>
+                          <p className="text-emerald-600 text-sm font-medium">{pro.role}</p>
                         </div>
                       </div>
-                      {pro.rating >= 4.9 && <BadgeCheck className="text-blue-400 h-7 w-7" />}
+                      {pro.rating >= 4.9 && <BadgeCheck className="text-primary-600 h-7 w-7" />}
                     </div>
 
                     {/* Value Proposition */}
-                    <div className="mb-6 bg-white/5 p-4 rounded-lg border border-white/10">
-                      <p className="text-slate-200 leading-relaxed italic">
+                    <div className="mb-6 bg-gradient-to-br from-primary-50 to-emerald-50 p-4 rounded-lg border border-primary-100">
+                      <p className="text-slate-700 leading-relaxed italic">
                         &ldquo;{pro.valueProposition}&rdquo;
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-6 text-slate-300 text-sm mb-6 border-y border-white/5 py-4">
+                    <div className="flex items-center gap-6 text-slate-600 text-sm mb-6 border-y border-slate-100 py-4">
                       <div className="flex items-center">
-                        <MapPin className="h-4 w-4 mr-1 text-slate-500" /> {pro.location}
+                        <MapPin className="h-4 w-4 mr-1 text-slate-400" /> {pro.location}
                       </div>
                       <div className="flex items-center">
                         <Star className="h-4 w-4 mr-1 text-yellow-500 fill-yellow-500" />
-                        <span className="font-bold text-white mr-1">{pro.rating}</span>
+                        <span className="font-bold text-slate-900 mr-1">{pro.rating}</span>
                         <span className="text-slate-500">({pro.reviewCount} reviews)</span>
                       </div>
                     </div>
 
                     <Button
-                      variant="outline"
-                      className="w-full border-white/20 text-slate-200 hover:bg-emerald-600 hover:border-emerald-600 hover:text-white"
+                      variant="primary"
+                      className="w-full"
                     >
                       View Profile
                     </Button>

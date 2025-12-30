@@ -6,6 +6,7 @@
 
 import React from 'react'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
+import { getTopListings } from '@/lib/utils/listing-filters'
 
 // Define styles for the PDF
 const styles = StyleSheet.create({
@@ -83,41 +84,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#059669',
   },
-  accidentBox: {
-    padding: 10,
-    marginBottom: 10,
-    backgroundColor: '#fef2f2',
-    borderLeft: '3 solid #dc2626',
-  },
-  accidentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
-  },
-  accidentTitle: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  severityBadge: {
-    fontSize: 9,
-    color: '#dc2626',
-    backgroundColor: '#fee2e2',
-    padding: '3 8',
-    borderRadius: 3,
-  },
-  accidentDetail: {
-    fontSize: 9,
-    color: '#6b7280',
-    marginBottom: 3,
-  },
-  noAccidents: {
-    padding: 15,
-    backgroundColor: '#f0fdf4',
-    borderLeft: '3 solid #16a34a',
-    fontSize: 10,
-    color: '#166534',
-  },
   footer: {
     position: 'absolute',
     bottom: 30,
@@ -159,46 +125,123 @@ const styles = StyleSheet.create({
     color: '#92400e',
     marginBottom: 2,
   },
+  // Comparable vehicles section styles
+  comparablesSection: {
+    marginBottom: 20,
+  },
+  comparableCard: {
+    marginBottom: 10,
+    padding: 10,
+    backgroundColor: '#f9fafb',
+    borderLeft: '3 solid #2563eb',
+    borderRadius: 4,
+  },
+  comparableHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  comparableTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  comparablePrice: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#059669',
+  },
+  comparableDetails: {
+    fontSize: 9,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  comparableLocation: {
+    fontSize: 9,
+    color: '#6b7280',
+    fontStyle: 'italic',
+  },
+  comparableDistance: {
+    fontSize: 8,
+    color: '#9ca3af',
+  },
 })
 
-interface VehicleData {
-  year?: string
-  make?: string
-  model?: string
-  trim?: string
-  bodyType?: string
+// Auto.dev VIN Decode Data (from database: autodev_vin_data column)
+interface AutoDevVinData {
+  vin: string
+  vinValid: boolean
+  wmi: string
+  checkDigit: string
+  checksum: boolean
+  origin: string
+  make: string
+  model: string
+  trim: string
+  style?: string
+  body?: string
+  type?: string
   engine?: string
+  drive?: string
   transmission?: string
-  driveType?: string
+  ambiguous?: boolean
+  vehicle: {
+    vin: string
+    year: number
+    make: string
+    model: string
+    manufacturer: string
+  }
 }
 
-interface Accident {
-  accidentDate?: string
-  location?: string
-  severity?: string
-  damageDescription?: string
-  estimatedCost?: number
+interface MarketCheckComparable {
+  vin?: string
+  year: number
+  make: string
+  model: string
+  trim?: string
+  miles: number
+  price: number
+  dealer_type?: 'franchise' | 'independent'
+  location?: {
+    city?: string
+    state?: string
+    zip?: string
+    distance_miles?: number
+  }
+  listing_date?: string
+  days_on_market?: number
+  source: string
 }
 
-interface AccidentDetails {
-  accidents?: Accident[]
-}
-
-interface Valuation {
-  lowValue: number
-  averageValue: number
-  highValue: number
-  confidence: string
-  dataPoints: number
+interface MarketCheckValuation {
+  predictedPrice: number
+  priceRange?: {
+    min: number
+    max: number
+  }
+  confidence: 'low' | 'medium' | 'high'
+  dataSource: string
+  requestParams: {
+    vin: string
+    miles: number
+    zip: string
+    dealer_type: 'franchise' | 'independent'
+  }
+  totalComparablesFound: number
+  recentComparables?: {
+    num_found: number
+    listings: MarketCheckComparable[]
+  }
+  generatedAt: string
 }
 
 interface ReportData {
   vin: string
   reportType: 'BASIC' | 'PREMIUM'
   createdAt: string
-  vehicleData?: VehicleData
-  accidentDetails?: AccidentDetails
-  valuationResult?: Valuation
+  autodevVinData?: AutoDevVinData
+  marketcheckValuation?: MarketCheckValuation
 }
 
 export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
@@ -211,6 +254,10 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
     }).format(amount)
   }
 
+  const formatMileage = (miles: number) => {
+    return new Intl.NumberFormat('en-US').format(miles)
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -218,6 +265,27 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
       day: 'numeric',
     })
   }
+
+  // Get ALL listings from data and filter to top 10 for PDF
+  const allListings = data.marketcheckValuation?.recentComparables?.listings || []
+  const displayedComparables = getTopListings(allListings, 10)
+
+  // Extract vehicle data from Auto.dev VIN decode
+  const vehicleYear = data.autodevVinData?.vehicle?.year
+  const vehicleMake = data.autodevVinData?.make
+  const vehicleModel = data.autodevVinData?.model
+  const vehicleTrim = data.autodevVinData?.trim
+  const vehicleBody = data.autodevVinData?.body || data.autodevVinData?.style
+  const vehicleEngine = data.autodevVinData?.engine
+  const vehicleTransmission = data.autodevVinData?.transmission
+  const vehicleDrive = data.autodevVinData?.drive
+
+  // Extract valuation data from MarketCheck
+  const predictedPrice = data.marketcheckValuation?.predictedPrice || 0
+  const priceMin = data.marketcheckValuation?.priceRange?.min || Math.round(predictedPrice * 0.9)
+  const priceMax = data.marketcheckValuation?.priceRange?.max || Math.round(predictedPrice * 1.1)
+  const confidence = data.marketcheckValuation?.confidence || 'medium'
+  const dataPoints = data.marketcheckValuation?.totalComparablesFound || 0
 
   return (
     <Document>
@@ -241,133 +309,139 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
         </View>
 
         {/* Vehicle Information */}
-        {data.vehicleData && (
+        {data.autodevVinData && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Vehicle Information</Text>
-            {data.vehicleData.year && (
+            {vehicleYear && (
               <View style={styles.row}>
                 <Text style={styles.label}>Year:</Text>
-                <Text style={styles.value}>{data.vehicleData.year}</Text>
+                <Text style={styles.value}>{vehicleYear}</Text>
               </View>
             )}
-            {data.vehicleData.make && (
+            {vehicleMake && (
               <View style={styles.row}>
                 <Text style={styles.label}>Make:</Text>
-                <Text style={styles.value}>{data.vehicleData.make}</Text>
+                <Text style={styles.value}>{vehicleMake}</Text>
               </View>
             )}
-            {data.vehicleData.model && (
+            {vehicleModel && (
               <View style={styles.row}>
                 <Text style={styles.label}>Model:</Text>
-                <Text style={styles.value}>{data.vehicleData.model}</Text>
+                <Text style={styles.value}>{vehicleModel}</Text>
               </View>
             )}
-            {data.vehicleData.trim && (
+            {vehicleTrim && (
               <View style={styles.row}>
                 <Text style={styles.label}>Trim:</Text>
-                <Text style={styles.value}>{data.vehicleData.trim}</Text>
+                <Text style={styles.value}>{vehicleTrim}</Text>
               </View>
             )}
-            {data.vehicleData.bodyType && (
+            {vehicleBody && (
               <View style={styles.row}>
                 <Text style={styles.label}>Body Type:</Text>
-                <Text style={styles.value}>{data.vehicleData.bodyType}</Text>
+                <Text style={styles.value}>{vehicleBody}</Text>
               </View>
             )}
-            {data.vehicleData.engine && (
+            {vehicleEngine && (
               <View style={styles.row}>
                 <Text style={styles.label}>Engine:</Text>
-                <Text style={styles.value}>{data.vehicleData.engine}</Text>
+                <Text style={styles.value}>{vehicleEngine}</Text>
               </View>
             )}
-            {data.vehicleData.transmission && (
+            {vehicleTransmission && (
               <View style={styles.row}>
                 <Text style={styles.label}>Transmission:</Text>
-                <Text style={styles.value}>{data.vehicleData.transmission}</Text>
+                <Text style={styles.value}>{vehicleTransmission}</Text>
               </View>
             )}
-            {data.vehicleData.driveType && (
+            {vehicleDrive && (
               <View style={styles.row}>
                 <Text style={styles.label}>Drive Type:</Text>
-                <Text style={styles.value}>{data.vehicleData.driveType}</Text>
+                <Text style={styles.value}>{vehicleDrive}</Text>
               </View>
             )}
           </View>
         )}
 
         {/* Market Valuation */}
-        {data.valuationResult && (
+        {data.marketcheckValuation && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Market Valuation</Text>
             <View style={styles.valuationContainer}>
               <View style={styles.valuationBox}>
-                <Text style={styles.valuationLabel}>Low Value</Text>
+                <Text style={styles.valuationLabel}>Low Range</Text>
                 <Text style={styles.valuationValue}>
-                  {formatCurrency(data.valuationResult.lowValue)}
+                  {formatCurrency(priceMin)}
                 </Text>
               </View>
               <View style={styles.valuationBox}>
-                <Text style={styles.valuationLabel}>Average Value</Text>
+                <Text style={styles.valuationLabel}>Market Value</Text>
                 <Text style={styles.valuationValueHighlight}>
-                  {formatCurrency(data.valuationResult.averageValue)}
+                  {formatCurrency(predictedPrice)}
                 </Text>
               </View>
               <View style={styles.valuationBox}>
-                <Text style={styles.valuationLabel}>High Value</Text>
+                <Text style={styles.valuationLabel}>High Range</Text>
                 <Text style={styles.valuationValue}>
-                  {formatCurrency(data.valuationResult.highValue)}
+                  {formatCurrency(priceMax)}
                 </Text>
               </View>
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Confidence Level:</Text>
-              <Text style={styles.value}>{data.valuationResult.confidence}</Text>
+              <Text style={styles.value}>{confidence.toUpperCase()}</Text>
             </View>
             <View style={styles.row}>
-              <Text style={styles.label}>Data Points Analyzed:</Text>
-              <Text style={styles.value}>{data.valuationResult.dataPoints}</Text>
+              <Text style={styles.label}>Comparable Vehicles Analyzed:</Text>
+              <Text style={styles.value}>{dataPoints.toLocaleString()}</Text>
             </View>
           </View>
         )}
 
-        {/* Accident History (Premium Only) */}
-        {data.reportType === 'PREMIUM' && data.accidentDetails && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Accident History</Text>
-            {data.accidentDetails.accidents && data.accidentDetails.accidents.length === 0 ? (
-              <View style={styles.noAccidents}>
-                <Text>No accidents reported for this vehicle.</Text>
-              </View>
-            ) : (
-              data.accidentDetails.accidents?.map((accident, index) => (
-                <View key={index} style={styles.accidentBox}>
-                  <View style={styles.accidentHeader}>
-                    <Text style={styles.accidentTitle}>Accident {index + 1}</Text>
-                    {accident.severity && (
-                      <Text style={styles.severityBadge}>{accident.severity}</Text>
-                    )}
-                  </View>
-                  {accident.accidentDate && (
-                    <Text style={styles.accidentDetail}>Date: {accident.accidentDate}</Text>
-                  )}
-                  {accident.location && (
-                    <Text style={styles.accidentDetail}>Location: {accident.location}</Text>
-                  )}
-                  {accident.damageDescription && (
-                    <Text style={styles.accidentDetail}>
-                      Description: {accident.damageDescription}
-                    </Text>
-                  )}
-                  {accident.estimatedCost && (
-                    <Text style={styles.accidentDetail}>
-                      Estimated Cost: {formatCurrency(accident.estimatedCost)}
-                    </Text>
-                  )}
+        {/* Comparable Vehicles Section */}
+        {displayedComparables.length > 0 && (
+          <View style={styles.comparablesSection}>
+            <Text style={styles.sectionTitle}>
+              Comparable Vehicles (Top {displayedComparables.length} of {allListings.length})
+            </Text>
+            <Text style={styles.subtitle}>
+              Similar vehicles currently listed for sale near you
+            </Text>
+            {displayedComparables.map((comparable, index) => (
+              <View key={index} style={styles.comparableCard}>
+                <View style={styles.comparableHeader}>
+                  <Text style={styles.comparableTitle}>
+                    {comparable.year} {comparable.make} {comparable.model}
+                    {comparable.trim && ` ${comparable.trim}`}
+                  </Text>
+                  <Text style={styles.comparablePrice}>{formatCurrency(comparable.price)}</Text>
                 </View>
-              ))
-            )}
+                <Text style={styles.comparableDetails}>
+                  Mileage: {formatMileage(comparable.miles)} miles
+                  {comparable.dealer_type && ` • ${comparable.dealer_type} dealer`}
+                </Text>
+                {comparable.location && (
+                  <>
+                    <Text style={styles.comparableLocation}>
+                      {comparable.location.city}, {comparable.location.state} {comparable.location.zip}
+                    </Text>
+                    {comparable.location.distance_miles !== undefined && (
+                      <Text style={styles.comparableDistance}>
+                        {comparable.location.distance_miles.toFixed(1)} miles away
+                      </Text>
+                    )}
+                  </>
+                )}
+                {comparable.days_on_market && (
+                  <Text style={styles.comparableDetails}>
+                    Days on market: {comparable.days_on_market}
+                  </Text>
+                )}
+              </View>
+            ))}
           </View>
         )}
+
 
         {/* Money-Back Guarantee */}
         <View style={styles.guaranteeBox}>

@@ -54,8 +54,11 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/reports') ||
     request.nextUrl.pathname === '/profile'
 
+  // Allow auth callback page without authentication (needed for magic link)
+  const isAuthCallbackPage = request.nextUrl.pathname === '/auth/callback'
+
   // Redirect to login if accessing protected route without authentication
-  if (isProtectedRoute && !user) {
+  if (isProtectedRoute && !user && !isAuthCallbackPage) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'
     redirectUrl.searchParams.set('redirect', request.nextUrl.pathname)

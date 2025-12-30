@@ -15,6 +15,8 @@ export default function NewReportPage() {
   const router = useRouter()
 
   const [vin, setVin] = useState('')
+  const [mileage, setMileage] = useState('')
+  const [zipCode, setZipCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -40,13 +42,32 @@ export default function NewReportPage() {
         return
       }
 
+      // Validate mileage
+      const mileageNum = parseInt(mileage)
+      if (isNaN(mileageNum) || mileageNum < 0 || mileageNum > 999999) {
+        setError('Please enter a valid mileage between 0 and 999,999')
+        setLoading(false)
+        return
+      }
+
+      // Validate ZIP code
+      if (zipCode.length !== 5) {
+        setError('Please enter a valid 5-digit ZIP code')
+        setLoading(false)
+        return
+      }
+
       // Create report and fetch data from APIs
       const response = await fetch('/api/reports/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ vin: sanitized }),
+        body: JSON.stringify({
+          vin: sanitized,
+          mileage: mileageNum,
+          zipCode: zipCode,
+        }),
       })
 
       const data = await response.json()
@@ -61,8 +82,8 @@ export default function NewReportPage() {
         return
       }
 
-      // Success! Redirect to report details
-      router.push(`/reports/${data.report.id}`)
+      // Success! Redirect to pricing page to select report tier
+      router.push(`/pricing?reportId=${data.report.id}`)
     } catch (err) {
       console.error('Error creating report:', err)
       setError('An unexpected error occurred')
@@ -143,6 +164,64 @@ export default function NewReportPage() {
                 )}
               </div>
 
+              {/* Mileage Input */}
+              <div>
+                <label htmlFor="mileage" className="block text-sm font-semibold text-slate-700 mb-2">
+                  Current Mileage
+                </label>
+                <div className="mt-1">
+                  <input
+                    type="number"
+                    id="mileage"
+                    name="mileage"
+                    value={mileage}
+                    onChange={e => setMileage(e.target.value)}
+                    min="0"
+                    max="999999"
+                    placeholder="e.g., 42000"
+                    className="appearance-none block w-full px-4 py-3 border-2 border-slate-200 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base transition-all"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  Enter the current odometer reading in miles.
+                </p>
+              </div>
+
+              {/* ZIP Code Input */}
+              <div>
+                <label htmlFor="zipCode" className="block text-sm font-semibold text-slate-700 mb-2">
+                  ZIP Code
+                </label>
+                <div className="mt-1">
+                  <input
+                    type="text"
+                    id="zipCode"
+                    name="zipCode"
+                    value={zipCode}
+                    onChange={e =>
+                      setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))
+                    }
+                    maxLength={5}
+                    placeholder="e.g., 90210"
+                    className="appearance-none block w-full px-4 py-3 border-2 border-slate-200 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base font-mono transition-all"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  Your location helps us find accurate comparable vehicles in your area.
+                </p>
+                {zipCode.length > 0 && (
+                  <p
+                    className={`mt-1 text-sm font-medium ${zipCode.length === 5 ? 'text-primary-600' : 'text-slate-500'}`}
+                  >
+                    {zipCode.length}/5 digits
+                  </p>
+                )}
+              </div>
+
               {/* Error Message */}
               {error && (
                 <div className="rounded-md bg-red-50 p-4">
@@ -193,10 +272,10 @@ export default function NewReportPage() {
                       <ul className="list-disc pl-5 space-y-1">
                         <li>We&apos;ll validate your VIN and retrieve vehicle information</li>
                         <li>
-                          You&apos;ll review the details and select a report type ($29 or $49)
+                          You&apos;ll see pricing options for Basic ($29) or Premium ($49) reports
                         </li>
-                        <li>After payment, we&apos;ll generate your comprehensive report</li>
-                        <li>Reports are typically ready within 24-48 hours</li>
+                        <li>Select your preferred report tier and complete checkout</li>
+                        <li>Get instant access to your comprehensive valuation report</li>
                       </ul>
                     </div>
                   </div>
@@ -213,7 +292,7 @@ export default function NewReportPage() {
                 </Link>
                 <button
                   type="submit"
-                  disabled={loading || vin.length !== 17}
+                  disabled={loading || vin.length !== 17 || !mileage || zipCode.length !== 5}
                   className="inline-flex justify-center py-3 px-8 border border-transparent shadow-md text-base font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
                 >
                   {loading ? (

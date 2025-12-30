@@ -65,7 +65,6 @@ export interface LemonSqueezyCheckoutResponse {
       created_at: string
       updated_at: string
       test_mode: boolean
-      url: string
     }
   }
 }

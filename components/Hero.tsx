@@ -218,9 +218,9 @@ export default function Hero() {
             </p>
 
             <p className="text-lg text-slate-300 mb-6 leading-relaxed max-w-lg">
-              Insurance adjusters undervalue 9 out of 10 total loss claims—by an average of 30%.
-              Don&apos;t settle without knowing your vehicle&apos;s true market value. Get the same
-              data-backed appraisal used by professional adjusters to level the playing field.
+              Insurance adjusters undervalue 9 out of 10 total loss claims.
+              Don&apos;t settle without knowing your vehicle&apos;s true market value. Get an independent
+              data-backed appraisal to level the playing field.
             </p>
 
             {/* Trust Indicators Row */}
@@ -247,7 +247,7 @@ export default function Hero() {
             >
               {/* Email Field */}
               <div className="mb-4">
-                <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-2">
+                <label htmlFor="email" className="block text-sm font-semibold text-slate-900 mb-2">
                   Your Email Address
                 </label>
                 <input
@@ -256,13 +256,13 @@ export default function Hero() {
                   value={email}
                   onChange={handleEmailChange}
                   placeholder="you@example.com"
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-slate-900 ${
                     errors.email ? 'border-red-400' : 'border-slate-200'
                   }`}
                   aria-required="true"
                   aria-describedby="email-helper email-error"
                 />
-                <p id="email-helper" className="text-xs text-slate-500 mt-1">
+                <p id="email-helper" className="text-xs text-slate-700 mt-1">
                   We&apos;ll send your report here—no spam, ever.
                 </p>
                 {errors.email && (
@@ -275,7 +275,7 @@ export default function Hero() {
               {/* VIN Field */}
               <div className="mb-4 relative">
                 <div className="flex items-center justify-between mb-2">
-                  <label htmlFor="vin" className="block text-sm font-semibold text-slate-700">
+                  <label htmlFor="vin" className="block text-sm font-semibold text-slate-900">
                     Vehicle Identification Number (VIN)
                   </label>
                   <button
@@ -284,7 +284,7 @@ export default function Hero() {
                     onMouseLeave={() => setShowVinTooltip(false)}
                     onFocus={() => setShowVinTooltip(true)}
                     onBlur={() => setShowVinTooltip(false)}
-                    className="text-slate-500 hover:text-slate-700"
+                    className="text-slate-600 hover:text-slate-800"
                     aria-label="VIN help"
                   >
                     <HelpCircle className="h-4 w-4" />
@@ -297,13 +297,13 @@ export default function Hero() {
                   onChange={handleVinChange}
                   maxLength={17}
                   placeholder="1HGCM82633A123456"
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm ${
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm text-slate-900 ${
                     errors.vin ? 'border-red-400' : 'border-slate-200'
                   }`}
                   aria-required="true"
                   aria-describedby="vin-helper vin-error"
                 />
-                <p id="vin-helper" className="text-xs text-slate-500 mt-1">
+                <p id="vin-helper" className="text-xs text-slate-700 mt-1">
                   17 characters, no spaces. {vin.length}/17
                 </p>
                 {errors.vin && (
@@ -330,7 +330,7 @@ export default function Hero() {
               <div className="mb-4">
                 <label
                   htmlFor="mileage"
-                  className="block text-sm font-semibold text-slate-700 mb-2"
+                  className="block text-sm font-semibold text-slate-900 mb-2"
                 >
                   Mileage
                 </label>
@@ -342,13 +342,13 @@ export default function Hero() {
                   min="0"
                   max="999999"
                   placeholder="e.g., 42000"
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-slate-900 ${
                     errors.mileage ? 'border-red-400' : 'border-slate-200'
                   }`}
                   aria-required="true"
                   aria-describedby="mileage-helper mileage-error"
                 />
-                <p id="mileage-helper" className="text-xs text-slate-500 mt-1">
+                <p id="mileage-helper" className="text-xs text-slate-700 mt-1">
                   Current odometer reading
                 </p>
                 {errors.mileage && (
@@ -362,7 +362,7 @@ export default function Hero() {
               <div className="mb-6">
                 <label
                   htmlFor="zipCode"
-                  className="block text-sm font-semibold text-slate-700 mb-2"
+                  className="block text-sm font-semibold text-slate-900 mb-2"
                 >
                   ZIP Code
                 </label>
@@ -373,13 +373,13 @@ export default function Hero() {
                   onChange={handleZipCodeChange}
                   maxLength={5}
                   placeholder="e.g., 90210"
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm ${
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm text-slate-900 ${
                     errors.zipCode ? 'border-red-400' : 'border-slate-200'
                   }`}
                   aria-required="true"
                   aria-describedby="zipcode-helper zipcode-error"
                 />
-                <p id="zipcode-helper" className="text-xs text-slate-500 mt-1">
+                <p id="zipcode-helper" className="text-xs text-slate-700 mt-1">
                   Where is the vehicle located? {zipCode.length}/5
                 </p>
                 {errors.zipCode && (
@@ -410,12 +410,12 @@ export default function Hero() {
               </Button>
 
               {/* Below-Button Microcopy */}
-              <p className="text-center text-xs text-slate-500 mt-4">
+              <p className="text-center text-xs text-slate-700 mt-4">
                 Takes 60 seconds • No credit card required • Instant results
               </p>
 
               {/* Data Source Footnote */}
-              <p className="text-center text-[10px] text-slate-400 mt-3 leading-tight">
+              <p className="text-center text-[10px] text-slate-600 mt-3 leading-tight">
                 Data based on 2023-2025 closed claim analysis. Independent appraisals increased
                 settlements by 34% on average across all total loss cases. Source: AppraiseItNow,
                 2025.

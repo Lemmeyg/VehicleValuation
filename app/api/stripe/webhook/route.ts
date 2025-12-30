@@ -130,6 +130,132 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   console.log(`Payment successful for report ${reportId}`)
 
+  // ===== NEW: Call MarketCheck API AFTER payment confirmation =====
+  try {
+    // Import validation and API client
+    const { validateBeforeMarketCheckCall } = await import('@/lib/security/report-validation')
+    const { fetchMarketCheckData } = await import('@/lib/api/marketcheck-client')
+
+    // Validate before API call (security check)
+    const validation = await validateBeforeMarketCheckCall(reportId, userId)
+
+    if (!validation.valid) {
+      console.error(`[MarketCheck] Validation failed for report ${reportId}:`, validation.error)
+      // Continue to PDF generation without MarketCheck data (graceful degradation)
+    } else {
+      const { vin, mileage, zip_code } = validation.data!
+
+      // Fetch full report to get vehicle_data for filtering comparables
+      const { data: report, error: reportError } = await supabaseAdmin
+        .from('reports')
+        .select('vin, mileage, zip_code, vehicle_data')
+        .eq('id', reportId)
+        .single()
+
+      // Extract subject vehicle info for filtering comparables
+      const subjectVehicle = report?.vehicle_data
+        ? {
+            make: report.vehicle_data.make,
+            model: report.vehicle_data.model,
+            trim: report.vehicle_data.trim,
+          }
+        : undefined
+
+      console.log(`[MarketCheck] Calling API for report ${reportId}`, {
+        vin,
+        mileage,
+        zip_code,
+        subjectVehicle,
+      })
+
+      const apiStartTime = Date.now()
+
+      // Call MarketCheck API with retry logic and subject vehicle for filtering
+      const marketcheckResult = await fetchMarketCheckData(
+        vin,
+        mileage,
+        zip_code,
+        false, // is_certified - default to false
+        undefined, // retryConfig (use default)
+        subjectVehicle // NEW: Pass subject vehicle for filtering comparables
+      )
+
+      const apiResponseTime = Date.now() - apiStartTime
+
+      if (marketcheckResult.success && marketcheckResult.data) {
+        console.log(`[MarketCheck] API success for report ${reportId}`, {
+          predictedPrice: marketcheckResult.data.predictedPrice,
+          comparables: marketcheckResult.data.comparablesReturned,
+          responseTimeMs: apiResponseTime,
+        })
+
+        // Store MarketCheck results in database
+        const { error: mcUpdateError } = await supabaseAdmin
+          .from('reports')
+          .update({
+            marketcheck_valuation: marketcheckResult.data,
+            // IMPORTANT: Also update valuation_result to MarketCheck (replaces CarsXE)
+            valuation_result: {
+              predictedPrice: marketcheckResult.data.predictedPrice,
+              lowValue: marketcheckResult.data.priceRange?.min || Math.round(marketcheckResult.data.predictedPrice * 0.9),
+              averageValue: marketcheckResult.data.predictedPrice,
+              highValue: marketcheckResult.data.priceRange?.max || Math.round(marketcheckResult.data.predictedPrice * 1.1),
+              confidence: marketcheckResult.data.confidence,
+              dataPoints: marketcheckResult.data.totalComparablesFound,
+              dataSource: 'marketcheck',
+            },
+          })
+          .eq('id', reportId)
+
+        if (mcUpdateError) {
+          console.error(`[MarketCheck] Error saving results for report ${reportId}:`, mcUpdateError)
+        }
+
+        // Log API call for cost tracking
+        await supabaseAdmin.from('api_call_logs').insert({
+          report_id: reportId,
+          api_provider: 'marketcheck',
+          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+          cost: 0.09, // $0.09 per call
+          success: true,
+          response_time_ms: apiResponseTime,
+          request_data: {
+            vin,
+            mileage,
+            zip_code,
+            dealer_type: 'franchise',
+          },
+          response_data: {
+            predicted_price: marketcheckResult.data.predictedPrice,
+            comparables_count: marketcheckResult.data.comparablesReturned,
+          },
+        })
+      } else {
+        console.error(`[MarketCheck] API failed for report ${reportId}:`, marketcheckResult.error)
+
+        // Log failed API call
+        await supabaseAdmin.from('api_call_logs').insert({
+          report_id: reportId,
+          api_provider: 'marketcheck',
+          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+          cost: 0.00, // No cost for failed calls
+          success: false,
+          error_message: marketcheckResult.error,
+          response_time_ms: apiResponseTime,
+          request_data: {
+            vin,
+            mileage,
+            zip_code,
+            dealer_type: 'franchise',
+          },
+        })
+      }
+    }
+  } catch (mcError) {
+    console.error(`[MarketCheck] Exception for report ${reportId}:`, mcError)
+    // Non-fatal: continue to PDF generation
+  }
+
   // Trigger PDF generation in background
   // Note: In production, you'd use a job queue like BullMQ or Inngest
   // For now, we'll generate immediately but this could timeout for complex reports

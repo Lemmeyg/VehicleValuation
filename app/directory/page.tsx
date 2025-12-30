@@ -1,78 +1,51 @@
 /**
  * Directory Page
  *
- * Displays all professional service providers
+ * Displays all service providers with CMS-driven content and filtering
  */
 
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { MapPin, Star, BadgeCheck, User } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
+import SupplierCard from '@/components/directory/SupplierCard'
+import SupplierFilters from '@/components/directory/SupplierFilters'
+import { getAllSuppliers, getAvailableStates, getServiceTypes, getSpecialtyOptions } from '@/lib/suppliers-db'
+import { Suspense } from 'react'
+import type { Metadata } from 'next'
 
-interface Professional {
-  id: number
-  name: string
-  role: string
-  location: string
-  rating: number
-  reviewCount: number
-  valueProposition: string
+export const metadata: Metadata = {
+  title: 'Provider Directory - Vehicle Appraisers & Claims Advocates | Vehicle Valuation Authority',
+  description:
+    'Find certified professionals to help with insurance claims. Nationwide coverage for total loss, diminished value, and appraisals.',
 }
 
-const PROFESSIONALS: Professional[] = [
-  {
-    id: 1,
-    name: 'Sarah Johnson',
-    role: 'Certified Auto Appraiser',
-    location: 'Chicago, IL',
-    rating: 4.9,
-    reviewCount: 124,
-    valueProposition:
-      'Get fair market valuations backed by 15 years of expertise. I help accident victims navigate insurance claims and secure maximum settlements.',
-  },
-  {
-    id: 2,
-    name: 'Michael Chen',
-    role: 'Senior Vehicle Inspector',
-    location: 'San Francisco, CA',
-    rating: 5.0,
-    reviewCount: 89,
-    valueProposition:
-      "Don't let insurance companies undervalue your claim. My detailed inspections uncover hidden damage and ensure you receive proper compensation.",
-  },
-  {
-    id: 3,
-    name: 'Jennifer Davis',
-    role: 'Dealership Valuation Expert',
-    location: 'Miami, FL',
-    rating: 4.8,
-    reviewCount: 56,
-    valueProposition:
-      'Struggling with total loss disputes? I provide independent valuations that protect your financial interests against lowball insurance offers.',
-  },
-  {
-    id: 4,
-    name: 'Robert Martinez',
-    role: 'Collision Damage Specialist',
-    location: 'Houston, TX',
-    rating: 4.9,
-    reviewCount: 142,
-    valueProposition:
-      'Overwhelmed by the claims process? I simplify complex valuations and fight for every dollar you deserve after an accident.',
-  },
-  {
-    id: 5,
-    name: 'Emily Thompson',
-    role: 'Insurance Claim Advocate',
-    location: 'Seattle, WA',
-    rating: 5.0,
-    reviewCount: 98,
-    valueProposition:
-      "Tired of insurance delays and denials? I expedite your claim with professional documentation that insurance companies can't ignore.",
-  },
-]
+interface SearchParams {
+  state?: string
+  serviceType?: string
+  specialties?: string
+}
 
-export default function DirectoryPage() {
+interface DirectoryPageProps {
+  searchParams: Promise<SearchParams>
+}
+
+export default async function DirectoryPage({ searchParams }: DirectoryPageProps) {
+  const params = await searchParams
+
+  // Parse filters from URL
+  const filters = {
+    state: params.state,
+    serviceType: params.serviceType as 'appraiser' | 'body_shop' | 'advocate' | 'attorney' | undefined,
+    specialties: params.specialties?.split(',').filter(Boolean),
+  }
+
+  // Get filtered suppliers
+  const suppliers = await getAllSuppliers(filters)
+
+  // Get filter options
+  const availableStates = getAvailableStates()
+  const serviceTypes = getServiceTypes()
+  const specialtyOptions = getSpecialtyOptions()
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -85,61 +58,112 @@ export default function DirectoryPage() {
               Professional Directory
             </h1>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Connect with certified experts who understand your challenges and fight for fair
-              compensation
+              Connect with certified experts who specialize in helping vehicle owners deal with
+              insurance carriers and secure fair compensation
             </p>
           </div>
 
-          {/* Professionals Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {PROFESSIONALS.map(pro => (
-              <div
-                key={pro.id}
-                className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all p-6 border border-slate-100 hover:border-primary-200"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full border-2 border-primary-200 bg-gradient-to-br from-primary-500 to-emerald-600 flex items-center justify-center">
-                      <User className="h-7 w-7 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900">{pro.name}</h3>
-                      <p className="text-sm text-primary-600">{pro.role}</p>
-                    </div>
-                  </div>
-                  {pro.rating >= 4.9 && <BadgeCheck className="text-blue-500 h-6 w-6" />}
-                </div>
+          {/* Two-Column Layout: Filters + Results */}
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Filters Sidebar */}
+            <aside className="lg:w-64 flex-shrink-0">
+              <Suspense fallback={<FiltersSkeleton />}>
+                <SupplierFilters
+                  availableStates={availableStates}
+                  serviceTypes={serviceTypes}
+                  specialties={specialtyOptions}
+                />
+              </Suspense>
+            </aside>
 
-                {/* Value Proposition */}
-                <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
-                  <p className="text-sm text-slate-700 leading-relaxed italic">
-                    &ldquo;{pro.valueProposition}&rdquo;
-                  </p>
-                </div>
-
-                {/* Details */}
-                <div className="flex items-center justify-between text-sm text-slate-600 mb-4 pb-4 border-b border-slate-100">
-                  <div className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {pro.location}
-                  </div>
-                  <div className="flex items-center">
-                    <Star className="h-4 w-4 mr-1 text-yellow-500 fill-yellow-500" />
-                    <span className="font-bold text-slate-900">{pro.rating}</span>
-                    <span className="text-slate-500 ml-1">({pro.reviewCount})</span>
-                  </div>
-                </div>
-
-                <Button variant="outline" className="w-full">
-                  View Profile
-                </Button>
+            {/* Results */}
+            <div className="flex-1">
+              {/* Results Count */}
+              <div className="mb-6">
+                <p className="text-sm text-slate-600">
+                  Showing <span className="font-semibold text-slate-900">{suppliers.length}</span>{' '}
+                  {suppliers.length === 1 ? 'provider' : 'providers'}
+                  {(filters.state || filters.serviceType || filters.specialties?.length) && (
+                    <span> matching your filters</span>
+                  )}
+                </p>
               </div>
-            ))}
+
+              {/* Suppliers Grid */}
+              {suppliers.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-xl border border-slate-100">
+                  <div className="max-w-md mx-auto">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg
+                        className="w-8 h-8 text-slate-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                      No providers found
+                    </h3>
+                    <p className="text-slate-600 mb-4">
+                      No professionals match your current filter criteria. Try adjusting your
+                      filters.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {suppliers.map(supplier => (
+                    <SupplierCard key={supplier.slug} supplier={supplier} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* CTA Section */}
+          <div className="mt-16 bg-gradient-to-br from-primary-600 to-emerald-600 rounded-2xl p-8 md:p-12 text-white text-center">
+            <h2 className="text-3xl font-bold mb-4">Don't See Your Area?</h2>
+            <p className="text-lg text-white/90 mb-6 max-w-2xl mx-auto">
+              We're constantly expanding our network of trusted professionals. Check back soon or
+              get an independent valuation report to use in your negotiations.
+            </p>
+            <a
+              href="/reports/new"
+              className="inline-block px-8 py-3 bg-white text-primary-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors shadow-lg"
+            >
+              Get Valuation Report
+            </a>
           </div>
         </div>
       </main>
 
       <Footer />
+    </div>
+  )
+}
+
+/**
+ * Loading skeleton for filters
+ */
+function FiltersSkeleton() {
+  return (
+    <div className="hidden lg:block bg-white rounded-xl shadow-md p-6 border border-slate-100">
+      <div className="space-y-6">
+        <div className="h-6 bg-slate-200 rounded animate-pulse" />
+        <div className="h-10 bg-slate-200 rounded animate-pulse" />
+        <div className="space-y-3">
+          <div className="h-4 bg-slate-200 rounded animate-pulse" />
+          <div className="h-4 bg-slate-200 rounded animate-pulse" />
+          <div className="h-4 bg-slate-200 rounded animate-pulse" />
+        </div>
+      </div>
     </div>
   )
 }

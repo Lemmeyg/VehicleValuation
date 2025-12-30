@@ -152,7 +152,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                     />
                   </svg>
                   <span>
-                    Your comprehensive vehicle report is being generated
+                    Click "View Full Report" to see your complete valuation analysis
                   </span>
                 </li>
                 <li className="flex items-start">
@@ -170,7 +170,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                     />
                   </svg>
                   <span>
-                    Reports are typically ready within 24-48 hours
+                    View dual price predictions from CarsXE and MarketCheck
                   </span>
                 </li>
                 <li className="flex items-start">
@@ -188,7 +188,25 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                     />
                   </svg>
                   <span>
-                    You'll receive an email when your report is ready
+                    See 10 comparable vehicles with detailed pricing and location data
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <svg
+                    className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span>
+                    Download your professional PDF report (if available)
                   </span>
                 </li>
                 <li className="flex items-start">
@@ -224,18 +242,18 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 href={`/reports/${reportId}`}
-                className="inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="inline-flex justify-center items-center px-8 py-4 border border-transparent text-lg font-semibold rounded-lg text-white bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all shadow-lg"
               >
-                View Report Details
+                View Full Report
               </Link>
               <Link
                 href="/dashboard"
-                className="inline-flex justify-center items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="inline-flex justify-center items-center px-8 py-4 border-2 border-slate-300 text-lg font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none transition-all"
               >
-                Back to Dashboard
+                Go to Dashboard
               </Link>
             </div>
           </div>
