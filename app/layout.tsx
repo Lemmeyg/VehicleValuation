@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from 'sonner'
+import { PostHogProvider } from './providers/posthog-provider'
+import { PostHogPageView } from './providers/posthog-pageview'
+import { Suspense } from 'react'
 import './globals.css'
 
 const geistSans = Geist({
@@ -27,8 +30,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
-        <Toaster position="top-right" richColors closeButton />
+        <PostHogProvider>
+          <Suspense fallback={null}>
+            <PostHogPageView />
+          </Suspense>
+          {children}
+          <Toaster position="top-right" richColors closeButton />
+        </PostHogProvider>
       </body>
     </html>
   )
