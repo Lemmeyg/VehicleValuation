@@ -8,35 +8,16 @@ import { Menu, X, LogOut, LayoutDashboard } from 'lucide-react'
 
 const NAV_ITEMS = [
   { label: 'Vehicle Valuation Report', href: '#hero-form' },
-  { label: 'Articles', href: '#knowledge-base' },
-  { label: 'Professional Services Directory', href: '#services-directory' },
+  { label: 'Articles', href: '/knowledge-base' },
+  { label: 'Directory', href: '/directory' },
 ]
 
-interface NavbarProps {
-  alwaysScrolled?: boolean
-}
-
-export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
-  const [isScrolled, setIsScrolled] = useState(alwaysScrolled)
+export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    // If alwaysScrolled is true, don't attach scroll listener
-    if (alwaysScrolled) {
-      setIsScrolled(true)
-      return
-    }
-
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20)
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [alwaysScrolled])
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -87,18 +68,12 @@ export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
   }
 
   return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled ? 'glass-navbar border-b border-slate-200 shadow-sm py-3' : 'bg-transparent py-5'
-      }`}
-    >
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-emerald-100 shadow-sm py-3">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center">
           {/* Logo */}
           <Link href="/" className="flex items-center">
-            <span className={`text-2xl font-bold ${isScrolled ? 'text-slate-900' : 'text-white'}`}>
-              Vehicle Valuation
-            </span>
+            <span className="text-2xl font-bold text-emerald-700">Vehicle Valuation</span>
           </Link>
 
           {/* Desktop Links */}
@@ -109,9 +84,7 @@ export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className={`text-base font-medium hover:text-primary-500 transition-colors ${
-                    isScrolled ? 'text-slate-600' : 'text-slate-200 hover:text-white'
-                  }`}
+                  className="text-base font-medium text-slate-700 hover:text-emerald-600 transition-colors"
                 >
                   {item.label}
                 </Link>
@@ -120,9 +93,7 @@ export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
                   key={item.label}
                   href={item.href}
                   onClick={e => handleNavClick(e, item.href)}
-                  className={`text-base font-medium hover:text-primary-500 transition-colors cursor-pointer ${
-                    isScrolled ? 'text-slate-600' : 'text-slate-200 hover:text-white'
-                  }`}
+                  className="text-base font-medium text-slate-700 hover:text-emerald-600 transition-colors cursor-pointer"
                 >
                   {item.label}
                 </a>
@@ -138,22 +109,14 @@ export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
                   <>
                     <Link
                       href="/dashboard"
-                      className={`flex items-center text-sm font-medium ${
-                        isScrolled
-                          ? 'text-slate-600 hover:text-primary-600'
-                          : 'text-white hover:text-primary-200'
-                      }`}
+                      className="flex items-center text-sm font-medium text-slate-700 hover:text-emerald-600"
                     >
                       <LayoutDashboard className="h-4 w-4 mr-1" />
                       Dashboard
                     </Link>
                     <button
                       onClick={handleLogout}
-                      className={`flex items-center text-sm font-medium ${
-                        isScrolled
-                          ? 'text-slate-600 hover:text-red-600'
-                          : 'text-white hover:text-red-200'
-                      }`}
+                      className="flex items-center text-sm font-medium text-slate-700 hover:text-red-600"
                     >
                       <LogOut className="h-4 w-4 mr-1" />
                       Sign Out
@@ -163,16 +126,12 @@ export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
                   <>
                     <Link
                       href="/login"
-                      className={`text-sm font-medium ${
-                        isScrolled
-                          ? 'text-slate-600 hover:text-primary-600'
-                          : 'text-white hover:text-primary-200'
-                      }`}
+                      className="text-sm font-medium text-slate-700 hover:text-emerald-600"
                     >
                       Login
                     </Link>
                     <Link href="/signup">
-                      <Button variant={isScrolled ? 'primary' : 'glass'} size="sm">
+                      <Button variant="primary" size="sm">
                         Sign Up
                       </Button>
                     </Link>
@@ -184,10 +143,7 @@ export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
 
           {/* Mobile Toggle */}
           <div className="md:hidden">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={isScrolled ? 'text-slate-900' : 'text-white'}
-            >
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-slate-700">
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>

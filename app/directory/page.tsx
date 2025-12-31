@@ -8,14 +8,23 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import SupplierCard from '@/components/directory/SupplierCard'
 import SupplierFilters from '@/components/directory/SupplierFilters'
-import { getAllSuppliers, getAvailableStates, getServiceTypes, getSpecialtyOptions } from '@/lib/suppliers-db'
+import {
+  getAllSuppliers,
+  getAvailableStates,
+  getServiceTypes,
+  getSpecialtyOptions,
+} from '@/lib/suppliers-db'
+import { getUser, getUserProfile } from '@/lib/db/auth'
+import { createServerSupabaseClient } from '@/lib/db/supabase'
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import ContactUsDialog from '@/components/directory/ContactUsDialog'
 
 export const metadata: Metadata = {
-  title: 'Provider Directory - Vehicle Appraisers & Claims Advocates | Vehicle Valuation Authority',
+  title:
+    'Professional Services Directory - Vehicle Appraisers & Claims Advocates | Vehicle Valuation Authority',
   description:
-    'Find certified professionals to help with insurance claims. Nationwide coverage for total loss, diminished value, and appraisals.',
+    'Connect with experts who help vehicle owners understand their situation and make the right decision for them.',
 }
 
 interface SearchParams {
@@ -34,7 +43,12 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
   // Parse filters from URL
   const filters = {
     state: params.state,
-    serviceType: params.serviceType as 'appraiser' | 'body_shop' | 'advocate' | 'attorney' | undefined,
+    serviceType: params.serviceType as
+      | 'appraiser'
+      | 'body_shop'
+      | 'advocate'
+      | 'attorney'
+      | undefined,
     specialties: params.specialties?.split(',').filter(Boolean),
   }
 
@@ -42,9 +56,28 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
   const suppliers = await getAllSuppliers(filters)
 
   // Get filter options
-  const availableStates = getAvailableStates()
+  const availableStates = await getAvailableStates()
   const serviceTypes = getServiceTypes()
   const specialtyOptions = getSpecialtyOptions()
+
+  // Get user information
+  const user = await getUser()
+  const profile = await getUserProfile()
+  const isAuthenticated = !!user
+  const userName = profile?.full_name || user?.email?.split('@')[0] || ''
+  const userEmail = user?.email || ''
+
+  // Get user's favorited suppliers
+  let favoritedSlugs: string[] = []
+  if (user) {
+    const supabase = await createServerSupabaseClient()
+    const { data: favorites } = await supabase
+      .from('user_saved_suppliers')
+      .select('supplier_slug')
+      .eq('user_id', user.id)
+
+    favoritedSlugs = favorites?.map(f => f.supplier_slug) || []
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -55,11 +88,15 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
           {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-              Professional Directory
+              Professional Services Directory
             </h1>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Connect with certified experts who specialize in helping vehicle owners deal with
-              insurance carriers and secure fair compensation
+              Connect with experts who help vehicle owners understand their situation and make the
+              right decision for them
+            </p>
+            <p className="text-sm text-slate-500 mt-3 max-w-2xl mx-auto">
+              These are independent service providers. We do not have any liability based on the
+              work they do.
             </p>
           </div>
 
@@ -120,7 +157,14 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {suppliers.map(supplier => (
-                    <SupplierCard key={supplier.slug} supplier={supplier} />
+                    <SupplierCard
+                      key={supplier.slug}
+                      supplier={supplier}
+                      isFavorited={favoritedSlugs.includes(supplier.slug)}
+                      isAuthenticated={isAuthenticated}
+                      userName={userName}
+                      userEmail={userEmail}
+                    />
                   ))}
                 </div>
               )}
@@ -129,17 +173,16 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
 
           {/* CTA Section */}
           <div className="mt-16 bg-gradient-to-br from-primary-600 to-emerald-600 rounded-2xl p-8 md:p-12 text-white text-center">
-            <h2 className="text-3xl font-bold mb-4">Don't See Your Area?</h2>
-            <p className="text-lg text-white/90 mb-6 max-w-2xl mx-auto">
-              We're constantly expanding our network of trusted professionals. Check back soon or
-              get an independent valuation report to use in your negotiations.
-            </p>
-            <a
-              href="/reports/new"
-              className="inline-block px-8 py-3 bg-white text-primary-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors shadow-lg"
-            >
-              Get Valuation Report
-            </a>
+            <h2 className="text-3xl font-bold mb-4">Don&apos;t see a provider for your need?</h2>
+            <div className="text-lg text-white/90 mb-6 max-w-2xl mx-auto">
+              Please{' '}
+              <ContactUsDialog
+                isAuthenticated={isAuthenticated}
+                userName={userName}
+                userEmail={userEmail}
+              />{' '}
+              and let us know what service you&apos;re looking for.
+            </div>
           </div>
         </div>
       </main>

@@ -105,3 +105,89 @@ body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
+
+/* Print Styles */
+@media print {
+  /* Hide navigation and buttons */
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset body for print */
+  body {
+    background: white;
+    color: black;
+  }
+
+  /* Ensure content fits on page */
+  @page {
+    margin: 0.5in;
+    size: letter;
+  }
+
+  /* Prevent page breaks inside important sections */
+  .bg-white.rounded-lg.border,
+  .bg-slate-50.rounded-lg.border {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Optimize table for print */
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  /* Remove background colors that waste ink */
+  .bg-slate-50,
+  .bg-emerald-50,
+  .bg-blue-50 {
+    background: white !important;
+  }
+
+  /* Ensure borders are visible */
+  .border,
+  .border-l-4,
+  .border-t {
+    border-color: #e5e7eb !important;
+  }
+
+  /* Add top margin to main content when nav is hidden */
+  .min-h-screen {
+    padding-top: 0 !important;
+  }
+
+  /* Optimize images for print */
+  img {
+    max-width: 100%;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure links are visible with href */
+  a[href]:after {
+    content: none; /* Don't show URLs in print */
+  }
+
+  /* Make text more readable */
+  body {
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  h1 {
+    font-size: 24pt;
+  }
+
+  h2 {
+    font-size: 18pt;
+  }
+
+  h3 {
+    font-size: 14pt;
+  }
+}

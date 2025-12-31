@@ -40,6 +40,15 @@ export default async function DashboardPage() {
 
   const leadCount = leads?.length || 0
 
+  // Fetch user's favorited suppliers
+  const { data: favorites } = await supabase
+    .from('user_saved_suppliers')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+
+  const favoritesCount = favorites?.length || 0
+
   return (
     <div className="animate-fade-in-up">
       <div className="mb-8">
@@ -97,26 +106,18 @@ export default async function DashboardPage() {
           <div className="p-6 bg-gradient-to-br from-white to-slate-50">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className="h-12 w-12 rounded-lg bg-emerald-600 flex items-center justify-center">
-                  <svg
-                    className="h-6 w-6 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                    />
+                <div className="h-12 w-12 rounded-lg bg-yellow-500 flex items-center justify-center">
+                  <svg className="h-6 w-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
                 </div>
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-semibold text-slate-600 truncate">Lead Submissions</dt>
-                  <dd className="text-2xl font-bold text-slate-900">{leadCount}</dd>
+                  <dt className="text-sm font-semibold text-slate-600 truncate">
+                    Favorite Providers
+                  </dt>
+                  <dd className="text-2xl font-bold text-slate-900">{favoritesCount}</dd>
                 </dl>
               </div>
             </div>
@@ -124,9 +125,9 @@ export default async function DashboardPage() {
           <div className="bg-slate-50 border-t border-slate-100 px-6 py-3">
             <Link
               href="/directory"
-              className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 flex items-center group-hover:translate-x-1 transition-transform"
+              className="text-sm font-semibold text-yellow-600 hover:text-yellow-700 flex items-center group-hover:translate-x-1 transition-transform"
             >
-              {leadCount > 0 ? 'View your leads →' : 'Browse directory →'}
+              {favoritesCount > 0 ? 'View favorites →' : 'Browse directory →'}
             </Link>
           </div>
         </div>
@@ -256,6 +257,22 @@ export default async function DashboardPage() {
                               {report.autodev_vin_data.model}
                             </p>
                           )}
+                        {report.mileage && (
+                          <p className="text-sm text-slate-600">
+                            Mileage: {report.mileage.toLocaleString('en-US')} miles
+                          </p>
+                        )}
+                        {report.marketcheck_valuation?.predictedPrice && (
+                          <p className="text-sm font-semibold text-emerald-700">
+                            Fair Market Value:{' '}
+                            {new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0,
+                            }).format(report.marketcheck_valuation.predictedPrice)}
+                          </p>
+                        )}
                         <p className="text-xs text-slate-500 mt-1">
                           Created{' '}
                           {new Date(report.created_at).toLocaleDateString('en-US', {
@@ -302,13 +319,72 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* Recent Lead Submissions Section */}
+      {/* Favorite Providers Section */}
+      {favoritesCount > 0 && (
+        <div className="mt-8 glass-card rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+          <div className="px-6 py-4 bg-gradient-to-r from-yellow-50 to-amber-50 border-b border-slate-200">
+            <h2 className="text-xl font-bold text-slate-900">Favorite Providers</h2>
+            <p className="text-sm text-slate-600 mt-1">
+              {favoritesCount} provider{favoritesCount !== 1 ? 's' : ''} saved
+            </p>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {favorites?.map(favorite => (
+              <div key={favorite.id} className="p-6 hover:bg-slate-50 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
+                          <svg
+                            className="h-5 w-5 text-yellow-600"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">
+                          {favorite.supplier_slug
+                            .replace(/-/g, ' ')
+                            .replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Saved{' '}
+                          {new Date(favorite.created_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center ml-4">
+                    <Link
+                      href={`/directory/${favorite.supplier_slug}`}
+                      className="text-sm font-semibold text-primary-600 hover:text-primary-700"
+                    >
+                      View →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Professional Services Directory Section */}
       {leadCount > 0 && (
         <div className="mt-8 glass-card rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
           <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-blue-50 border-b border-slate-200">
-            <h2 className="text-xl font-bold text-slate-900">Your Lead Submissions</h2>
+            <h2 className="text-xl font-bold text-slate-900">Professional Services Directory</h2>
             <p className="text-sm text-slate-600 mt-1">
-              {leadCount} lead{leadCount !== 1 ? 's' : ''} submitted to service providers
+              {leadCount} service{leadCount !== 1 ? 's' : ''} contacted from directory
             </p>
           </div>
 
@@ -337,16 +413,16 @@ export default async function DashboardPage() {
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-slate-900">
-                          {lead.supplier_slug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                          {lead.supplier_slug
+                            .replace(/-/g, ' ')
+                            .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                         </h3>
                         <p className="text-xs text-slate-600">
                           Service: {lead.service_needed?.replace(/_/g, ' ')}
                         </p>
                       </div>
                     </div>
-                    <p className="text-sm text-slate-700 line-clamp-2 ml-13">
-                      {lead.message}
-                    </p>
+                    <p className="text-sm text-slate-700 line-clamp-2 ml-13">{lead.message}</p>
                     <div className="flex items-center gap-4 mt-3 ml-13">
                       <p className="text-xs text-slate-500">
                         Submitted{' '}

@@ -218,9 +218,9 @@ export default function Hero() {
             </p>
 
             <p className="text-lg text-slate-300 mb-6 leading-relaxed max-w-lg">
-              Insurance adjusters undervalue 9 out of 10 total loss claims.
-              Don&apos;t settle without knowing your vehicle&apos;s true market value. Get an independent
-              data-backed appraisal to level the playing field.
+              Insurance adjusters undervalue 9 out of 10 total loss claims. Don&apos;t settle
+              without knowing your vehicle&apos;s true market value. Get an independent data-backed
+              appraisal to level the playing field.
             </p>
 
             {/* Trust Indicators Row */}
@@ -228,14 +228,6 @@ export default function Hero() {
               <div className="flex items-center">
                 <CheckCircle2 className="h-4 w-4 mr-2 text-primary-400" />
                 34% Avg Settlement Increase*
-              </div>
-              <div className="flex items-center">
-                <CheckCircle2 className="h-4 w-4 mr-2 text-primary-400" />
-                100% Success Rate*
-              </div>
-              <div className="flex items-center">
-                <CheckCircle2 className="h-4 w-4 mr-2 text-primary-400" />
-                Used by Professionals*
               </div>
             </div>
 

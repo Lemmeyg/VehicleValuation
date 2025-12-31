@@ -15,12 +15,12 @@ const PRICING_TIERS = [
     price: 29,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID!,
     features: [
-      'Complete Vehicle Specifications',
-      'Independent Market Value Range',
-      'Dual Price Predictions (CarsXE + MarketCheck)',
-      'Essential Vehicle History',
-      'Professional PDF Download',
-      'Email Support',
+      'Vehicle fair price valuation with low and high prices',
+      'Full market insights with all comparables mapped against your vehicle',
+      '10 Live listings with Links to dealer websites',
+      'Comparisons with Trim, Mileage, Price',
+      'PDF download',
+      'Comprehensive list of other factors contributing to higher vehicle values',
     ],
   },
   {
@@ -28,16 +28,7 @@ const PRICING_TIERS = [
     name: 'Premium Report',
     price: 49,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID!,
-    features: [
-      'Everything in Basic Report',
-      'Comprehensive Market Analysis',
-      '10 Comparable Vehicles with Full Details',
-      'Complete Vehicle History Report',
-      'Accident & Damage Documentation',
-      'Full Service Records',
-      'Priority Email & Phone Support',
-      'Maximum Negotiation Leverage',
-    ],
+    features: ['Same as Basic report', 'Two free updates of the report', 'Money Back guarantee'],
     recommended: true,
   },
 ]
@@ -299,14 +290,13 @@ function PricingContent() {
       setShowBetaModal(true)
     } catch (error) {
       console.error('Error fetching MarketCheck data:', error)
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to fetch market data',
-        { id: loadingToast }
-      )
+      toast.error(error instanceof Error ? error.message : 'Failed to fetch market data', {
+        id: loadingToast,
+      })
     }
   }
 
-  const handleSelectPlan = async (tier: typeof PRICING_TIERS[0]) => {
+  const handleSelectPlan = async (tier: (typeof PRICING_TIERS)[0]) => {
     if (!report) return
 
     // BETA MODE: Skip payment and show beta modal
@@ -338,14 +328,18 @@ function PricingContent() {
 
         // If user is authenticated (logged in existing user)
         if (sessionData.user) {
-          console.log('[PricingPage] Authenticated existing user - checking for existing MarketCheck data')
+          console.log(
+            '[PricingPage] Authenticated existing user - checking for existing MarketCheck data'
+          )
 
           // FIX #1: Only fetch if data doesn't exist (prevents duplicate API calls)
           if (!report.marketcheck_valuation) {
             console.log('[PricingPage] No existing MarketCheck data, fetching from API')
             await fetchMarketCheckData()
           } else {
-            console.log('[PricingPage] MarketCheck data already exists, skipping API call to avoid duplicate charge')
+            console.log(
+              '[PricingPage] MarketCheck data already exists, skipping API call to avoid duplicate charge'
+            )
           }
 
           setShowExistingUserModal(true)
@@ -360,7 +354,9 @@ function PricingContent() {
           console.log('[PricingPage] No existing MarketCheck data, fetching from API')
           await fetchMarketCheckData()
         } else {
-          console.log('[PricingPage] MarketCheck data already exists, skipping API call to avoid duplicate charge')
+          console.log(
+            '[PricingPage] MarketCheck data already exists, skipping API call to avoid duplicate charge'
+          )
         }
 
         // Magic link is sent automatically after MarketCheck success
@@ -374,7 +370,9 @@ function PricingContent() {
           console.log('[PricingPage] Error fallback - fetching MarketCheck data')
           await fetchMarketCheckData()
         } else {
-          console.log('[PricingPage] Error fallback - MarketCheck data already exists, skipping API call')
+          console.log(
+            '[PricingPage] Error fallback - MarketCheck data already exists, skipping API call'
+          )
         }
 
         sendMagicLink()
@@ -459,134 +457,149 @@ function PricingContent() {
       <main className="pt-24 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">
-              Your Vehicle Data is Ready
+          <div className="text-center mb-6">
+            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
+              Your Report is Being Prepared
             </h1>
-            <p className="text-lg text-slate-600">
+            <p className="text-base text-slate-600">
               Get prepared with a professional-grade independent valuation before you settle
             </p>
           </div>
 
           {/* Vehicle Info Card */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-            <div className="flex items-center mb-6">
-              <Car className="h-8 w-8 text-primary-600 mr-3" />
-              <h2 className="text-2xl font-bold text-slate-900">
-                {report.vehicle_data?.year} {report.vehicle_data?.make}{' '}
-                {report.vehicle_data?.model}
-              </h2>
-            </div>
+          <div className="bg-white rounded-2xl shadow-lg p-4 mb-4 max-w-4xl mx-auto">
+            <div className="flex items-center justify-between gap-6">
+              <div className="flex items-center gap-2">
+                <Car className="h-5 w-5 text-primary-600 flex-shrink-0" />
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* VIN */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <div className="text-sm text-slate-600 mb-1">VIN</div>
-                <div className="font-semibold text-slate-900 font-mono text-sm">{report.vin}</div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-600">VIN:</span>
+                <span className="font-semibold text-slate-900 font-mono text-xs">{report.vin}</span>
               </div>
 
               {/* Mileage */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <div className="text-sm text-slate-600 mb-1">Mileage</div>
-                <div className="font-semibold text-slate-900">
-                  {report.mileage.toLocaleString()} miles
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-600">Mileage:</span>
+                <span className="font-semibold text-slate-900 text-xs">
+                  {report.mileage.toLocaleString()} mi
+                </span>
               </div>
 
               {/* Location */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <div className="text-sm text-slate-600 mb-1">Location</div>
-                <div className="font-semibold text-slate-900">ZIP {report.zip_code}</div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-600">ZIP:</span>
+                <span className="font-semibold text-slate-900 text-xs">{report.zip_code}</span>
               </div>
             </div>
           </div>
 
           {/* Why Independent Valuation? Section */}
-          <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl shadow-lg p-8 md:p-12 mb-8">
+          <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl shadow-lg p-6 mb-6">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 text-center mb-6">
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 text-center mb-4">
                 Why Independent Valuation?
               </h2>
 
-              <p className="text-lg text-slate-700 text-center mb-8 leading-relaxed">
+              <p className="text-sm text-slate-700 text-center mb-4 leading-relaxed">
                 Insurance adjusters undervalue 9 out of 10 total loss claims—by an average of 30%.
-                Without independent verification, you're negotiating blind.
+                Without independent verification, you&apos;re negotiating blind.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="flex flex-col gap-3 mb-4 max-w-2xl mx-auto">
                 <div className="flex items-start">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-600 mr-3 flex-shrink-0 mt-1" />
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-slate-900 mb-1">100% Success Rate</h3>
-                    <p className="text-slate-600">Every independent appraisal increases settlements</p>
+                    <h3 className="font-semibold text-slate-900 text-sm mb-0.5">
+                      34% Average Increase
+                    </h3>
+                    <p className="text-slate-600 text-xs">
+                      Professional valuations recover significantly more
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex items-start">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-600 mr-3 flex-shrink-0 mt-1" />
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-slate-900 mb-1">34% Average Increase</h3>
-                    <p className="text-slate-600">Professional valuations recover significantly more</p>
+                    <h3 className="font-semibold text-slate-900 text-sm mb-0.5">
+                      Level Playing Field
+                    </h3>
+                    <p className="text-slate-600 text-xs">
+                      The same data adjusters use, now in your hands
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex items-start">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-600 mr-3 flex-shrink-0 mt-1" />
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-slate-900 mb-1">Level Playing Field</h3>
-                    <p className="text-slate-600">The same data adjusters use, now in your hands</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-600 mr-3 flex-shrink-0 mt-1" />
-                  <div>
-                    <h3 className="font-semibold text-slate-900 mb-1">Time-Sensitive</h3>
-                    <p className="text-slate-600">Most appraisals must be requested within 30-90 days of the initial offer</p>
+                    <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Time-Sensitive</h3>
+                    <p className="text-slate-600 text-xs">
+                      Most appraisals must be requested within 30-90 days of the initial offer
+                    </p>
                   </div>
                 </div>
               </div>
 
-              <p className="text-center text-slate-700 font-medium text-lg">
-                Don't leave money on the table. Get prepared with professional-grade market data before you settle.
+              <p className="text-center text-slate-700 font-medium text-sm">
+                Don&apos;t leave money on the table. Get prepared with professional-grade market
+                data before you settle.
               </p>
             </div>
           </div>
 
           {/* Pricing Tiers Section */}
           <div className="mb-12">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-slate-900 mb-2">Select Your Independent Valuation</h2>
-              <p className="text-slate-600">One-time payment • Instant access • 100% satisfaction guarantee</p>
+            <div className="text-center mb-6">
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
+                Select Your Independent Valuation Package
+              </h2>
+              <p className="text-sm text-slate-600">
+                One-time payment • Instant access • 100% satisfaction guarantee
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto md:items-start">
               {PRICING_TIERS.map(tier => (
                 <div
                   key={tier.id}
-                  className={`relative bg-white rounded-2xl shadow-lg p-8 transition-all hover:shadow-2xl border-2 ${
+                  className={`relative bg-white rounded-2xl shadow-lg p-8 transition-all hover:shadow-2xl border-2 flex flex-col ${
                     tier.recommended
-                      ? 'border-primary-500 transform md:scale-105'
+                      ? 'border-primary-500'
                       : 'border-slate-200 hover:border-primary-300'
                   }`}
                 >
-                  {tier.recommended && (
-                    <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-gradient-to-r from-primary-600 to-emerald-600 text-white px-4 py-1 rounded-full text-sm font-semibold shadow-lg">
-                        Recommended
-                      </span>
-                    </div>
-                  )}
-
                   <div className="text-center mb-6">
                     <h3 className="text-2xl font-bold text-slate-900 mb-2">{tier.name}</h3>
                     <div className="flex items-baseline justify-center mb-4">
                       <span className="text-5xl font-bold text-slate-900">${tier.price}</span>
                     </div>
-                    <p className="text-slate-600">One-time payment</p>
+                    <p className="text-slate-600 mb-4">One-time payment</p>
+
+                    <Button
+                      onClick={() => handleSelectPlan(tier)}
+                      disabled={processingPayment}
+                      className={`w-full py-6 text-lg font-semibold ${
+                        tier.recommended
+                          ? 'bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700'
+                          : 'bg-slate-900 hover:bg-slate-800'
+                      }`}
+                    >
+                      {processingPayment ? 'Processing...' : `Select ${tier.name} - $${tier.price}`}
+                    </Button>
+
+                    {tier.recommended && (
+                      <div className="mt-3">
+                        <span className="bg-gradient-to-r from-primary-600 to-emerald-600 text-white px-4 py-1 rounded-full text-sm font-semibold shadow-lg inline-block">
+                          Recommended
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  <ul className="space-y-3 mb-8">
+                  <ul className="space-y-3 flex-grow">
                     {tier.features.map((feature, index) => (
                       <li key={index} className="flex items-start">
                         <Check className="h-5 w-5 text-emerald-500 mr-3 flex-shrink-0 mt-0.5" />
@@ -594,28 +607,9 @@ function PricingContent() {
                       </li>
                     ))}
                   </ul>
-
-                  <Button
-                    onClick={() => handleSelectPlan(tier)}
-                    disabled={processingPayment}
-                    className={`w-full py-6 text-lg font-semibold ${
-                      tier.recommended
-                        ? 'bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700'
-                        : 'bg-slate-900 hover:bg-slate-800'
-                    }`}
-                  >
-                    {processingPayment ? 'Processing...' : `Select ${tier.name} - $${tier.price}`}
-                  </Button>
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Trust Indicators */}
-          <div className="text-center text-sm text-slate-600 space-y-2">
-            <p>🔒 Secure payment processing via Lemon Squeezy</p>
-            <p>📧 Instant access to your independent valuation</p>
-            <p>💯 100% success rate - Every appraisal increases settlements</p>
           </div>
         </div>
       </main>
@@ -624,8 +618,14 @@ function PricingContent() {
 
       {/* Beta Mode Modal - For Anonymous Users */}
       {showBetaModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowBetaModal(false)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8"
+            onClick={e => e.stopPropagation()}
+          >
             {/* Success Icon */}
             <div className="flex justify-center mb-4">
               <div className="rounded-full bg-gradient-to-r from-emerald-500 to-blue-500 p-3">
@@ -651,7 +651,8 @@ function PricingContent() {
                 Great News - This Report is FREE!
               </h2>
               <p className="text-lg text-slate-700 mb-4">
-                We're currently in beta, so all reports are completely free. Get the same professional-grade valuation that increases settlements by 34% on average.
+                We&apos;re currently in beta, so all reports are completely free. Get the same
+                professional-grade valuation that increases settlements by 34% on average.
               </p>
 
               {/* Email Verification Notice */}
@@ -675,9 +676,7 @@ function PricingContent() {
                       <p className="text-sm font-semibold text-red-900 mb-1">
                         Unable to Send Email
                       </p>
-                      <p className="text-sm text-red-800">
-                        {magicLinkError}
-                      </p>
+                      <p className="text-sm text-red-800">{magicLinkError}</p>
                       <button
                         onClick={sendMagicLink}
                         disabled={sendingMagicLink}
@@ -711,8 +710,9 @@ function PricingContent() {
                       <p className="text-sm text-blue-800">
                         {magicLinkSent ? (
                           <>
-                            We've sent a secure login link to <strong>{report?.email}</strong>.
-                            Click the link in your email to verify your account and access your free report.
+                            We&apos;ve sent a secure login link to <strong>{report?.email}</strong>.
+                            Click the link in your email to verify your account and access your free
+                            report.
                           </>
                         ) : (
                           'Please wait while we send your verification email...'
@@ -720,7 +720,7 @@ function PricingContent() {
                       </p>
                       {magicLinkSent && (
                         <p className="text-xs text-blue-700 mt-2">
-                          Don't see the email? Check your spam folder or{' '}
+                          Don&apos;t see the email? Check your spam folder or{' '}
                           <button
                             onClick={sendMagicLink}
                             disabled={sendingMagicLink}
@@ -768,8 +768,14 @@ function PricingContent() {
 
       {/* Existing User Modal - For Authenticated Users */}
       {showExistingUserModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowExistingUserModal(false)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8"
+            onClick={e => e.stopPropagation()}
+          >
             {/* Success Icon */}
             <div className="flex justify-center mb-4">
               <div className="rounded-full bg-gradient-to-r from-emerald-500 to-blue-500 p-3">
@@ -795,7 +801,8 @@ function PricingContent() {
                 Welcome Back - Your Report is Ready!
               </h2>
               <p className="text-lg text-slate-700 mb-4">
-                As an existing user, you have free access to your professional-grade independent valuation.
+                As an existing user, you have free access to your professional-grade independent
+                valuation.
               </p>
 
               <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded text-left">
