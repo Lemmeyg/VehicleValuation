@@ -1,0 +1,78 @@
+backend:
+  name: git-gateway
+  branch: main
+
+local_backend: true
+
+media_folder: "public/images/knowledge-base"
+public_folder: "/images/knowledge-base"
+
+collections:
+  - name: "knowledge-base"
+    label: "Knowledge Base"
+    folder: "content/knowledge-base"
+    create: true
+    slug: "{{category}}/{{slug}}"
+    path: "{{category}}/{{slug}}"
+    extension: "md"
+    format: "yaml-frontmatter"
+
+    editor:
+      preview: true
+
+    fields:
+      - { label: "Title", name: "title", widget: "string", required: true }
+      - { label: "Description", name: "description", widget: "text", required: true, hint: "150-160 characters for SEO" }
+      - { label: "Category", name: "category", widget: "select", required: true, options: ["Getting Started", "Total Loss Claims", "Diminished Value", "Insurance Negotiations", "Valuation Basics"] }
+      - { label: "Tags", name: "tags", widget: "list", required: true }
+      - { label: "Author", name: "author", widget: "string", default: "Vehicle Valuation Authority" }
+      - { label: "Published Date", name: "datePublished", widget: "datetime", format: "YYYY-MM-DD", required: true }
+      - { label: "Last Modified", name: "dateModified", widget: "datetime", format: "YYYY-MM-DD", required: true }
+      - { label: "Featured", name: "featured", widget: "boolean", default: false, hint: "Show on homepage" }
+      - { label: "Published", name: "published", widget: "boolean", default: false, hint: "Toggle to publish/unpublish" }
+      - { label: "Slug", name: "slug", widget: "string", required: true, hint: "URL-friendly version of title" }
+      - { label: "Body", name: "body", widget: "markdown", required: true }
+
+  - name: "suppliers"
+    label: "Service Providers"
+    folder: "content/suppliers"
+    create: true
+    slug: "{{serviceType}}/{{slug}}"
+    path: "{{serviceType}}/{{slug}}"
+    extension: "md"
+    format: "yaml-frontmatter"
+
+    editor:
+      preview: true
+
+    fields:
+      # Business Information
+      - { label: "Business Name", name: "businessName", widget: "string", required: true }
+      - { label: "Contact Name", name: "contactName", widget: "string", required: false }
+      - { label: "Email", name: "email", widget: "string", required: true }
+      - { label: "Phone", name: "phone", widget: "string", required: false }
+      - { label: "Website URL", name: "websiteUrl", widget: "string", required: false }
+
+      # Location
+      - { label: "City", name: "city", widget: "string", required: true }
+      - { label: "State", name: "state", widget: "select", required: true, options: ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"] }
+      - { label: "ZIP Code", name: "zipCode", widget: "string", required: false }
+
+      # Service Details
+      - { label: "Service Type", name: "serviceType", widget: "select", required: true, options: ["appraiser", "body_shop", "advocate", "attorney"] }
+      - { label: "Specialties", name: "specialties", widget: "list", required: true, hint: "e.g., total_loss, diminished_value, insurance_negotiation" }
+      - { label: "Value Proposition", name: "valueProposition", widget: "text", required: true, hint: "1-2 sentences describing what you offer" }
+      - { label: "Years in Business", name: "yearsInBusiness", widget: "number", required: false, min: 0, value_type: "int" }
+
+      # Credentials
+      - { label: "Certifications", name: "certifications", widget: "list", required: false }
+      - { label: "Insurance Accepted", name: "insuranceAccepted", widget: "list", required: false }
+
+      # Display Settings
+      - { label: "Featured", name: "featured", widget: "boolean", default: false, hint: "Featured providers appear first" }
+      - { label: "Verified", name: "verified", widget: "boolean", default: false, hint: "Verified badge displayed" }
+      - { label: "Published", name: "published", widget: "boolean", default: true, hint: "Toggle to publish/unpublish" }
+      - { label: "Slug", name: "slug", widget: "string", required: true, hint: "URL-friendly: business-name-city-state" }
+
+      # Full Content
+      - { label: "Profile Content", name: "body", widget: "markdown", required: true }

@@ -1,0 +1,481 @@
+# Admin Access Guide
+
+This guide explains how to access and use the admin dashboard to manage articles (Knowledge Base) and the directory (Suppliers).
+
+## Table of Contents
+1. [Getting Admin Access](#getting-admin-access)
+2. [Accessing Admin Pages](#accessing-admin-pages)
+3. [Managing Knowledge Base Articles](#managing-knowledge-base-articles)
+4. [Managing Directory Suppliers](#managing-directory-suppliers)
+5. [Other Admin Features](#other-admin-features)
+
+---
+
+## Getting Admin Access
+
+The admin system checks if your user account has the `is_admin` flag set to `true` in the user metadata.
+
+### Option 1: Set Admin Flag via Supabase Dashboard (Recommended)
+
+1. **Go to Supabase Dashboard**
+   - URL: https://supabase.com/dashboard
+   - Or direct project: https://supabase.com/dashboard/project/noijdbkcwcivewzwznru
+
+2. **Navigate to Authentication**
+   - Click "Authentication" in left sidebar
+   - Click "Users" tab
+
+3. **Find Your User Account**
+   - Look for your email address in the users list
+   - Click on your user row to open details
+
+4. **Edit User Metadata**
+   - Scroll to "Raw User Meta Data" section
+   - Click "Edit" button
+   - Add or update the JSON to include:
+   ```json
+   {
+     "is_admin": true
+   }
+   ```
+   - Click "Save"
+
+5. **Log Out and Log Back In**
+   - Go to http://localhost:3000
+   - Log out from your current session
+   - Log back in with your credentials
+   - The admin flag should now be active
+
+### Option 2: Set Admin Flag via SQL (Alternative)
+
+If you prefer using SQL:
+
+1. **Go to Supabase SQL Editor**
+   - URL: https://supabase.com/dashboard/project/noijdbkcwcivewzwznru/sql
+
+2. **Run This Query** (replace with your email):
+   ```sql
+   UPDATE auth.users
+   SET raw_user_meta_data = jsonb_set(
+     COALESCE(raw_user_meta_data, '{}'::jsonb),
+     '{is_admin}',
+     'true'::jsonb
+   )
+   WHERE email = 'your-email@example.com';
+   ```
+
+3. **Verify It Worked**
+   ```sql
+   SELECT email, raw_user_meta_data->>'is_admin' as is_admin
+   FROM auth.users
+   WHERE email = 'your-email@example.com';
+   ```
+
+4. **Log Out and Log Back In**
+
+### Option 3: Create Admin User Script (For Development)
+
+Create a script to set admin access:
+
+```bash
+# In your terminal
+cd "c:\Users\Gordo\Documents\Vehicle Comparison Site\vehicle-valuation-saas"
+
+# Create a simple Node.js script
+cat > set-admin.js << 'EOF'
+const { createClient } = require('@supabase/supabase-js')
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+})
+
+async function setAdminUser(email) {
+  // Get user by email
+  const { data: users, error: getUserError } = await supabase.auth.admin.listUsers()
+
+  if (getUserError) {
+    console.error('Error fetching users:', getUserError)
+    return
+  }
+
+  const user = users.users.find(u => u.email === email)
+
+  if (!user) {
+    console.error('User not found with email:', email)
+    return
+  }
+
+  // Update user metadata to set admin flag
+  const { data, error } = await supabase.auth.admin.updateUserById(user.id, {
+    user_metadata: { is_admin: true }
+  })
+
+  if (error) {
+    console.error('Error setting admin:', error)
+  } else {
+    console.log('✅ Admin access granted to:', email)
+    console.log('User ID:', user.id)
+  }
+}
+
+// Get email from command line argument
+const email = process.argv[2]
+if (!email) {
+  console.error('Usage: node set-admin.js your-email@example.com')
+  process.exit(1)
+}
+
+setAdminUser(email)
+EOF
+
+# Run the script with your email
+node set-admin.js your-email@example.com
+```
+
+---
+
+## Accessing Admin Pages
+
+Once you have admin access:
+
+### 1. Admin Dashboard Overview
+- **URL:** http://localhost:3000/admin
+- **Purpose:** View system statistics, recent activity
+- **Features:**
+  - Total reports generated
+  - Total revenue
+  - Recent user signups
+  - API usage statistics
+
+### 2. Reports Management
+- **URL:** http://localhost:3000/admin/reports
+- **Purpose:** View and manage all user reports
+- **Features:**
+  - View all reports in the system
+  - Filter by status, user, date
+  - View detailed report information
+  - Delete or modify reports
+
+### 3. User Management
+- **URL:** http://localhost:3000/admin/users
+- **Purpose:** Manage user accounts
+- **Features:**
+  - View all registered users
+  - See user activity
+  - Manage user permissions
+  - View user reports
+
+### 4. Payments
+- **URL:** http://localhost:3000/admin/payments
+- **Purpose:** View payment transactions
+- **Features:**
+  - All payment records
+  - Revenue analytics
+  - Payment status tracking
+
+---
+
+## Managing Knowledge Base Articles
+
+### Using the Admin Portal File Upload Tool
+
+**Recommended Method:** Use the built-in file upload feature in the admin portal to manage Knowledge Base articles.
+
+#### Accessing the File Upload Tool
+
+1. **Navigate to Admin Portal**
+   - Go to http://localhost:3000/admin
+   - Ensure you have admin access (see [Getting Admin Access](#getting-admin-access))
+
+2. **Access Content Management**
+   - Look for "Knowledge Base" or "Content Management" section in the admin dashboard
+   - Click on the file upload/management tool
+
+3. **Upload or Edit Articles**
+   - Use the upload interface to add new article files
+   - Edit existing articles directly in the admin portal
+   - Files will be automatically synced to the production server
+
+### Article Format Requirements
+
+When creating articles (whether uploaded or edited in the portal), use this format:
+
+```markdown
+---
+title: "How to Read a VIN Number"
+slug: "how-to-read-vin"
+category: "vehicle-basics"
+description: "Learn how to decode your Vehicle Identification Number"
+publishedAt: "2024-12-19"
+author: "Gordon Lemmey"
+readTime: "5 min read"
+---
+
+# How to Read a VIN Number
+
+Your article content here...
+```
+
+### Article Categories
+
+Available categories:
+- `vehicle-basics` - Vehicle fundamentals and identification
+- `insurance-claims` - Insurance claim processes and tips
+- `valuation-process` - How vehicle valuation works
+- `buying-selling` - Vehicle transaction guidance
+- `maintenance-tips` - Vehicle care and maintenance
+
+### Article Storage Location
+
+Articles are stored in: `lib/knowledge-base/articles/`
+
+**Note:** When using the admin portal upload tool, files are automatically placed in the correct directory and deployed to production.
+
+---
+
+## Managing Directory Suppliers
+
+### Using the Admin Portal File Upload Tool
+
+**Recommended Method:** Use the built-in file upload feature in the admin portal to manage supplier directory listings.
+
+#### Accessing the File Upload Tool
+
+1. **Navigate to Admin Portal**
+   - Go to http://localhost:3000/admin
+   - Ensure you have admin access (see [Getting Admin Access](#getting-admin-access))
+
+2. **Access Directory Management**
+   - Look for "Directory" or "Supplier Management" section in the admin dashboard
+   - Click on the file upload/management tool
+
+3. **Upload or Edit Suppliers**
+   - Use the upload interface to add new supplier files
+   - Edit existing supplier listings directly in the admin portal
+   - Files will be automatically synced to the production server
+
+### Supplier File Format Requirements
+
+When creating supplier listings (whether uploaded or edited in the portal), use this format:
+
+```markdown
+---
+slug: "total-loss-appraisers-chicago"
+businessName: "Total Loss Appraisers of Chicago"
+serviceType: "appraiser"
+city: "Chicago"
+state: "IL"
+zipCode: "60601"
+phone: "(312) 555-0100"
+email: "contact@totallosschicago.com"
+websiteUrl: "https://totallosschicago.com"
+verified: true
+featured: true
+yearsInBusiness: 15
+specialties:
+  - "total_loss"
+  - "diminished_value"
+  - "independent_appraisals"
+certifications:
+  - "ASE Certified Appraiser"
+  - "IADA Member"
+valueProposition: "Get fair market valuations backed by 15 years of expertise. We help accident victims navigate insurance claims and secure maximum settlements."
+---
+
+# Full Business Description
+
+Detailed content about the business goes here...
+
+## Our Services
+
+- Service 1
+- Service 2
+
+## Why Choose Us
+
+- Reason 1
+- Reason 2
+```
+
+### Required Fields
+
+- `slug` - Unique identifier (lowercase, hyphens only)
+- `businessName` - Company or professional name
+- `serviceType` - One of: `appraiser`, `body_shop`, `advocate`, `attorney`
+- `city` - City name
+- `state` - Two-letter state code
+- `valueProposition` - Brief marketing description
+
+### Optional Fields
+
+- `phone` - Contact phone number
+- `email` - Contact email address
+- `websiteUrl` - Business website URL
+- `zipCode` - 5-digit ZIP code
+- `verified` - `true` or `false` (displays verified badge)
+- `featured` - `true` or `false` (appears first in listings)
+- `yearsInBusiness` - Number of years operating
+- `specialties[]` - Array of specialty codes (see below)
+- `certifications[]` - Array of certification strings
+
+### Service Types
+
+- `appraiser` - Vehicle Appraiser
+- `body_shop` - Body Shop / Collision Repair
+- `advocate` - Claims Advocate
+- `attorney` - Auto Accident Attorney
+
+### Specialty Codes
+
+- `total_loss` - Total Loss Claims
+- `diminished_value` - Diminished Value Assessment
+- `independent_appraisals` - Independent Appraisals
+- `collision_repair` - Collision Repair
+- `frame_damage` - Frame Damage Repair
+- `insurance_negotiation` - Insurance Negotiation
+- `claim_disputes` - Claim Dispute Resolution
+- `bad_faith` - Bad Faith Insurance Claims
+- `legal_representation` - Legal Representation
+
+### Supplier Storage Location
+
+Suppliers are stored in: `lib/suppliers/data/suppliers.md`
+
+**Note:** When using the admin portal upload tool, files are automatically placed in the correct directory and deployed to production. Changes appear immediately on the live site.
+
+---
+
+## Other Admin Features
+
+### Viewing System Logs
+
+**API Call Logs:**
+```sql
+-- View recent API calls
+SELECT
+  report_id,
+  api_provider,
+  endpoint,
+  success,
+  response_time_ms,
+  cost,
+  created_at
+FROM api_call_logs
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+**User Activity:**
+```sql
+-- View recent user signups
+SELECT
+  id,
+  email,
+  created_at,
+  email_confirmed_at
+FROM auth.users
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+### Managing Payments (Future)
+
+When Lemon Squeezy is connected, you can:
+- View all payment transactions
+- Issue refunds
+- Track revenue metrics
+- Export financial reports
+
+---
+
+## Quick Access Checklist
+
+✅ **Step 1:** Set admin flag in Supabase
+- [ ] Go to Supabase dashboard
+- [ ] Navigate to Authentication > Users
+- [ ] Find your user account
+- [ ] Edit user metadata to add `"is_admin": true`
+- [ ] Save changes
+
+✅ **Step 2:** Verify admin access
+- [ ] Log out of the app
+- [ ] Log back in
+- [ ] Navigate to http://localhost:3000/admin
+- [ ] You should see the admin dashboard (not redirected)
+
+✅ **Step 3:** Explore admin pages
+- [ ] http://localhost:3000/admin - Overview
+- [ ] http://localhost:3000/admin/reports - All reports
+- [ ] http://localhost:3000/admin/users - User management
+- [ ] http://localhost:3000/admin/payments - Payment tracking
+
+✅ **Step 4:** Manage content (file-based)
+- [ ] Edit articles in `lib/knowledge-base/articles/`
+- [ ] Edit suppliers in `lib/suppliers/data/suppliers.md`
+- [ ] Restart dev server to see changes
+
+---
+
+## Troubleshooting
+
+### "Access Denied" - Redirected to Dashboard
+
+**Problem:** You're redirected to `/dashboard` when accessing `/admin`
+
+**Solution:**
+1. Check that `is_admin` flag is set in Supabase
+2. Log out and log back in
+3. Clear browser cookies
+4. Check browser console for errors
+
+### Admin Flag Not Working
+
+**Verify the flag is set correctly:**
+
+```sql
+SELECT
+  email,
+  raw_user_meta_data
+FROM auth.users
+WHERE email = 'your-email@example.com';
+```
+
+Should return:
+```json
+{
+  "is_admin": true
+}
+```
+
+### Changes to Articles/Suppliers Not Showing
+
+**File-based content requires server restart:**
+
+```bash
+# Stop dev server (Ctrl+C)
+npm run dev
+```
+
+---
+
+## Admin Portal Features
+
+The admin portal includes:
+
+✅ **File Upload Tool** - Upload and manage content files directly
+✅ **Knowledge Base Management** - Add/edit articles through the portal
+✅ **Directory Management** - Manage supplier listings through the portal
+✅ **System Analytics** - View reports, payments, and user activity
+✅ **User Management** - Manage user accounts and permissions
+
+All content changes made through the admin portal are automatically deployed to the production server.
+
+---
+
+**Last Updated:** December 2024

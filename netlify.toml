@@ -1,0 +1,92 @@
+# =====================================================
+# NETLIFY CONFIGURATION
+# =====================================================
+# Supports dev/staging/production environments
+# Branch deployment strategy:
+#   - main → production
+#   - staging → staging environment
+#   - dev → development environment
+# =====================================================
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# =====================================================
+# PRODUCTION CONTEXT (main branch)
+# =====================================================
+[context.production.environment]
+  NODE_ENV = "production"
+  DISABLE_RATE_LIMIT = "false"
+  DISABLE_PAYMENT_CHECK = "false"
+
+# =====================================================
+# STAGING CONTEXT (staging branch)
+# =====================================================
+[context.staging]
+  command = "npm run build"
+
+[context.staging.environment]
+  NODE_ENV = "production"
+  DISABLE_RATE_LIMIT = "true"
+  DISABLE_PAYMENT_CHECK = "true"
+
+# =====================================================
+# DEV CONTEXT (dev branch or branch deploys)
+# =====================================================
+[context.branch-deploy]
+  command = "npm run build"
+
+[context.branch-deploy.environment]
+  NODE_ENV = "development"
+  DISABLE_RATE_LIMIT = "true"
+  DISABLE_PAYMENT_CHECK = "true"
+
+# =====================================================
+# REDIRECTS
+# =====================================================
+[[redirects]]
+  from = "/admin/*"
+  to = "/admin"
+  status = 200
+  force = false
+
+# =====================================================
+# SECURITY HEADERS
+# =====================================================
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Prevent clickjacking attacks
+    X-Frame-Options = "SAMEORIGIN"
+
+    # Prevent MIME type sniffing
+    X-Content-Type-Options = "nosniff"
+
+    # Enable XSS protection (legacy browsers)
+    X-XSS-Protection = "1; mode=block"
+
+    # Control referrer information
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+    # Restrict browser features
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+    # Enforce HTTPS (31536000 = 1 year)
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+# Content Security Policy for additional protection
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://www.google-analytics.com; frame-ancestors 'self';"
+
+# =====================================================
+# NETLIFY PLUGIN: Next.js Runtime
+# =====================================================
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

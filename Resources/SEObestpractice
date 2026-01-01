@@ -1,0 +1,35 @@
+# 10 Actionable SEO Tips for Claude Code Website Development
+
+## 1. Semantic HTML5 Structure
+Use proper heading hierarchy (single H1, then H2-H6 in order) and semantic tags (`<article>`, `<section>`, `<nav>`, `<aside>`, `<header>`, `<footer>`). This helps search engines understand content structure and importance.
+
+## 2. Mobile-First Responsive Design
+Implement responsive layouts using CSS Grid/Flexbox with mobile breakpoints. Include the viewport meta tag and ensure touch targets are minimum 48x48px. Google prioritizes mobile-friendly sites in rankings.
+
+## 3. Optimized Image Implementation
+Use `<picture>` elements with WebP format and fallbacks, include descriptive alt text for every image, implement lazy loading (`loading="lazy"`), and use width/height attributes to prevent layout shifts (CLS).
+
+## 4. Schema Markup Integration
+Add JSON-LD structured data for Organization, Article, BreadcrumbList, and LocalBusiness schemas. This enables rich snippets in search results and improves click-through rates.
+
+## 5. Performance Optimization
+Minimize CSS/JS files, implement critical CSS inline, defer non-critical JavaScript, use resource hints (`preconnect`, `prefetch`), and ensure total page size under 1MB for fast load times.
+
+## 6. Clean URL Structure & Internal Linking
+Create descriptive, keyword-rich URLs, implement breadcrumb navigation with schema markup, add related content links within articles, and ensure proper anchor text for internal links.
+
+## 7. Meta Tags & Open Graph
+Include unique meta descriptions (150-160 chars), title tags with primary keywords (50-60 chars), Open Graph tags for social sharing, and canonical tags to prevent duplicate content issues.
+
+## 8. Accessibility Features
+Implement proper ARIA labels, ensure keyboard navigation works, maintain 4.5:1 contrast ratios, add skip-to-content links, and use focus indicators. Accessibility improvements boost SEO rankings.
+
+## 9. Content Hierarchy & Readability
+Structure content with short paragraphs (3-4 lines), use bullet points and numbered lists, implement table of contents for long pages, and maintain adequate white space. Add related FAQs in accordion format.
+
+## 10. Technical SEO Elements
+Generate an XML sitemap, create a robots.txt file, implement proper 301 redirects, add hreflang tags for multi-language sites, ensure HTTPS, and include last-modified dates in structured data.
+
+---
+
+**Pro tip for Claude Code**: When you provide content, specify which pages are priority (homepage, product pages, blog posts) so Claude Code can apply appropriate schema types and optimization strategies for each template.
