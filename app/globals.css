@@ -1,0 +1,193 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono);
+
+  /* Emerald Color System */
+  --color-primary-50: #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-400: #34d399;
+  --color-primary-500: #10b981;
+  --color-primary-600: #059669;
+  --color-primary-700: #047857;
+  --color-primary-800: #065f46;
+  --color-primary-900: #064e3b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+/* Custom Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes blob {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(20px, -20px) scale(1.1);
+  }
+  50% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  75% {
+    transform: translate(20px, 10px) scale(1.05);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+.animate-blob {
+  animation: blob 20s infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Glass-Morphism Utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+}
+
+.glass-navbar {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Print Styles */
+@media print {
+  /* Hide navigation and buttons */
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset body for print */
+  body {
+    background: white;
+    color: black;
+  }
+
+  /* Ensure content fits on page */
+  @page {
+    margin: 0.5in;
+    size: letter;
+  }
+
+  /* Prevent page breaks inside important sections */
+  .bg-white.rounded-lg.border,
+  .bg-slate-50.rounded-lg.border {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Optimize table for print */
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  /* Remove background colors that waste ink */
+  .bg-slate-50,
+  .bg-emerald-50,
+  .bg-blue-50 {
+    background: white !important;
+  }
+
+  /* Ensure borders are visible */
+  .border,
+  .border-l-4,
+  .border-t {
+    border-color: #e5e7eb !important;
+  }
+
+  /* Add top margin to main content when nav is hidden */
+  .min-h-screen {
+    padding-top: 0 !important;
+  }
+
+  /* Optimize images for print */
+  img {
+    max-width: 100%;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure links are visible with href */
+  a[href]:after {
+    content: none; /* Don't show URLs in print */
+  }
+
+  /* Make text more readable */
+  body {
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  h1 {
+    font-size: 24pt;
+  }
+
+  h2 {
+    font-size: 18pt;
+  }
+
+  h3 {
+    font-size: 14pt;
+  }
+}

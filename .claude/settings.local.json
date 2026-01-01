@@ -66,7 +66,10 @@
       "Bash(bash:*)",
       "Bash(git fetch:*)",
       "Bash(git rev-parse:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git branch:*)",
+      "Bash(dir /s /b \"c:\\\\Users\\\\Gordo\\\\Documents\\\\Vehicle Comparison Site\\\\app\\\\*.tsx\")",
+      "Bash(git ls-tree:*)"
     ]
   }
 }

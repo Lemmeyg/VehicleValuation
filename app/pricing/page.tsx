@@ -1,98 +1,411 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { Button } from '@/components/ui/button'
-import { Check, Car, DollarSign, TrendingUp, TrendingDown, FileText } from 'lucide-react'
-
-interface VehicleData {
-  vin: string
-  make: string
-  model: string
-  year: number
-  trim: string
-  mileage: number
-  highestPrice: number
-  lowestPrice: number
-  listingCount: number
-}
+import { Button } from '@/components/ui/Button'
+import { Check, Car, CheckCircle2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 const PRICING_TIERS = [
   {
-    id: 'basic',
+    id: 'BASIC',
     name: 'Basic Report',
     price: 29,
+    variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID!,
     features: [
-      'Vehicle Specifications',
-      'Market Value Range',
-      'Price Comparison (5 listings)',
-      'Basic Vehicle History',
-      'PDF Download'
-    ]
+      'Vehicle fair price valuation with low and high prices',
+      'Full market insights with all comparables mapped against your vehicle',
+      '10 Live listings with Links to dealer websites',
+      'Comparisons with Trim, Mileage, Price',
+      'PDF download',
+      'Comprehensive list of other factors contributing to higher vehicle values',
+    ],
   },
   {
-    id: 'premium',
+    id: 'PREMIUM',
     name: 'Premium Report',
     price: 49,
-    features: [
-      'Everything in Basic',
-      'Detailed Market Analysis',
-      'Price Comparison (20+ listings)',
-      'Comprehensive Vehicle History',
-      'Accident & Damage Reports',
-      'Service Records',
-      'Priority Support',
-      'PDF Download'
-    ],
-    recommended: true
-  }
+    variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID!,
+    features: ['Same as Basic report', 'Two free updates of the report', 'Money Back guarantee'],
+    recommended: true,
+  },
 ]
 
-export default function PricingPage() {
+interface Report {
+  id: string
+  vin: string
+  mileage: number
+  zip_code: string
+  email?: string
+  dealer_type: string
+  vehicle_data: {
+    year: number
+    make: string
+    model: string
+    trim?: string
+  }
+  marketcheck_valuation: {
+    predictedPrice: number
+    priceRange: {
+      low: number
+      high: number
+    }
+    comparables: Array<{
+      year: number
+      make: string
+      model: string
+      trim: string
+      mileage: number
+      price: number
+      location: {
+        city: string
+        state: string
+        zipCode: string
+      }
+      distance: number
+    }>
+    totalComparablesFound: number
+  }
+}
+
+function PricingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const vinParam = searchParams.get('vin')
 
-  const [vehicleData, setVehicleData] = useState<VehicleData | null>(null)
+  // Get data from multiple possible sources
+  const reportId = searchParams?.get('reportId')
+  const urlEmail = searchParams?.get('email')
+  const urlVin = searchParams?.get('vin')
+  const urlMileage = searchParams?.get('mileage')
+  const urlZipCode = searchParams?.get('zipCode')
+
+  const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [processingPayment, setProcessingPayment] = useState(false)
+  const [showBetaModal, setShowBetaModal] = useState(false)
+  const [showExistingUserModal, setShowExistingUserModal] = useState(false)
+  const [creatingReport, setCreatingReport] = useState(false)
+  const [sendingMagicLink, setSendingMagicLink] = useState(false)
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [magicLinkError, setMagicLinkError] = useState('')
+
+  // Use ref to track initialization across StrictMode double-mounting
+  const hasInitializedRef = useRef(false)
 
   useEffect(() => {
-    // Simulate API call with dummy data
-    // In production, this would fetch from your API/database
-    if (vinParam) {
-      setTimeout(() => {
-        setVehicleData({
-          vin: vinParam,
-          make: 'Toyota',
-          model: 'Camry',
-          year: 2020,
-          trim: 'XLE V6',
-          mileage: 45000,
-          highestPrice: 28500,
-          lowestPrice: 24200,
-          listingCount: 47
-        })
-        setLoading(false)
-      }, 500)
-    } else {
+    // Only initialize once, even in React StrictMode which mounts components twice
+    if (hasInitializedRef.current) {
+      console.log('[PricingPage] Already initialized, skipping duplicate initialization')
+      return
+    }
+
+    console.log('[PricingPage] First initialization')
+    hasInitializedRef.current = true
+    initializePricingPage()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const initializePricingPage = async () => {
+    // Option A: Existing reportId flow (authenticated users)
+    if (reportId) {
+      await fetchExistingReport(reportId)
+      return
+    }
+
+    // Option B: URL parameters from hero form (new anonymous flow)
+    if (urlEmail && urlVin && urlMileage && urlZipCode) {
+      await createAnonymousReport({
+        email: urlEmail,
+        vin: urlVin,
+        mileage: parseInt(urlMileage),
+        zipCode: urlZipCode,
+      })
+      return
+    }
+
+    // Option C: SessionStorage fallback
+    const storedData = sessionStorage.getItem('hero_form_data')
+    if (storedData) {
+      try {
+        const data = JSON.parse(storedData)
+        await createAnonymousReport(data)
+        return
+      } catch (err) {
+        console.error('SessionStorage parse error:', err)
+      }
+    }
+
+    // No data found - redirect to homepage
+    setError('No vehicle data found. Please submit the form on the homepage.')
+    setLoading(false)
+    setTimeout(() => {
+      router.push('/')
+    }, 3000)
+  }
+
+  const fetchExistingReport = async (id: string) => {
+    try {
+      const response = await fetch(`/api/reports/${id}`)
+      const data = await response.json()
+
+      if (response.ok) {
+        setReport(data.report)
+      } else {
+        setError(data.error || 'Failed to load report')
+      }
+    } catch (err) {
+      console.error('Error fetching report:', err)
+      setError('An error occurred while loading the report')
+    } finally {
       setLoading(false)
     }
-  }, [vinParam])
+  }
 
-  const handleTierSelect = async (tierId: string) => {
-    // Check authentication status
-    const response = await fetch('/api/auth/session')
-    const session = await response.json()
+  const createAnonymousReport = async (data: {
+    email: string
+    vin: string
+    mileage: number
+    zipCode: string
+  }) => {
+    setCreatingReport(true)
+    setLoading(true)
 
-    if (!session || !session.user) {
-      // User not logged in - show login modal (will implement in next step)
-      // For now, redirect to login
-      router.push('/login?redirect=/pricing?vin=' + vinParam + '&tier=' + tierId)
-    } else {
-      // User logged in - proceed to payment
-      router.push('/payment?vin=' + vinParam + '&tier=' + tierId)
+    try {
+      const response = await fetch('/api/reports/create-anonymous', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setError(result.error || 'Failed to create report')
+        setLoading(false)
+        setCreatingReport(false)
+        return
+      }
+
+      setReport(result.report)
+
+      // Store report ID for later reference
+      sessionStorage.setItem('current_report_id', result.report.id)
+
+      setLoading(false)
+      setCreatingReport(false)
+    } catch (err) {
+      console.error('Create anonymous report error:', err)
+      setError('An unexpected error occurred while creating your report')
+      setLoading(false)
+      setCreatingReport(false)
+    }
+  }
+
+  const sendMagicLink = async () => {
+    if (!report?.email) {
+      console.error('No email available for magic link')
+      return
+    }
+
+    setSendingMagicLink(true)
+    setMagicLinkError('') // Clear previous errors
+
+    try {
+      const response = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: report.email,
+          reportId: report.id,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setMagicLinkSent(true)
+        setMagicLinkError('')
+      } else {
+        console.error('Magic link error:', data.error)
+        setMagicLinkError(data.error || 'Failed to send magic link')
+        setMagicLinkSent(false)
+      }
+    } catch (err) {
+      console.error('Failed to send magic link:', err)
+      setMagicLinkError('Network error. Please check your connection.')
+      setMagicLinkSent(false)
+    } finally {
+      setSendingMagicLink(false)
+    }
+  }
+
+  /**
+   * Fetch MarketCheck data when user confirms on pricing page
+   */
+  const fetchMarketCheckData = async () => {
+    if (!report?.id) {
+      toast.error('Report not found')
+      return
+    }
+
+    const loadingToast = toast.loading('Fetching market valuation data...')
+
+    try {
+      const response = await fetch(`/api/reports/${report.id}/fetch-marketcheck`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch market data')
+      }
+
+      toast.success('Market valuation data fetched successfully!', {
+        id: loadingToast,
+      })
+
+      // Update report state with new data
+      setReport({
+        ...report,
+        marketcheck_valuation: data.data,
+        valuation_result: {
+          predictedPrice: data.data.predictedPrice,
+          lowValue: data.data.priceRange?.min || Math.round(data.data.predictedPrice * 0.9),
+          averageValue: data.data.predictedPrice,
+          highValue: data.data.priceRange?.max || Math.round(data.data.predictedPrice * 1.1),
+          confidence: data.data.confidence,
+          dataPoints: data.data.totalComparablesFound,
+          dataSource: 'marketcheck',
+        },
+      })
+
+      // Show success modal for beta users
+      setShowBetaModal(true)
+    } catch (error) {
+      console.error('Error fetching MarketCheck data:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to fetch market data', {
+        id: loadingToast,
+      })
+    }
+  }
+
+  const handleSelectPlan = async (tier: (typeof PRICING_TIERS)[0]) => {
+    if (!report) return
+
+    // BETA MODE: Skip payment and show beta modal
+    // Check if variant IDs are placeholder values or missing
+    const basicVariantId = process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID
+    const premiumVariantId = process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID
+
+    const isBetaMode =
+      !basicVariantId ||
+      !premiumVariantId ||
+      basicVariantId.includes('your-') ||
+      premiumVariantId.includes('your-') ||
+      basicVariantId === 'your-basic-variant-id-here' ||
+      premiumVariantId === 'your-premium-variant-id-here'
+
+    if (isBetaMode) {
+      console.log('[PricingPage] Beta mode detected')
+
+      // Check if user is authenticated
+      try {
+        const sessionResponse = await fetch('/api/auth/session')
+        const sessionData = await sessionResponse.json()
+
+        console.log('[PricingPage] Session check:', {
+          hasUser: !!sessionData.user,
+          email: sessionData.user?.email,
+          reportId: report.id,
+        })
+
+        // If user is authenticated (logged in existing user)
+        if (sessionData.user) {
+          console.log(
+            '[PricingPage] Authenticated existing user - checking for existing MarketCheck data'
+          )
+
+          // FIX #1: Only fetch if data doesn't exist (prevents duplicate API calls)
+          if (!report.marketcheck_valuation) {
+            console.log('[PricingPage] No existing MarketCheck data, fetching from API')
+            await fetchMarketCheckData()
+          } else {
+            console.log(
+              '[PricingPage] MarketCheck data already exists, skipping API call to avoid duplicate charge'
+            )
+          }
+
+          setShowExistingUserModal(true)
+          return
+        }
+
+        // For anonymous users: Fetch MarketCheck data, then show beta modal with magic link
+        console.log('[PricingPage] Anonymous user - checking for existing MarketCheck data')
+
+        // FIX #2: Only fetch if data doesn't exist (prevents duplicate API calls)
+        if (!report.marketcheck_valuation) {
+          console.log('[PricingPage] No existing MarketCheck data, fetching from API')
+          await fetchMarketCheckData()
+        } else {
+          console.log(
+            '[PricingPage] MarketCheck data already exists, skipping API call to avoid duplicate charge'
+          )
+        }
+
+        // Magic link is sent automatically after MarketCheck success
+        sendMagicLink()
+        return
+      } catch (err) {
+        console.error('[PricingPage] Error checking session:', err)
+
+        // FIX #3: Only fetch if data doesn't exist (prevents duplicate API calls in error scenarios)
+        if (!report.marketcheck_valuation) {
+          console.log('[PricingPage] Error fallback - fetching MarketCheck data')
+          await fetchMarketCheckData()
+        } else {
+          console.log(
+            '[PricingPage] Error fallback - MarketCheck data already exists, skipping API call'
+          )
+        }
+
+        sendMagicLink()
+        return
+      }
+    }
+
+    setProcessingPayment(true)
+
+    try {
+      // Call Lemon Squeezy checkout endpoint
+      const response = await fetch('/api/lemonsqueezy/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportId: report.id,
+          reportType: tier.id,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.checkoutUrl) {
+        // Redirect to Lemon Squeezy payment
+        window.location.href = data.checkoutUrl
+      } else {
+        setError(data.error || 'Failed to create checkout session')
+        setProcessingPayment(false)
+      }
+    } catch (err) {
+      console.error('Payment error:', err)
+      setError('An error occurred while processing payment')
+      setProcessingPayment(false)
     }
   }
 
@@ -103,8 +416,15 @@ export default function PricingPage() {
         <main className="pt-24 pb-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-              <p className="mt-4 text-slate-600">Loading vehicle data...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+              <p className="text-slate-600">
+                {creatingReport ? 'Analyzing your vehicle...' : 'Loading your vehicle data...'}
+              </p>
+              {creatingReport && (
+                <p className="text-sm text-slate-500 mt-2">
+                  This may take a few moments as we gather market data
+                </p>
+              )}
             </div>
           </div>
         </main>
@@ -113,16 +433,15 @@ export default function PricingPage() {
     )
   }
 
-  if (!vehicleData) {
+  if (error || !report) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <main className="pt-24 pb-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
-              <h1 className="text-3xl font-bold text-slate-900 mb-4">No VIN Provided</h1>
-              <p className="text-slate-600 mb-8">Please enter a VIN to view pricing.</p>
-              <Button onClick={() => router.push('/')}>Return to Home</Button>
+              <p className="text-red-600 mb-4">{error || 'Report not found'}</p>
+              <Button onClick={() => router.push('/')}>Return to Homepage</Button>
             </div>
           </div>
         </main>
@@ -137,124 +456,150 @@ export default function PricingPage() {
 
       <main className="pt-24 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Vehicle Data Section */}
-          <div className="mb-12">
-            <div className="text-center mb-8">
-              <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-2">
-                Vehicle Valuation Report
-              </h1>
-              <p className="text-lg text-slate-600">
-                Choose your report tier to view detailed analysis
-              </p>
-            </div>
+          {/* Header */}
+          <div className="text-center mb-6">
+            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
+              Your Report is Being Prepared
+            </h1>
+            <p className="text-base text-slate-600">
+              Get prepared with a professional-grade independent valuation before you settle
+            </p>
+          </div>
 
-            {/* Vehicle Info Card */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-              <div className="flex items-center mb-6">
-                <Car className="h-8 w-8 text-primary-600 mr-3" />
-                <h2 className="text-2xl font-bold text-slate-900">
-                  {vehicleData.year} {vehicleData.make} {vehicleData.model}
-                </h2>
+          {/* Vehicle Info Card */}
+          <div className="bg-white rounded-2xl shadow-lg p-4 mb-4 max-w-4xl mx-auto">
+            <div className="flex items-center justify-between gap-6">
+              <div className="flex items-center gap-2">
+                <Car className="h-5 w-5 text-primary-600 flex-shrink-0" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* VIN */}
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="text-sm text-slate-600 mb-1">VIN</div>
-                  <div className="font-semibold text-slate-900 font-mono text-sm">
-                    {vehicleData.vin}
-                  </div>
-                </div>
-
-                {/* Trim & Mileage */}
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="text-sm text-slate-600 mb-1">Trim / Mileage</div>
-                  <div className="font-semibold text-slate-900">
-                    {vehicleData.trim}
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    {vehicleData.mileage.toLocaleString()} miles
-                  </div>
-                </div>
-
-                {/* Price Range */}
-                <div className="bg-emerald-50 rounded-lg p-4">
-                  <div className="text-sm text-emerald-700 mb-1 flex items-center">
-                    <TrendingUp className="h-4 w-4 mr-1" />
-                    Highest Price
-                  </div>
-                  <div className="font-bold text-emerald-700 text-xl">
-                    ${vehicleData.highestPrice.toLocaleString()}
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="text-sm text-blue-700 mb-1 flex items-center">
-                    <TrendingDown className="h-4 w-4 mr-1" />
-                    Lowest Price
-                  </div>
-                  <div className="font-bold text-blue-700 text-xl">
-                    ${vehicleData.lowestPrice.toLocaleString()}
-                  </div>
-                </div>
+              {/* VIN */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-600">VIN:</span>
+                <span className="font-semibold text-slate-900 font-mono text-xs">{report.vin}</span>
               </div>
 
-              {/* Listings Count */}
-              <div className="mt-6 bg-primary-50 rounded-lg p-4 flex items-center justify-between">
-                <div className="flex items-center">
-                  <FileText className="h-5 w-5 text-primary-600 mr-2" />
-                  <span className="text-slate-700">Market Data Analysis</span>
-                </div>
-                <span className="font-bold text-primary-600">
-                  {vehicleData.listingCount} listings analyzed
+              {/* Mileage */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-600">Mileage:</span>
+                <span className="font-semibold text-slate-900 text-xs">
+                  {report.mileage.toLocaleString()} mi
                 </span>
               </div>
+
+              {/* Location */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-600">ZIP:</span>
+                <span className="font-semibold text-slate-900 text-xs">{report.zip_code}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Why Independent Valuation? Section */}
+          <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl shadow-lg p-6 mb-6">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 text-center mb-4">
+                Why Independent Valuation?
+              </h2>
+
+              <p className="text-sm text-slate-700 text-center mb-4 leading-relaxed">
+                Insurance adjusters undervalue 9 out of 10 total loss claims—by an average of 30%.
+                Without independent verification, you&apos;re negotiating blind.
+              </p>
+
+              <div className="flex flex-col gap-3 mb-4 max-w-2xl mx-auto">
+                <div className="flex items-start">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-slate-900 text-sm mb-0.5">
+                      34% Average Increase
+                    </h3>
+                    <p className="text-slate-600 text-xs">
+                      Professional valuations recover significantly more
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-slate-900 text-sm mb-0.5">
+                      Level Playing Field
+                    </h3>
+                    <p className="text-slate-600 text-xs">
+                      The same data adjusters use, now in your hands
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Time-Sensitive</h3>
+                    <p className="text-slate-600 text-xs">
+                      Most appraisals must be requested within 30-90 days of the initial offer
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-center text-slate-700 font-medium text-sm">
+                Don&apos;t leave money on the table. Get prepared with professional-grade market
+                data before you settle.
+              </p>
             </div>
           </div>
 
           {/* Pricing Tiers Section */}
           <div className="mb-12">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-slate-900 mb-2">
-                Choose Your Report
+            <div className="text-center mb-6">
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
+                Select Your Independent Valuation Package
               </h2>
-              <p className="text-slate-600">
-                Select the tier that best fits your needs
+              <p className="text-sm text-slate-600">
+                One-time payment • Instant access • 100% satisfaction guarantee
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-              {PRICING_TIERS.map((tier) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto md:items-start">
+              {PRICING_TIERS.map(tier => (
                 <div
                   key={tier.id}
-                  className={`relative bg-white rounded-2xl shadow-lg p-8 transition-all hover:shadow-2xl border-2 ${
+                  className={`relative bg-white rounded-2xl shadow-lg p-8 transition-all hover:shadow-2xl border-2 flex flex-col ${
                     tier.recommended
-                      ? 'border-primary-500 transform md:scale-105'
+                      ? 'border-primary-500'
                       : 'border-slate-200 hover:border-primary-300'
                   }`}
                 >
-                  {tier.recommended && (
-                    <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-gradient-to-r from-primary-600 to-emerald-600 text-white px-4 py-1 rounded-full text-sm font-semibold shadow-lg">
-                        Recommended
-                      </span>
-                    </div>
-                  )}
-
                   <div className="text-center mb-6">
-                    <h3 className="text-2xl font-bold text-slate-900 mb-2">
-                      {tier.name}
-                    </h3>
-                    <div className="flex items-center justify-center mb-4">
-                      <DollarSign className="h-6 w-6 text-slate-600" />
-                      <span className="text-5xl font-bold text-slate-900">
-                        {tier.price}
-                      </span>
+                    <h3 className="text-2xl font-bold text-slate-900 mb-2">{tier.name}</h3>
+                    <div className="flex items-baseline justify-center mb-4">
+                      <span className="text-5xl font-bold text-slate-900">${tier.price}</span>
                     </div>
-                    <p className="text-slate-600">One-time payment</p>
+                    <p className="text-slate-600 mb-4">One-time payment</p>
+
+                    <Button
+                      onClick={() => handleSelectPlan(tier)}
+                      disabled={processingPayment}
+                      className={`w-full py-6 text-lg font-semibold ${
+                        tier.recommended
+                          ? 'bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700'
+                          : 'bg-slate-900 hover:bg-slate-800'
+                      }`}
+                    >
+                      {processingPayment ? 'Processing...' : `Select ${tier.name} - $${tier.price}`}
+                    </Button>
+
+                    {tier.recommended && (
+                      <div className="mt-3">
+                        <span className="bg-gradient-to-r from-primary-600 to-emerald-600 text-white px-4 py-1 rounded-full text-sm font-semibold shadow-lg inline-block">
+                          Recommended
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  <ul className="space-y-3 mb-8">
+                  <ul className="space-y-3 flex-grow">
                     {tier.features.map((feature, index) => (
                       <li key={index} className="flex items-start">
                         <Check className="h-5 w-5 text-emerald-500 mr-3 flex-shrink-0 mt-0.5" />
@@ -262,32 +607,254 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
-
-                  <Button
-                    onClick={() => handleTierSelect(tier.id)}
-                    className={`w-full py-6 text-lg font-semibold ${
-                      tier.recommended
-                        ? 'bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700'
-                        : 'bg-slate-900 hover:bg-slate-800'
-                    }`}
-                  >
-                    Get {tier.name}
-                  </Button>
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Trust Indicators */}
-          <div className="text-center text-sm text-slate-600 space-y-2">
-            <p>🔒 Secure payment processing</p>
-            <p>📧 Instant report delivery to your email</p>
-            <p>💯 100% satisfaction guarantee</p>
           </div>
         </div>
       </main>
 
       <Footer />
+
+      {/* Beta Mode Modal - For Anonymous Users */}
+      {showBetaModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowBetaModal(false)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Success Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="rounded-full bg-gradient-to-r from-emerald-500 to-blue-500 p-3">
+                <svg
+                  className="h-12 w-12 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-slate-900 mb-3">
+                Great News - This Report is FREE!
+              </h2>
+              <p className="text-lg text-slate-700 mb-4">
+                We&apos;re currently in beta, so all reports are completely free. Get the same
+                professional-grade valuation that increases settlements by 34% on average.
+              </p>
+
+              {/* Email Verification Notice */}
+              {magicLinkError ? (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded text-left mb-4">
+                  <div className="flex items-start">
+                    <svg
+                      className="h-5 w-5 text-red-500 mt-0.5 mr-3 flex-shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-semibold text-red-900 mb-1">
+                        Unable to Send Email
+                      </p>
+                      <p className="text-sm text-red-800">{magicLinkError}</p>
+                      <button
+                        onClick={sendMagicLink}
+                        disabled={sendingMagicLink}
+                        className="text-xs text-red-700 mt-2 underline hover:text-red-900 font-medium"
+                      >
+                        {sendingMagicLink ? 'Trying again...' : 'Try again'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded text-left mb-4">
+                  <div className="flex items-start">
+                    <svg
+                      className="h-5 w-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-semibold text-blue-900 mb-1">
+                        {magicLinkSent ? 'Check Your Email!' : 'Sending Verification Email...'}
+                      </p>
+                      <p className="text-sm text-blue-800">
+                        {magicLinkSent ? (
+                          <>
+                            We&apos;ve sent a secure login link to <strong>{report?.email}</strong>.
+                            Click the link in your email to verify your account and access your free
+                            report.
+                          </>
+                        ) : (
+                          'Please wait while we send your verification email...'
+                        )}
+                      </p>
+                      {magicLinkSent && (
+                        <p className="text-xs text-blue-700 mt-2">
+                          Don&apos;t see the email? Check your spam folder or{' '}
+                          <button
+                            onClick={sendMagicLink}
+                            disabled={sendingMagicLink}
+                            className="underline hover:text-blue-900 font-medium"
+                          >
+                            {sendingMagicLink ? 'Sending...' : 'resend'}
+                          </button>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded text-left">
+                <p className="text-sm text-emerald-800">
+                  <strong>Your independent valuation includes:</strong>
+                </p>
+                <ul className="text-sm text-emerald-800 mt-2 space-y-1 ml-4 list-disc">
+                  <li>Dual independent price predictions (CarsXE + MarketCheck)</li>
+                  <li>10 comparable vehicles with full market data</li>
+                  <li>Complete vehicle history and specifications</li>
+                  <li>Professional PDF report for insurance negotiations</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => setShowBetaModal(false)}
+                className="w-full py-4 px-6 text-slate-600 hover:text-slate-800 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Help Text */}
+            <p className="text-xs text-slate-500 text-center mt-4">
+              Help us improve by providing feedback on your experience
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Existing User Modal - For Authenticated Users */}
+      {showExistingUserModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowExistingUserModal(false)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Success Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="rounded-full bg-gradient-to-r from-emerald-500 to-blue-500 p-3">
+                <svg
+                  className="h-12 w-12 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-slate-900 mb-3">
+                Welcome Back - Your Report is Ready!
+              </h2>
+              <p className="text-lg text-slate-700 mb-4">
+                As an existing user, you have free access to your professional-grade independent
+                valuation.
+              </p>
+
+              <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded text-left">
+                <p className="text-sm text-emerald-800">
+                  <strong>Your independent valuation includes:</strong>
+                </p>
+                <ul className="text-sm text-emerald-800 mt-2 space-y-1 ml-4 list-disc">
+                  <li>Dual independent price predictions (CarsXE + MarketCheck)</li>
+                  <li>10 comparable vehicles with full market data</li>
+                  <li>Complete vehicle history and specifications</li>
+                  <li>Professional PDF report for insurance negotiations</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => router.push(`/reports/${report.id}/view`)}
+                className="w-full py-4 px-6 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white rounded-lg font-semibold transition-all shadow-lg"
+              >
+                View Report
+              </button>
+              <button
+                onClick={() => setShowExistingUserModal(false)}
+                className="w-full py-3 px-6 text-slate-600 hover:text-slate-800 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Help Text */}
+            <p className="text-xs text-slate-500 text-center mt-4">
+              Thank you for being a valued member!
+            </p>
+          </div>
+        </div>
+      )}
     </div>
+  )
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      }
+    >
+      <PricingContent />
+    </Suspense>
   )
 }
