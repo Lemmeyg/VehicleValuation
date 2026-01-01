@@ -432,9 +432,9 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
                     )}
                   </>
                 )}
-                {comparable.days_on_market && (
+                {(comparable as any).days_on_market && (
                   <Text style={styles.comparableDetails}>
-                    Days on market: {comparable.days_on_market}
+                    Days on market: {(comparable as any).days_on_market}
                   </Text>
                 )}
               </View>

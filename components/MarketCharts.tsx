@@ -206,11 +206,11 @@ export function MarketCharts({ listings, displayedComparables, estimatedValue, l
                 borderRadius: '8px',
                 fontSize: 12,
               }}
-              formatter={(value: number | undefined, name: string) => {
+              formatter={(value: number | undefined, name: string | undefined) => {
                 const val = value || 0
                 if (name === 'price') return [`$${val.toLocaleString()}`, 'Price']
                 if (name === 'mileage') return [`${val.toLocaleString()} mi`, 'Mileage']
-                return [val, name]
+                return [val, name || '']
               }}
               labelFormatter={(label, payload) => {
                 if (payload && payload[0]) {

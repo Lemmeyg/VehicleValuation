@@ -52,11 +52,11 @@ export default async function ReportViewPage({ params }: PageProps) {
     )
   }
 
-  const autodevData = report.autodev_vin_data as Record<string, unknown>
-  const marketCheck = report.marketcheck_valuation as Record<string, unknown>
+  const autodevData = report.autodev_vin_data as any
+  const marketCheck = report.marketcheck_valuation as any
 
   // Get ALL listings from database (no filtering yet)
-  const allListings = marketCheck?.recentComparables?.listings || marketCheck?.comparables || []
+  const allListings = (marketCheck?.recentComparables?.listings || marketCheck?.comparables || []) as any[]
 
   // Filter to 10 vehicles with mileage closest to subject vehicle
   const displayedComparables = getClosestMileageListings(allListings, report.mileage || 0, 10)
@@ -65,11 +65,11 @@ export default async function ReportViewPage({ params }: PageProps) {
   const listingsStats = getListingsStats(allListings)
 
   // Calculate values from MarketCheck (primary source)
-  const estimatedValue = marketCheck?.predictedPrice || 0
-  const lowRange = marketCheck?.priceRange?.min || Math.round(estimatedValue * 0.9)
+  const estimatedValue = (marketCheck?.predictedPrice || 0) as number
+  const lowRange = (marketCheck?.priceRange?.min || Math.round(estimatedValue * 0.9)) as number
   const fairMarket = estimatedValue
-  const highRange = marketCheck?.priceRange?.max || Math.round(estimatedValue * 1.1)
-  const confidence = marketCheck?.confidence || 'medium'
+  const highRange = (marketCheck?.priceRange?.max || Math.round(estimatedValue * 1.1)) as number
+  const confidence = (marketCheck?.confidence || 'medium') as string
 
   // Helper to format currency
   const formatCurrency = (value: number) => {
@@ -345,7 +345,7 @@ export default async function ReportViewPage({ params }: PageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {displayedComparables.map((comp: Record<string, unknown>, idx: number) => {
+                {displayedComparables.map((comp: any, idx: number) => {
                   // Extract dealer homepage URL from vdp_url
                   const getDealerHomepage = (vdpUrl?: string) => {
                     if (!vdpUrl) return null
@@ -356,7 +356,7 @@ export default async function ReportViewPage({ params }: PageProps) {
                       return null
                     }
                   }
-                  const dealerHomepage = getDealerHomepage(comp.vdp_url)
+                  const dealerHomepage = getDealerHomepage(comp.vdp_url as string)
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50">
@@ -364,7 +364,7 @@ export default async function ReportViewPage({ params }: PageProps) {
                         {comp.photo_url ? (
                           <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-100">
                             <Image
-                              src={comp.photo_url}
+                              src={comp.photo_url as string}
                               alt={`${comp.year} ${comp.make} ${comp.model}`}
                               fill
                               className="object-cover"
@@ -385,15 +385,15 @@ export default async function ReportViewPage({ params }: PageProps) {
                         <div className="text-sm text-slate-500">{comp.trim}</div>
                       </td>
                       <td className="py-4 px-4 text-sm text-slate-700">
-                        {(comp.miles || comp.mileage)?.toLocaleString() || 'N/A'} mi
+                        {((comp.miles || comp.mileage) as number)?.toLocaleString() || 'N/A'} mi
                       </td>
                       <td className="py-4 px-4">
                         <div className="text-base font-bold text-emerald-600">
-                          {formatCurrency(comp.price)}
+                          {formatCurrency(comp.price as number)}
                         </div>
                       </td>
                       <td className="py-4 px-4 text-sm text-slate-700">
-                        {comp.dom_180 || comp.dom || 'N/A'}
+                        {(comp.dom_180 || comp.dom || 'N/A') as React.ReactNode}
                       </td>
                       <td className="py-4 px-4">
                         {dealerHomepage && comp.dealer_name ? (
@@ -403,10 +403,10 @@ export default async function ReportViewPage({ params }: PageProps) {
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
                           >
-                            {comp.dealer_name}
+                            {comp.dealer_name as React.ReactNode}
                           </a>
                         ) : (
-                          <span className="text-slate-700">{comp.dealer_name || 'N/A'}</span>
+                          <span className="text-slate-700">{(comp.dealer_name || 'N/A') as React.ReactNode}</span>
                         )}
                       </td>
                     </tr>

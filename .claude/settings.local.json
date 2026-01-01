@@ -69,7 +69,11 @@
       "Bash(git init:*)",
       "Bash(git branch:*)",
       "Bash(dir /s /b \"c:\\\\Users\\\\Gordo\\\\Documents\\\\Vehicle Comparison Site\\\\app\\\\*.tsx\")",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(git merge:*)",
+      "Bash(netlify api createSiteBuild:*)",
+      "Bash(chmod:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Add pre-push hook to catch build failures before deployment\n\nAdded Husky pre-push hook that runs ''npm run build'' before allowing pushes.\n\nBenefits:\n- Catches TypeScript errors before they reach Netlify\n- Prevents failed deployments and wasted build minutes\n- Provides immediate feedback during development\n\nThe hook will:\n- Run full Next.js build with TypeScript type checking\n- Block the push if build fails\n- Show clear error messages to fix issues locally\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
