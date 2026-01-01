@@ -12,7 +12,11 @@ const NAV_ITEMS = [
   { label: 'Directory', href: '/directory' },
 ]
 
-export default function Navbar() {
+type NavbarProps = {
+  alwaysScrolled?: boolean
+}
+
+export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
