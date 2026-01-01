@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/db/supabase-client'
+import { supabase } from '@/lib/db/supabase'
 
 /**
  * POST /api/contact
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createClient()
+    // Use simple server-side supabase client for contact form (no auth needed)
 
     // Insert contact message into database
     const { error: insertError } = await supabase.from('contact_messages').insert({
