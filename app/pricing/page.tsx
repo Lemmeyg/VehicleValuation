@@ -272,19 +272,21 @@ function PricingContent() {
       })
 
       // Update report state with new data
-      setReport({
-        ...report,
-        marketcheck_valuation: data.data,
-        valuation_result: {
-          predictedPrice: data.data.predictedPrice,
-          lowValue: data.data.priceRange?.min || Math.round(data.data.predictedPrice * 0.9),
-          averageValue: data.data.predictedPrice,
-          highValue: data.data.priceRange?.max || Math.round(data.data.predictedPrice * 1.1),
-          confidence: data.data.confidence,
-          dataPoints: data.data.totalComparablesFound,
-          dataSource: 'marketcheck',
-        },
-      })
+      if (report) {
+        setReport({
+          ...report,
+          marketcheck_valuation: data.data,
+          valuation_result: {
+            predictedPrice: data.data.predictedPrice,
+            lowValue: data.data.priceRange?.min || Math.round(data.data.predictedPrice * 0.9),
+            averageValue: data.data.predictedPrice,
+            highValue: data.data.priceRange?.max || Math.round(data.data.predictedPrice * 1.1),
+            confidence: data.data.confidence,
+            dataPoints: data.data.totalComparablesFound,
+            dataSource: 'marketcheck',
+          },
+        } as any)
+      }
 
       // Show success modal for beta users
       setShowBetaModal(true)
