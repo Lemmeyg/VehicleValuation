@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/db/supabase-client'
+import { createBrowserSupabaseClient } from '@/lib/db/supabase-client'
 
 interface ContactMessage {
   id: string
@@ -29,7 +29,7 @@ export default function ContactMessagesPage() {
   useEffect(() => {
     const fetchMessages = async () => {
       setLoading(true)
-      const supabase = createClient()
+      const supabase = createBrowserSupabaseClient()
 
       let query = supabase
         .from('contact_messages')
@@ -56,7 +56,7 @@ export default function ContactMessagesPage() {
   }, [filter, refreshTrigger])
 
   const updateMessageStatus = async (id: string, status: ContactMessage['status']) => {
-    const supabase = createClient()
+    const supabase = createBrowserSupabaseClient()
     const { error } = await supabase.from('contact_messages').update({ status }).eq('id', id)
 
     if (!error) {
