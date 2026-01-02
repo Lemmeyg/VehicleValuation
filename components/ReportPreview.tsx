@@ -16,7 +16,7 @@ export default function ReportPreview() {
       className="bg-white rounded-lg shadow-lg overflow-hidden"
       style={{ height: '800px', overflowY: 'auto' }}
     >
-      <div className="p-8">
+      <div className="p-10">
         {/* Report Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
@@ -25,37 +25,37 @@ export default function ReportPreview() {
             </div>
             <div className="text-xs text-slate-500">Report Date: 12/30/2024</div>
           </div>
-          <h1 className="text-5xl font-bold text-slate-900 mb-1">2021 BMW X3</h1>
-          <p className="text-slate-600 text-sm font-mono">5UX23DT04M9J17140</p>
+          <h1 className="text-6xl font-bold text-slate-900 mb-2">2021 BMW X3</h1>
+          <p className="text-slate-600 text-base font-mono">5UX23DT04M9J17140</p>
         </div>
 
         {/* Market Value Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           {/* Low Range */}
-          <div className="bg-white border-l-4 border-slate-400 rounded-lg p-6 shadow-sm">
-            <div className="text-xs font-semibold text-slate-600 tracking-wide uppercase mb-2">
+          <div className="bg-white border-l-4 border-slate-400 rounded-lg p-8 shadow-sm">
+            <div className="text-sm font-semibold text-slate-600 tracking-wide uppercase mb-3">
               LOW RANGE
             </div>
-            <div className="text-4xl font-bold text-slate-900 mb-1">$20,389</div>
-            <div className="text-xs text-slate-500">Market floor estimate</div>
+            <div className="text-5xl font-bold text-slate-900 mb-2">$20,389</div>
+            <div className="text-sm text-slate-500">Market floor estimate</div>
           </div>
 
           {/* Market Value - Primary */}
-          <div className="bg-white border-l-4 border-emerald-500 rounded-lg p-6 shadow-sm">
-            <div className="text-xs font-semibold text-emerald-600 tracking-wide uppercase mb-2">
+          <div className="bg-white border-l-4 border-emerald-500 rounded-lg p-8 shadow-sm">
+            <div className="text-sm font-semibold text-emerald-600 tracking-wide uppercase mb-3">
               MARKET VALUE
             </div>
-            <div className="text-4xl font-bold text-slate-900 mb-1">$22,654</div>
-            <div className="text-xs text-slate-500">HIGH CONFIDENCE</div>
+            <div className="text-5xl font-bold text-slate-900 mb-2">$22,654</div>
+            <div className="text-sm text-slate-500">HIGH CONFIDENCE</div>
           </div>
 
           {/* High Range */}
-          <div className="bg-white border-l-4 border-blue-500 rounded-lg p-6 shadow-sm">
-            <div className="text-xs font-semibold text-blue-600 tracking-wide uppercase mb-2">
+          <div className="bg-white border-l-4 border-blue-500 rounded-lg p-8 shadow-sm">
+            <div className="text-sm font-semibold text-blue-600 tracking-wide uppercase mb-3">
               HIGH RANGE
             </div>
-            <div className="text-4xl font-bold text-slate-900 mb-1">$24,919</div>
-            <div className="text-xs text-slate-500">Market ceiling estimate</div>
+            <div className="text-5xl font-bold text-slate-900 mb-2">$24,919</div>
+            <div className="text-sm text-slate-500">Market ceiling estimate</div>
           </div>
         </div>
 
@@ -68,59 +68,47 @@ export default function ReportPreview() {
             <h2 className="text-2xl font-bold text-slate-900">Vehicle Specifications</h2>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-x-8 gap-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-8">
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Year</div>
-              <div className="text-base font-medium text-slate-900">2021</div>
+              <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Year</div>
+              <div className="text-lg font-medium text-slate-900">2021</div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Make</div>
-              <div className="text-base font-medium text-slate-900">BMW</div>
+              <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Make</div>
+              <div className="text-lg font-medium text-slate-900">BMW</div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Mileage</div>
-              <div className="text-base font-medium text-slate-900">63,227 mi</div>
+              <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Model</div>
+              <div className="text-lg font-medium text-slate-900">X3</div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Model</div>
-              <div className="text-base font-medium text-slate-900">X3</div>
+              <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Mileage</div>
+              <div className="text-lg font-medium text-slate-900">63,227 mi</div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Trim</div>
-              <div className="text-base font-medium text-slate-900">
-                xDrive30i Sports Activity Vehicle
+              <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Trim</div>
+              <div className="text-lg font-medium text-slate-900">
+                xDrive30i SAV
               </div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Body Style</div>
-              <div className="text-base font-medium text-slate-900">SUV</div>
+              <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Body Style</div>
+              <div className="text-lg font-medium text-slate-900">SUV</div>
             </div>
 
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Engine</div>
-              <div className="text-base font-medium text-slate-900">2.0L I4 Cylinder</div>
+              <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Engine</div>
+              <div className="text-lg font-medium text-slate-900">2.0L I4</div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">
+              <div className="text-sm font-semibold text-slate-500 uppercase mb-2">
                 Transmission
               </div>
-              <div className="text-base font-medium text-slate-900">Automatic</div>
+              <div className="text-lg font-medium text-slate-900">Automatic</div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Drive Type</div>
-              <div className="text-base font-medium text-slate-900">All Wheel Drive</div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                Vehicle Type
-              </div>
-              <div className="text-base font-medium text-slate-900">
-                Multi-Purpose Vehicle (MPV)
-              </div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Origin</div>
-              <div className="text-base font-medium text-slate-900">United States</div>
+              <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Drive Type</div>
+              <div className="text-lg font-medium text-slate-900">AWD</div>
             </div>
           </div>
         </div>

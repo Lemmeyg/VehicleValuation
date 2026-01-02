@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from './ui/Button'
 import { ArrowRight, CheckCircle2, HelpCircle } from 'lucide-react'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
-import ReportPreview from './ReportPreview'
+import ReportPreviewCondensed from './ReportPreviewCondensed'
+import { Shield } from 'lucide-react'
 
 export default function Hero() {
   const router = useRouter()
@@ -218,7 +219,7 @@ export default function Hero() {
             </p>
 
             <p className="text-lg text-slate-300 mb-6 leading-relaxed max-w-lg">
-              Insurance adjusters undervalue 9 out of 10 total loss claims. Don&apos;t settle
+              Insurance adjusters undervalue 9 out of 10 claims. Don&apos;t settle
               without knowing your vehicle&apos;s true market value. Get an independent data-backed
               appraisal to level the playing field.
             </p>
@@ -422,8 +423,18 @@ export default function Hero() {
 
           {/* Right Column: Report Preview Visual */}
           <div className="hidden lg:block">
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20">
-              <ReportPreview />
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20 max-h-[800px] overflow-y-auto">
+              <ReportPreviewCondensed />
+
+              {/* 90-Day Money Back Guarantee Badge */}
+              <div className="absolute -top-4 -right-4 bg-emerald-500 text-white rounded-full p-4 shadow-2xl border-4 border-white z-20">
+                <div className="flex flex-col items-center justify-center">
+                  <Shield className="h-8 w-8 mb-1" />
+                  <div className="text-xs font-bold text-center leading-tight">
+                    90-DAY<br />MONEY BACK<br />GUARANTEE
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
