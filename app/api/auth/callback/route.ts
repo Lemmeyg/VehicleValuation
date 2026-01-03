@@ -14,13 +14,21 @@ export async function GET(request: Request) {
 
   // Get parameters
   const code = requestUrl.searchParams.get('code') // OAuth code
+  const type = requestUrl.searchParams.get('type') // Auth type (recovery, signup, etc.)
   const reportId = requestUrl.searchParams.get('reportId')
   const next = requestUrl.searchParams.get('next')
 
   console.log('Auth callback - URL:', requestUrl.toString())
   console.log('Auth callback - Code:', code ? 'present' : 'missing')
+  console.log('Auth callback - Type:', type)
   console.log('Auth callback - ReportId:', reportId)
   console.log('Auth callback - Next:', next)
+
+  // Handle password reset flow - redirect to reset-password page with code
+  if (type === 'recovery' && code) {
+    console.log('Password recovery flow detected, redirecting to reset-password')
+    return NextResponse.redirect(new URL(`/reset-password?code=${code}`, requestUrl.origin))
+  }
 
   // For magic links, the session is automatically established via hash params
   // We need to get the current session instead of exchanging a code
