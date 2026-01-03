@@ -32,6 +32,21 @@ export default async function KnowledgeBasePage() {
             </p>
           </div>
 
+          {/* Disclaimer */}
+          <div className="max-w-4xl mx-auto mb-12 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+            <p className="text-sm text-slate-700 leading-relaxed">
+              <strong>Disclaimer:</strong> The information in our knowledge base is for educational purposes only and does not constitute legal, financial, insurance, or professional advice. Vehicle valuations, pricing, VIN data, and insurance strategies are general guides subject to market changes, errors, and individual circumstances—consult licensed attorneys, CPAs, insurance professionals, or certified appraisers before making decisions. Examples are hypothetical and do not guarantee similar results. Visit our{' '}
+              <Link href="/service-providers" className="text-primary-600 hover:text-primary-700 underline">
+                Service Provider Directory
+              </Link>{' '}
+              for qualified professionals or see our{' '}
+              <Link href="/terms" className="text-primary-600 hover:text-primary-700 underline">
+                Terms and Conditions
+              </Link>{' '}
+              for complete terms.
+            </p>
+          </div>
+
           {/* Articles Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {articles.map(article => (

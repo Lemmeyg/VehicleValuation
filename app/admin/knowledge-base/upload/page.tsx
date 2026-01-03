@@ -325,7 +325,11 @@ slug: 'your-article-slug'
 
 # Article Content Here
 
-Your markdown content...`}
+Your markdown content...
+
+---
+
+**Disclaimer:** This information is educational only, not professional advice. Consult licensed experts before making decisions. See [Terms and Conditions](/terms). **Last Updated:** 2024-12-21`}
           </pre>
           <p className="mt-3">
             Files will be automatically placed in the correct category directory based on the <code className="bg-white px-1 rounded">category</code> field.
