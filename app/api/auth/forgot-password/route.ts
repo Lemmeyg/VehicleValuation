@@ -34,8 +34,18 @@ export async function POST(request: Request) {
 
     // Send password reset email
     // Note: Supabase sends users to /api/auth/callback first, which then redirects to /reset-password
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+
+    if (!appUrl) {
+      console.error('NEXT_PUBLIC_APP_URL is not set! Password reset will fail.')
+      return NextResponse.json(
+        { error: 'Server configuration error. Please contact support.' },
+        { status: 500 }
+      )
+    }
+
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`,
+      redirectTo: `${appUrl}/api/auth/callback`,
     })
 
     if (resetError) {
