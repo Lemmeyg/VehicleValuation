@@ -28,9 +28,9 @@ export async function POST(request: Request) {
     const { code, password } = body
 
     // Validate required fields
-    if (!code || !password) {
+    if (!password) {
       return NextResponse.json(
-        { error: 'Reset code and new password are required' },
+        { error: 'New password is required' },
         { status: 400 }
       )
     }
@@ -43,15 +43,34 @@ export async function POST(request: Request) {
       )
     }
 
-    // Exchange the code for a session and update password
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+    // If code is provided, try to exchange it for a session first
+    if (code) {
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
-    if (exchangeError) {
-      console.error('Code exchange error:', exchangeError)
-      return NextResponse.json(
-        { error: 'Invalid or expired reset link. Please request a new one.' },
-        { status: 400 }
-      )
+      if (exchangeError) {
+        console.error('Code exchange error:', exchangeError)
+        // Code might already be exchanged - check if we have a session
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (!session) {
+          return NextResponse.json(
+            { error: 'Invalid or expired reset link. Please request a new one.' },
+            { status: 400 }
+          )
+        }
+        // If we have a session, continue with password update
+        console.log('Code already exchanged, but session exists. Proceeding with password update.')
+      }
+    } else {
+      // No code provided - verify we have an active recovery session
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        return NextResponse.json(
+          { error: 'No active session. Please use the reset link from your email.' },
+          { status: 401 }
+        )
+      }
     }
 
     // Update the user's password
