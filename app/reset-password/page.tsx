@@ -8,14 +8,13 @@
  */
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
-import { createBrowserSupabaseClient } from '@/lib/db/supabase'
+import { createBrowserSupabaseClient } from '@/lib/db/supabase-client'
 
 function ResetPasswordForm() {
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -24,37 +23,38 @@ function ResetPasswordForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [codeExchanged, setCodeExchanged] = useState(false)
+  const [sessionReady, setSessionReady] = useState(false)
 
-  // Exchange the code for a session when component mounts
+  // Check for existing session when component mounts
+  // Session should have been established by the /api/auth/callback route
   useEffect(() => {
-    const exchangeCode = async () => {
-      const code = searchParams.get('code')
-      if (!code) {
-        setError('Invalid or missing reset token. Please request a new password reset.')
-        return
-      }
-
+    const checkSession = async () => {
       try {
         const supabase = createBrowserSupabaseClient()
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-        if (exchangeError) {
-          console.error('Code exchange error:', exchangeError)
-          setError('Invalid or expired reset link. Please request a new password reset.')
+        if (sessionError) {
+          console.error('Session check error:', sessionError)
+          setError('Failed to verify session. Please use the reset link from your email.')
           return
         }
 
-        console.log('✅ Code successfully exchanged for session')
-        setCodeExchanged(true)
+        if (!session) {
+          console.error('No active session found')
+          setError('No active session. Please use the reset link from your email.')
+          return
+        }
+
+        console.log('✅ Active recovery session found for user:', session.user.id)
+        setSessionReady(true)
       } catch (err) {
-        console.error('Code exchange exception:', err)
-        setError('Failed to validate reset link. Please try again.')
+        console.error('Session check exception:', err)
+        setError('Failed to verify session. Please try again.')
       }
     }
 
-    exchangeCode()
-  }, [searchParams])
+    checkSession()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -256,10 +256,10 @@ function ResetPasswordForm() {
             <div>
               <button
                 type="submit"
-                disabled={loading || !!error || !codeExchanged}
+                disabled={loading || !!error || !sessionReady}
                 className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {!codeExchanged && !error ? 'Validating reset link...' : loading ? 'Resetting password...' : 'Reset password'}
+                {!sessionReady && !error ? 'Verifying session...' : loading ? 'Resetting password...' : 'Reset password'}
               </button>
             </div>
           </form>

@@ -24,12 +24,28 @@ export async function GET(request: Request) {
   console.log('Auth callback - ReportId:', reportId)
   console.log('Auth callback - Next:', next)
 
-  // Handle password reset flow - redirect to reset-password page with code
-  // Note: Supabase includes type in URL hash OR query params
+  // Handle password reset flow - exchange code for session server-side
+  // This ensures session cookies are properly set before redirecting to reset-password page
   if (type === 'recovery' && code) {
-    console.log('Password recovery flow detected (via type parameter), redirecting to reset-password')
-    console.log('Redirect target:', `${requestUrl.origin}/reset-password?code=${code}`)
-    return NextResponse.redirect(new URL(`/reset-password?code=${code}`, requestUrl.origin))
+    console.log('Password recovery flow detected, exchanging code for session...')
+
+    const supabase = await createRouteHandlerSupabaseClient()
+    const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (exchangeError) {
+      console.error('❌ Recovery code exchange error:', exchangeError.message)
+      console.error('Error details:', JSON.stringify(exchangeError, null, 2))
+      return NextResponse.redirect(new URL('/login?error=invalid_reset_link', requestUrl.origin))
+    }
+
+    if (sessionData?.session) {
+      console.log('✅ Recovery session established for user:', sessionData.session.user.id)
+      console.log('Redirecting to reset-password page (session cookies set)')
+      return NextResponse.redirect(new URL('/reset-password', requestUrl.origin))
+    }
+
+    console.error('❌ Code exchange succeeded but no session returned')
+    return NextResponse.redirect(new URL('/login?error=session_failed', requestUrl.origin))
   }
 
   // WORKAROUND: Supabase strips query params from redirectTo URL
@@ -37,8 +53,22 @@ export async function GET(request: Request) {
   if (code && !type && !reportId && !next) {
     console.warn('⚠️ Auth code present but type parameter missing!')
     console.warn('Assuming this is password reset flow (Supabase strips query params from redirectTo)')
-    console.log('Redirect target:', `${requestUrl.origin}/reset-password?code=${code}`)
-    return NextResponse.redirect(new URL(`/reset-password?code=${code}`, requestUrl.origin))
+
+    const supabase = await createRouteHandlerSupabaseClient()
+    const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (exchangeError) {
+      console.error('❌ Recovery code exchange error:', exchangeError.message)
+      return NextResponse.redirect(new URL('/login?error=invalid_reset_link', requestUrl.origin))
+    }
+
+    if (sessionData?.session) {
+      console.log('✅ Recovery session established (workaround path) for user:', sessionData.session.user.id)
+      return NextResponse.redirect(new URL('/reset-password', requestUrl.origin))
+    }
+
+    console.error('❌ Code exchange succeeded but no session returned')
+    return NextResponse.redirect(new URL('/login?error=session_failed', requestUrl.origin))
   }
 
   // For magic links, the session is automatically established via hash params

@@ -7,13 +7,14 @@
  * Optionally collects full name and company information.
  */
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,6 +27,14 @@ export default function SignupPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+
+  // Pre-fill email from URL params if coming from Hero form
+  useEffect(() => {
+    const emailParam = searchParams.get('email')
+    if (emailParam) {
+      setEmail(emailParam)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -72,8 +81,15 @@ export default function SignupPage() {
         setSuccess(true)
         setError('')
       } else {
-        // User is logged in immediately, redirect to dashboard
-        router.push('/dashboard')
+        // User is logged in immediately
+        // Check if there's a returnUrl (from Hero form) to redirect to
+        const returnUrl = searchParams.get('returnUrl')
+        if (returnUrl) {
+          console.log('[Signup] Redirecting to:', returnUrl)
+          router.push(returnUrl)
+        } else {
+          router.push('/dashboard')
+        }
         router.refresh()
       }
     } catch (err) {
@@ -119,6 +135,40 @@ export default function SignupPage() {
             </Link>
           </p>
         </div>
+
+        {/* Show message when user is coming from Hero form */}
+        {searchParams.get('returnUrl') && (
+          <div className="rounded-md bg-blue-50 border border-blue-200 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-5 w-5 text-blue-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-blue-800">
+                  Complete Your Account
+                </h3>
+                <div className="mt-2 text-sm text-blue-700">
+                  <p>
+                    To continue with your vehicle evaluation, please create an account.
+                    Your report will be generated immediately after signup.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
@@ -292,5 +342,13 @@ export default function SignupPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <SignupForm />
+    </Suspense>
   )
 }
