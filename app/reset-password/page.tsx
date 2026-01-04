@@ -52,14 +52,14 @@ function ResetPasswordForm() {
     }
 
     try {
-      const code = searchParams.get('code')
-
+      // Note: Don't send the code - the session should already be established
+      // The code may have been auto-exchanged by Supabase client on page load
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ code, password }),
+        body: JSON.stringify({ password }),
       })
 
       const data = await response.json()
