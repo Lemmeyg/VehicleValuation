@@ -11,6 +11,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
+import { createBrowserSupabaseClient } from '@/lib/db/supabase'
 
 function ResetPasswordForm() {
   const router = useRouter()
@@ -23,13 +24,36 @@ function ResetPasswordForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [codeExchanged, setCodeExchanged] = useState(false)
 
-  // Check if we have a valid token
+  // Exchange the code for a session when component mounts
   useEffect(() => {
-    const code = searchParams.get('code')
-    if (!code) {
-      setError('Invalid or missing reset token. Please request a new password reset.')
+    const exchangeCode = async () => {
+      const code = searchParams.get('code')
+      if (!code) {
+        setError('Invalid or missing reset token. Please request a new password reset.')
+        return
+      }
+
+      try {
+        const supabase = createBrowserSupabaseClient()
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+        if (exchangeError) {
+          console.error('Code exchange error:', exchangeError)
+          setError('Invalid or expired reset link. Please request a new password reset.')
+          return
+        }
+
+        console.log('✅ Code successfully exchanged for session')
+        setCodeExchanged(true)
+      } catch (err) {
+        console.error('Code exchange exception:', err)
+        setError('Failed to validate reset link. Please try again.')
+      }
     }
+
+    exchangeCode()
   }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -232,10 +256,10 @@ function ResetPasswordForm() {
             <div>
               <button
                 type="submit"
-                disabled={loading || !!error}
+                disabled={loading || !!error || !codeExchanged}
                 className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {loading ? 'Resetting password...' : 'Reset password'}
+                {!codeExchanged && !error ? 'Validating reset link...' : loading ? 'Resetting password...' : 'Reset password'}
               </button>
             </div>
           </form>
