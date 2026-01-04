@@ -27,7 +27,14 @@ export async function GET(request: Request) {
   // Handle password reset flow - redirect to reset-password page with code
   if (type === 'recovery' && code) {
     console.log('Password recovery flow detected, redirecting to reset-password')
+    console.log('Redirect target:', `${requestUrl.origin}/reset-password?code=${code}`)
     return NextResponse.redirect(new URL(`/reset-password?code=${code}`, requestUrl.origin))
+  }
+
+  // Log if type parameter is missing (common issue)
+  if (code && !type) {
+    console.warn('⚠️ Auth code present but type parameter missing!')
+    console.warn('This might be a password reset without type=recovery parameter')
   }
 
   // For magic links, the session is automatically established via hash params
@@ -39,10 +46,13 @@ export async function GET(request: Request) {
 
   // Handle OAuth code exchange (if code is present)
   if (code && !session) {
+    console.log('Attempting code exchange for session...')
     const { data: sessionData, error: codeError } = await supabase.auth.exchangeCodeForSession(code)
 
     if (codeError) {
-      console.error('Code exchange error:', codeError)
+      console.error('❌ Code exchange error:', codeError.message)
+      console.error('Error details:', JSON.stringify(codeError, null, 2))
+      console.error('Code was:', code?.substring(0, 10) + '...')
       return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin))
     }
 
