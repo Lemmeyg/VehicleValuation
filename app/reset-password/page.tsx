@@ -25,12 +25,40 @@ function ResetPasswordForm() {
   const [success, setSuccess] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
 
-  // Check for existing session when component mounts
-  // Session should have been established by the /api/auth/callback route
+  // Handle both flows:
+  // 1. Server-side code exchange (via /api/auth/callback) - session already exists
+  // 2. Client-side code exchange (direct link) - need to exchange code here
   useEffect(() => {
-    const checkSession = async () => {
+    const initializeSession = async () => {
       try {
         const supabase = createBrowserSupabaseClient()
+
+        // First, check if we have a code in the URL (direct link from Supabase)
+        const urlParams = new URLSearchParams(window.location.search)
+        const code = urlParams.get('code')
+
+        if (code) {
+          console.log('Code found in URL, attempting client-side exchange...')
+
+          // Exchange code for session
+          const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+          if (exchangeError) {
+            console.error('❌ Code exchange error:', exchangeError)
+            setError('Invalid or expired reset link. Please request a new password reset.')
+            return
+          }
+
+          if (sessionData?.session) {
+            console.log('✅ Code exchanged successfully for user:', sessionData.session.user.id)
+            // Remove code from URL for security
+            window.history.replaceState({}, '', '/reset-password')
+            setSessionReady(true)
+            return
+          }
+        }
+
+        // No code in URL, check for existing session (server-side exchange path)
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
         if (sessionError) {
@@ -40,7 +68,7 @@ function ResetPasswordForm() {
         }
 
         if (!session) {
-          console.error('No active session found')
+          console.error('No active session found and no code to exchange')
           setError('No active session. Please use the reset link from your email.')
           return
         }
@@ -48,12 +76,12 @@ function ResetPasswordForm() {
         console.log('✅ Active recovery session found for user:', session.user.id)
         setSessionReady(true)
       } catch (err) {
-        console.error('Session check exception:', err)
+        console.error('Session initialization exception:', err)
         setError('Failed to verify session. Please try again.')
       }
     }
 
-    checkSession()
+    initializeSession()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
