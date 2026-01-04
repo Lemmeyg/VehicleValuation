@@ -25,16 +25,20 @@ export async function GET(request: Request) {
   console.log('Auth callback - Next:', next)
 
   // Handle password reset flow - redirect to reset-password page with code
+  // Note: Supabase includes type in URL hash OR query params
   if (type === 'recovery' && code) {
-    console.log('Password recovery flow detected, redirecting to reset-password')
+    console.log('Password recovery flow detected (via type parameter), redirecting to reset-password')
     console.log('Redirect target:', `${requestUrl.origin}/reset-password?code=${code}`)
     return NextResponse.redirect(new URL(`/reset-password?code=${code}`, requestUrl.origin))
   }
 
-  // Log if type parameter is missing (common issue)
-  if (code && !type) {
+  // WORKAROUND: Supabase strips query params from redirectTo URL
+  // If we have a code but no type/reportId/next params, assume it's password reset
+  if (code && !type && !reportId && !next) {
     console.warn('⚠️ Auth code present but type parameter missing!')
-    console.warn('This might be a password reset without type=recovery parameter')
+    console.warn('Assuming this is password reset flow (Supabase strips query params from redirectTo)')
+    console.log('Redirect target:', `${requestUrl.origin}/reset-password?code=${code}`)
+    return NextResponse.redirect(new URL(`/reset-password?code=${code}`, requestUrl.origin))
   }
 
   // For magic links, the session is automatically established via hash params
