@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props) {
   if (!article) return {}
 
   return {
-    title: `${article.title} | Vehicle Valuation Authority`,
+    title: `${article.title} | TotalLossToolKit.com`,
     description: article.description,
     openGraph: {
       title: article.title,

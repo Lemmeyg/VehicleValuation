@@ -1,12 +1,12 @@
 /**
  * PDF Report Template
  *
- * React-PDF template for generating vehicle valuation reports
+ * React-PDF template for generating reports
  */
 
 import React from 'react'
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
-import { getTopListings } from '@/lib/utils/listing-filters'
+import { Document, Page, Text, View, StyleSheet, Image, Link } from '@react-pdf/renderer'
+import { getLowestDOSActiveListings } from '@/lib/utils/listing-filters'
 
 // Define styles for the PDF
 const styles = StyleSheet.create({
@@ -165,6 +165,17 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#9ca3af',
   },
+  comparableDealer: {
+    fontSize: 9,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  comparableDealerLink: {
+    fontSize: 9,
+    color: '#2563eb',
+    textDecoration: 'underline',
+    marginTop: 2,
+  },
 })
 
 // Auto.dev VIN Decode Data (from database: autodev_vin_data column)
@@ -203,6 +214,8 @@ interface MarketCheckComparable {
   miles: number
   price: number
   dealer_type?: 'franchise' | 'independent'
+  dealer_name?: string
+  vdp_url?: string
   location?: {
     city?: string
     state?: string
@@ -266,9 +279,9 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
     })
   }
 
-  // Get ALL listings from data and filter to top 10 for PDF
+  // Get ALL listings from data and filter to 10 with lowest DOS_Active for PDF
   const allListings = data.marketcheckValuation?.recentComparables?.listings || []
-  const displayedComparables = getTopListings(allListings, 10)
+  const displayedComparables = getLowestDOSActiveListings(allListings, 10)
 
   // Extract vehicle data from Auto.dev VIN decode
   const vehicleYear = data.autodevVinData?.vehicle?.year
@@ -292,7 +305,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Vehicle Valuation Report</Text>
+          <Text style={styles.title}>TotalLossToolKit Report</Text>
           <Text style={styles.subtitle}>
             {data.reportType === 'BASIC' ? 'Basic Report' : 'Premium Report'} | Generated on{' '}
             {formatDate(data.createdAt)}
@@ -402,10 +415,10 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
         {displayedComparables.length > 0 && (
           <View style={styles.comparablesSection}>
             <Text style={styles.sectionTitle}>
-              Comparable Vehicles (Top {displayedComparables.length} of {allListings.length})
+              Comparable Vehicles ({displayedComparables.length} Fastest-Selling of {allListings.length})
             </Text>
             <Text style={styles.subtitle}>
-              Similar vehicles currently listed for sale near you
+              Similar vehicles with the shortest time on market (sorted by lowest DOS_Active)
             </Text>
             {displayedComparables.map((comparable, index) => (
               <View key={index} style={styles.comparableCard}>
@@ -419,6 +432,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
                 <Text style={styles.comparableDetails}>
                   Mileage: {formatMileage(comparable.miles)} miles
                   {comparable.dealer_type && ` • ${comparable.dealer_type} dealer`}
+                  {(comparable as any).dos_active !== undefined && ` • ${(comparable as any).dos_active} days on site`}
                 </Text>
                 {comparable.location && (
                   <>
@@ -432,9 +446,14 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
                     )}
                   </>
                 )}
-                {(comparable as any).days_on_market && (
-                  <Text style={styles.comparableDetails}>
-                    Days on market: {(comparable as any).days_on_market}
+                {comparable.dealer_name && comparable.vdp_url && (
+                  <Link src={comparable.vdp_url} style={styles.comparableDealerLink}>
+                    {comparable.dealer_name}
+                  </Link>
+                )}
+                {comparable.dealer_name && !comparable.vdp_url && (
+                  <Text style={styles.comparableDealer}>
+                    {comparable.dealer_name}
                   </Text>
                 )}
               </View>
@@ -462,11 +481,11 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            This report is provided for informational purposes only. Vehicle Valuation SaaS is not
+            This report is provided for informational purposes only. TotalLossToolKit.com is not
             responsible for decisions made based on this information.
           </Text>
           <Text style={styles.footerText}>
-            © {new Date().getFullYear()} Vehicle Valuation SaaS. All rights reserved.
+            © {new Date().getFullYear()} TotalLossToolKit.com. All rights reserved.
           </Text>
         </View>
       </Page>

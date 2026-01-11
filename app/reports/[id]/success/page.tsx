@@ -48,7 +48,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <Link href="/dashboard" className="text-2xl font-bold text-gray-900">
-                Vehicle Valuation
+                TotalLossToolKit
               </Link>
             </div>
             <div className="flex items-center">

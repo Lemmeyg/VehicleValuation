@@ -11,7 +11,7 @@ import { getAllArticles } from '@/lib/knowledge-base-db'
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Knowledge Base | Vehicle Valuation Authority',
+  title: 'Knowledge Base | TotalLossToolKit.com',
   description: 'Expert guides and resources to help you understand vehicle valuation, insurance claims, and your rights',
 }
 
@@ -35,7 +35,7 @@ export default async function KnowledgeBasePage() {
           {/* Disclaimer */}
           <div className="max-w-4xl mx-auto mb-12 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
             <p className="text-sm text-slate-700 leading-relaxed">
-              <strong>Disclaimer:</strong> The information in our knowledge base is for educational purposes only and does not constitute legal, financial, insurance, or professional advice. Vehicle valuations, pricing, VIN data, and insurance strategies are general guides subject to market changes, errors, and individual circumstances—consult licensed attorneys, CPAs, insurance professionals, or certified appraisers before making decisions. Examples are hypothetical and do not guarantee similar results. Visit our{' '}
+              <strong>Disclaimer:</strong> The information in our knowledge base is for educational purposes only and does not constitute legal, financial, insurance, or professional advice. Vehicle valuations, pricing, VIN data, and insurance strategies are general guides subject to market changes, errors, and individual circumstances—consult licensed attorneys, insurance professionals, or certified appraisers before making decisions. Examples are hypothetical and do not guarantee similar results. Visit our{' '}
               <Link href="/service-providers" className="text-primary-600 hover:text-primary-700 underline">
                 Service Provider Directory
               </Link>{' '}

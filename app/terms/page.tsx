@@ -29,7 +29,7 @@ export default function TermsPage() {
               <section className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Acceptance of Terms</h2>
                 <p className="text-slate-600 leading-relaxed">
-                  By accessing or using this website (the "Service"), you agree to these Terms and Conditions ("Terms"). These form a binding contract between you ("User," "you," or "your") and [Your Company Name] ("we," "us," or "our"). If you do not agree, do not use the Service. We may update Terms anytime; continued use means acceptance.
+                  By accessing or using this website (the "Service"), you agree to these Terms and Conditions ("Terms"). These form a binding contract between you ("User," "you," or "your") and LolaDev LLC, Owner of TotalLossToolKit.com ("we," "us," or "our"). If you do not agree, do not use the Service. We may update Terms anytime; continued use means acceptance.
                 </p>
               </section>
 
@@ -37,7 +37,7 @@ export default function TermsPage() {
               <section className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Description of Service</h2>
                 <p className="text-slate-600 leading-relaxed">
-                  The Service offers vehicle valuation estimates via MarketCheck Price™ Premium API (retail predictions from dealer listings), links/references to vehicle owners, a directory of service providers in relevant areas and a knowledge base with informational articles. None constitute endorsements, partnerships, or legal/financial advice. Service advisors/providers are independent and unaffiliated with us.
+                  The Service offers vehicle valuation estimates via third party API services (retail predictions from dealer listings), links/references to vehicle owners, a directory of service providers in relevant areas and a knowledge base with informational articles. None constitute endorsements, partnerships, or legal/financial advice. Service advisors/providers are independent and unaffiliated with us.
                 </p>
               </section>
 
@@ -157,7 +157,7 @@ export default function TermsPage() {
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">VIN Data Accuracy Disclaimer</h3>
                 <p className="text-slate-600 leading-relaxed mb-3">While we strive to provide accurate vehicle valuations, you acknowledge and agree that:</p>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>We rely on third-party API providers (Auto.dev, CarsXE, MarketCheck, VinAudit) for VIN data</li>
+                  <li>We rely on third-party API providers for VIN data</li>
                   <li>We are not responsible for the accuracy, completeness, or timeliness of data provided by these third parties</li>
                   <li>VIN data and valuations may contain errors, omissions, or outdated information</li>
                   <li>You should independently verify all VIN data and valuation information before making decisions</li>
@@ -168,7 +168,7 @@ export default function TermsPage() {
                 <p className="text-slate-600 leading-relaxed mb-3">The Service uses multiple third-party APIs to provide vehicle data. You acknowledge that:</p>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
                   <li>API providers may experience outages, errors, or data quality issues beyond our control</li>
-                  <li>We are not liable for any inaccuracies, downtime, or errors in data provided by Auto.dev, CarsXE, MarketCheck, VinAudit, or any other third-party data source</li>
+                  <li>We are not liable for any inaccuracies, downtime, or errors in data provided by any third-party data source</li>
                   <li>API data reflects listings and market conditions at a point in time and may not represent final sale values or insurance settlements</li>
                   <li>We make no guarantees about data availability or consistency across different API providers</li>
                 </ul>
@@ -340,7 +340,7 @@ export default function TermsPage() {
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Mandatory Binding Arbitration</h3>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  You and [Your Company Name] agree that any dispute, claim, or controversy arising out of or relating to these Terms or the Service (collectively, "Disputes") will be resolved through <strong>binding arbitration</strong> rather than in court, except as specified in the "Exceptions to Arbitration" section below.
+                  You and TotalLoss Tool Kit agree that any dispute, claim, or controversy arising out of or relating to these Terms or the Service (collectively, "Disputes") will be resolved through <strong>binding arbitration</strong> rather than in court, except as specified in the "Exceptions to Arbitration" section below.
                 </p>
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Arbitration Process</h3>
@@ -354,7 +354,7 @@ export default function TermsPage() {
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Class Action Waiver</h3>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  <strong>YOU AND [YOUR COMPANY NAME] AGREE THAT DISPUTES WILL BE RESOLVED ONLY ON AN INDIVIDUAL BASIS AND NOT AS A CLASS ACTION, CLASS ARBITRATION, OR ANY OTHER CONSOLIDATED PROCEEDING.</strong>
+                  <strong>YOU AND TOTAL LOSS TOOL KIT AGREE THAT DISPUTES WILL BE RESOLVED ONLY ON AN INDIVIDUAL BASIS AND NOT AS A CLASS ACTION, CLASS ARBITRATION, OR ANY OTHER CONSOLIDATED PROCEEDING.</strong>
                 </p>
                 <p className="text-slate-600 leading-relaxed mb-4">
                   Neither you nor we may bring a claim on behalf of other individuals or entities, nor participate as a class member in any class or consolidated proceeding. If this class action waiver is found to be unenforceable, the entire arbitration agreement will be void.
@@ -380,7 +380,7 @@ export default function TermsPage() {
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Notice Requirement</h3>
                 <p className="text-slate-600 leading-relaxed">
-                  Before initiating arbitration, you must send written notice to us at [Your Company Address] describing the dispute. We will have 30 days to attempt to resolve the dispute informally. If unresolved, either party may commence arbitration.
+                  Before initiating arbitration, you must send written notice to us describing the dispute via our contact form. We will have 30 days to attempt to resolve the dispute informally. If unresolved, either party may commence arbitration.
                 </p>
               </section>
 
@@ -563,12 +563,12 @@ export default function TermsPage() {
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Entire Agreement</h3>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  These Terms, together with our Privacy Policy and Money-Back Guarantee policy, constitute the entire agreement between you and [Your Company Name] regarding the Service and supersede all prior agreements, understandings, and communications.
+                  These Terms, together with our Privacy Policy and Money-Back Guarantee policy, constitute the entire agreement between you and TotalLoss Tool Kit regarding the Service and supersede all prior agreements, understandings, and communications.
                 </p>
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">No Waiver</h3>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  Our failure to enforce any provision of these Terms will not constitute a waiver of that provision or any other provision. No waiver will be effective unless made in writing and signed by an authorized representative of [Your Company Name].
+                  Our failure to enforce any provision of these Terms will not constitute a waiver of that provision or any other provision. No waiver will be effective unless made in writing and signed by an authorized representative of TotalLoss Tool Kit.
                 </p>
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Assignment</h3>
@@ -583,7 +583,7 @@ export default function TermsPage() {
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Relationship of Parties</h3>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  Nothing in these Terms creates any partnership, joint venture, agency, franchise, sales representative, or employment relationship between you and [Your Company Name]. You have no authority to bind us or make commitments on our behalf.
+                  Nothing in these Terms creates any partnership, joint venture, agency, franchise, sales representative, or employment relationship between you and TotalLoss Tool Kit. You have no authority to bind us or make commitments on our behalf.
                 </p>
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Headings</h3>
@@ -606,7 +606,7 @@ export default function TermsPage() {
               {/* Footer */}
               <div className="border-t border-slate-200 pt-6 mt-8">
                 <p className="text-sm text-slate-500 mb-2">
-                  <strong>Last Updated:</strong> January 1, 2026
+                  <strong>Last Updated:</strong> January 1st, 2026
                 </p>
                 <p className="text-sm text-slate-500 mb-4">
                   <strong>Version:</strong> 1.0

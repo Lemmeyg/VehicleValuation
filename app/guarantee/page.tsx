@@ -15,7 +15,7 @@ export default function MoneyBackGuaranteePage() {
               </h1>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm text-slate-600">
                 <p>
-                  <strong>Effective Date:</strong> January 1, 2026
+                  <strong>Effective Date:</strong> January 1st, 2026
                 </p>
                 <span className="hidden sm:inline">•</span>
                 <p>
@@ -25,280 +25,207 @@ export default function MoneyBackGuaranteePage() {
             </div>
 
             <div className="prose prose-slate max-w-none">
-              {/* Introduction */}
+              {/* Our Commitment to You */}
               <section className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Our Commitment to You</h2>
+                <p className="text-slate-600 leading-relaxed mb-4">
+                  We're confident that our Premium Report will help you secure a fair settlement from your insurance company. In fact, we guarantee it will help increase your settlement by more than the cost of the report—or we'll refund your money.
+                </p>
                 <p className="text-slate-600 leading-relaxed">
-                  We stand behind the quality of our vehicle valuation reports and services. If you're not satisfied with your purchase, our Money-Back Guarantee ensures you can request a refund under the conditions outlined below. This policy is designed to protect you while ensuring fair use of our services.
+                  <strong>Why we offer this guarantee:</strong> We've seen countless collision victims accept low offers simply because they didn't have the information or knowledge to negotiate effectively. Our reports provide the comprehensive market analysis and documentation you need to level the playing field with insurance adjusters. We stand behind the value our reports deliver, and this guarantee proves it.
                 </p>
               </section>
 
-              {/* Eligibility Criteria */}
+              {/* What's Covered */}
               <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">Eligibility Criteria</h2>
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">What's Covered</h2>
+                <p className="text-slate-600 leading-relaxed mb-4">
+                  Our Money-Back Guarantee applies to purchases of our Premium Report only. Here's how it works:
+                </p>
 
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">You May Be Eligible for a Refund If:</h3>
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">You're eligible for a refund if:</h3>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>The report contains significant technical errors that prevent you from accessing or reading the data</li>
-                  <li>The VIN you submitted was processed incorrectly and the report shows information for a different vehicle</li>
-                  <li>The report was not generated due to a system error or service failure on our end</li>
-                  <li>You were charged but did not receive your report within 24 hours of purchase</li>
-                  <li>The data sources failed to provide any valuation data despite a valid VIN submission</li>
-                </ul>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">You Are NOT Eligible for a Refund If:</h3>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>You simply disagree with the valuation amount or market data provided</li>
-                  <li>Your insurance company did not accept the valuation in settlement negotiations</li>
-                  <li>You changed your mind after receiving a complete, accurate report</li>
-                  <li>You submitted an invalid, fraudulent, or incorrect VIN</li>
-                  <li>The report was successfully delivered but you did not download or save it</li>
-                  <li>You misunderstood what data would be included in the report (all report features are clearly described before purchase)</li>
-                  <li>Market conditions changed after your report was generated</li>
-                  <li>Third-party API providers returned limited data for your specific vehicle (vintage, rare, or modified vehicles may have less available market data)</li>
-                </ul>
-              </section>
-
-              {/* Refund Request Process */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">How to Request a Refund</h2>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">Step 1: Submit Your Request</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">To request a refund, you must:</p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>Contact us through the contact form on our website within <strong>14 days</strong> of your purchase</li>
-                  <li>Provide your order confirmation number or transaction ID</li>
-                  <li>Include the VIN associated with the report</li>
-                  <li>Clearly explain the reason for your refund request</li>
-                  <li>Provide any supporting documentation (screenshots of errors, proof of incorrect data, etc.)</li>
-                </ul>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">Step 2: Review Process</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">Once we receive your request:</p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>We will acknowledge receipt within 2 business days</li>
-                  <li>Our team will review your request and verify the eligibility criteria</li>
-                  <li>We may request additional information or clarification</li>
-                  <li>Review is typically completed within 5-7 business days</li>
-                </ul>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">Step 3: Decision and Processing</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">After review:</p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>You will receive an email with our decision (approval or denial)</li>
-                  <li>If approved, your refund will be processed to the original payment method</li>
-                  <li>Refunds typically appear within 5-10 business days depending on your financial institution</li>
-                  <li>If denied, we will provide a clear explanation of the reason</li>
-                </ul>
-              </section>
-
-              {/* Refund Amounts and Exclusions */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">Refund Amounts and Exclusions</h2>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">What Is Refunded</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">If your refund is approved, you will receive:</p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>The full purchase price of the vehicle valuation report</li>
-                  <li>Any applicable taxes or fees charged at the time of purchase</li>
-                </ul>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">What Is NOT Refunded</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">The following are excluded from all refunds:</p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li><strong>Payment processing fees:</strong> Stripe and Lemon Squeezy charge non-refundable processing fees for each transaction</li>
-                  <li><strong>Bank transfer fees:</strong> Any fees charged by your financial institution</li>
-                  <li><strong>Currency conversion fees:</strong> If applicable to international transactions</li>
-                  <li><strong>Third-party service fees:</strong> Costs associated with services you may have purchased separately (e.g., consultation with listed advisors)</li>
+                  <li>Your final insurance settlement increases by less than or equal to the cost of your Premium Report compared to the carrier's original offer</li>
+                  <li>You purchased the report and meet all the requirements listed below</li>
                 </ul>
 
                 <div className="bg-blue-50 border-l-4 border-blue-500 p-4 my-4">
                   <p className="text-sm text-blue-800">
-                    <strong>Important:</strong> Payment processing fees typically range from 2.9% + $0.30 per transaction. These fees are charged by our payment processors (Stripe/Lemon Squeezy) and are non-recoverable even when we issue a refund.
+                    <strong>Example:</strong> If you paid $49 for a Premium Report and your original settlement offer was $8,000, but your final settlement is only $8,040 (a $40 increase), you qualify for a $9 refund since the increase was less than the full report cost.
                   </p>
                 </div>
               </section>
 
-              {/* Timeframes and Deadlines */}
+              {/* What's Required to Claim Your Refund */}
               <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">Important Timeframes</h2>
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">What's Required to Claim Your Refund</h2>
+                <p className="text-slate-600 leading-relaxed mb-4">
+                  To qualify for our Money-Back Guarantee, you must:
+                </p>
 
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border border-slate-300 text-sm">
-                    <thead className="bg-slate-100">
-                      <tr>
-                        <th className="border border-slate-300 px-4 py-2 text-left font-semibold text-slate-900">Action</th>
-                        <th className="border border-slate-300 px-4 py-2 text-left font-semibold text-slate-900">Timeframe</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-slate-600">
-                      <tr>
-                        <td className="border border-slate-300 px-4 py-2">Request Deadline</td>
-                        <td className="border border-slate-300 px-4 py-2">Within 14 days of purchase</td>
-                      </tr>
-                      <tr>
-                        <td className="border border-slate-300 px-4 py-2">Initial Response</td>
-                        <td className="border border-slate-300 px-4 py-2">Within 2 business days</td>
-                      </tr>
-                      <tr>
-                        <td className="border border-slate-300 px-4 py-2">Review Completion</td>
-                        <td className="border border-slate-300 px-4 py-2">5-7 business days</td>
-                      </tr>
-                      <tr>
-                        <td className="border border-slate-300 px-4 py-2">Refund Processing</td>
-                        <td className="border border-slate-300 px-4 py-2">5-10 business days after approval</td>
-                      </tr>
-                      <tr>
-                        <td className="border border-slate-300 px-4 py-2">Total Maximum Time</td>
-                        <td className="border border-slate-300 px-4 py-2">Up to 17 business days from request</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">1. Timing Requirements</h3>
+                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
+                  <li>Submit your refund request within <strong>90 days</strong> of your report purchase date</li>
+                  <li>Wait at least <strong>30 days</strong> after purchasing the report before submitting a claim (to allow adequate time for negotiation)</li>
+                </ul>
+
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">2. Negotiation Requirements</h3>
+                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
+                  <li>Actively negotiate with your insurance carrier using the information from our report</li>
+                  <li>Share our Premium Vehicle Valuation Report with your insurance adjuster during negotiations</li>
+                  <li>Provide written evidence of your negotiation efforts (emails or letters exchanged with the carrier)</li>
+                </ul>
+
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">3. Documentation Requirements</h3>
+                <p className="text-slate-600 leading-relaxed mb-3">You must provide all of the following documents:</p>
+                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
+                  <li><strong>Original settlement offer:</strong> Written documentation from your insurance carrier showing the initial settlement amount, dated before the creation date of your first report for this VIN</li>
+                  <li><strong>Final settlement payment:</strong> Documentation from your carrier showing the final settlement amount you accepted</li>
+                  <li><strong>Negotiation evidence:</strong> Copies of emails or letters showing you negotiated with the carrier and shared our report with them including the reason why the Total Loss Tool Kit report was not considered applicable in their valuation process</li>
+                  <li><strong>Claim consistency:</strong> The VIN and ZIP code in your insurance claim must match the information in the report you purchased</li>
+                </ul>
+
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">4. How to Submit a Refund Request</h3>
+                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
+                  <li>Go to our Contact Us page on the website</li>
+                  <li>Submit a refund request with the subject line "Money-Back Guarantee Claim"</li>
+                  <li>Include all required documentation listed above</li>
+                  <li>You'll receive instructions on next steps within 14 business days</li>
+                </ul>
+              </section>
+
+              {/* What's Not Covered */}
+              <section className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">What's Not Covered</h2>
+                <p className="text-slate-600 leading-relaxed mb-4">
+                  This guarantee does not apply in the following situations:
+                </p>
+
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">Settlement Type Exclusions</h3>
+                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
+                  <li><strong>No negotiation attempt:</strong> Cases where you accepted the insurance carrier's first offer without attempting to negotiate</li>
+                </ul>
+
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">Report Type Exclusions</h3>
+                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
+                  <li><strong>Non-Premium reports:</strong> This guarantee only covers our Premium Report tier, not basic or standard reports</li>
+                  <li><strong>Multiple reports:</strong> If you purchased multiple reports for the same VIN, only the first Premium Report purchased is eligible</li>
+                </ul>
+
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">Documentation Issues</h3>
+                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
+                  <li><strong>Missing documentation:</strong> Incomplete submissions lacking any of the required documents</li>
+                  <li><strong>Inconsistent information:</strong> Cases where the VIN or ZIP code in your insurance claim doesn't match the report you purchased</li>
+                  <li><strong>Late submissions:</strong> Refund requests submitted more than 90 days after report purchase</li>
+                  <li><strong>Early submissions:</strong> Claims submitted less than 30 days after report purchase</li>
+                </ul>
+
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">Fraud & Misrepresentation</h3>
+                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
+                  <li><strong>Fraudulent claims:</strong> Any evidence of fraudulent information in either your insurance claim or refund request</li>
+                  <li><strong>Misrepresented data:</strong> Altered or falsified settlement offers, payment documentation, or negotiation records</li>
+                </ul>
+              </section>
+
+              {/* Refund Process & Timeline */}
+              <section className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">Refund Process & Timeline</h2>
+                <p className="text-slate-600 leading-relaxed mb-4">
+                  Once we receive your complete refund request:
+                </p>
+                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
+                  <li>We'll review your submission and all supporting documentation</li>
+                  <li>You'll receive our decision within 14 business days</li>
+                  <li>If approved, your refund will be issued to your original payment method within 5-7 business days</li>
+                  <li>If we need additional information, we'll contact you via email</li>
+                </ul>
+              </section>
+
+              {/* Frequently Asked Questions */}
+              <section className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">Frequently Asked Questions</h2>
+
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Q: Can I get a refund if I hired a public adjuster or attorney to help with my claim?</h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      A: Yes. Our guarantee still applies even if you used professional assistance, as long as you meet all other requirements.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Q: What if my insurance company improved their offer but I'm still negotiating?</h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      A: You can only submit a refund claim once you've reached a final settlement. If negotiations are ongoing, please wait until you have a final settlement amount.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Q: I have multiple vehicles in my claim. Does the guarantee apply to all of them?</h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      A: The guarantee applies separately to each vehicle. If you purchased a Premium Report for each VIN, each report is covered by its own guarantee based on that specific vehicle's settlement outcome.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Q: What counts as "sharing the report" with my insurance carrier?</h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      A: You must provide evidence that you sent the Premium Report to your adjuster, such as an email with the report attached or a letter referencing specific data from the report.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Q: My insurance company didn't increase their offer at all. Am I guaranteed a refund?</h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      A: Yes, if your final settlement is equal to or less than the original offer (meaning an increase of $0 or less), and you meet all other requirements, you qualify for a full refund.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Q: What if I can't find my original settlement offer letter?</h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      A: Contact your insurance carrier and request a copy of their initial valuation or offer letter. Most carriers can provide this documentation upon request.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Q: The 90-day deadline is approaching but my claim isn't settled yet. What should I do?</h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      A: Contact us immediately through our Contact Us page. We'll work with you on a case-by-case basis for claims that are still in active negotiation near the deadline.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Q: Can I get a partial refund if my settlement increased by some amount but less than the report cost?</h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      A: Yes. Our guarantee includes a partial refund. If your settlement increase is less than or equal to the report cost, you receive a full refund. If it exceeds the report cost, the guarantee doesn't apply (because the report more than paid for itself).
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Q: What is the maximum refund I can receive?</h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      A: The maximum refund you can receive is for the full cost of one report per claim.
+                    </p>
+                  </div>
                 </div>
-
-                <p className="text-sm text-slate-500 mt-4 italic">
-                  Note: Business days exclude weekends and federal holidays. Actual processing times may vary depending on your financial institution.
-                </p>
               </section>
 
-              {/* Limitations and Restrictions */}
+              {/* Questions About This Guarantee */}
               <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">Limitations and Restrictions</h2>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">One-Time Courtesy Refund</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">
-                  We reserve the right to limit refunds to <strong>one courtesy refund per customer</strong> in cases where:
-                </p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>The reason for refund is subjective (e.g., "not what I expected")</li>
-                  <li>The report was delivered correctly but did not meet your personal expectations</li>
-                  <li>There was no technical error or service failure</li>
-                </ul>
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">Questions About This Guarantee?</h2>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  Subsequent refund requests from the same customer may be denied unless they meet strict eligibility criteria (technical errors, system failures, etc.).
-                </p>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">Abuse Prevention</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">We reserve the right to deny refunds if we detect:</p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>Repeated refund requests for similar reasons</li>
-                  <li>Attempts to obtain reports for free through refund abuse</li>
-                  <li>Fraudulent claims or false information in refund requests</li>
-                  <li>Violation of our Terms and Conditions</li>
-                </ul>
-                <p className="text-slate-600 leading-relaxed">
-                  Accounts found to be abusing the refund policy may be suspended or terminated without further refunds.
-                </p>
-              </section>
-
-              {/* Dispute Resolution */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">Dispute Resolution</h2>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">If Your Refund Request Is Denied</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">If you disagree with our refund decision:</p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>You may submit additional evidence or clarification within 7 days of the denial</li>
-                  <li>We will review the new information and provide a final decision</li>
-                  <li>If you remain unsatisfied, you may dispute the charge with your credit card company or payment processor</li>
-                  <li>Chargebacks may result in account suspension and forfeiture of access to services</li>
-                </ul>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">Chargebacks</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">
-                  <strong>Important:</strong> Before initiating a chargeback with your bank or credit card company, please contact us directly to resolve the issue. Chargebacks have serious consequences:
-                </p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>Your account will be immediately suspended pending investigation</li>
-                  <li>You may be required to provide evidence to your financial institution</li>
-                  <li>If the chargeback is resolved in our favor, your account will remain suspended</li>
-                  <li>Chargeback fees ($15-25 per dispute) may be passed on to you</li>
-                  <li>Multiple chargebacks may result in permanent account termination</li>
-                </ul>
-              </section>
-
-              {/* Exceptions and Special Cases */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">Exceptions and Special Cases</h2>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">Extended Timeframes</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">
-                  We may grant exceptions to the 14-day request deadline in cases of:
-                </p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>Medical emergencies or hospitalization (documentation required)</li>
-                  <li>Natural disasters affecting your area</li>
-                  <li>Service outages on our end that prevented timely request submission</li>
-                </ul>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">Partial Refunds</h3>
-                <p className="text-slate-600 leading-relaxed mb-3">
-                  In some cases, we may offer partial refunds:
-                </p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>If part of the report data is accurate but one section contains errors</li>
-                  <li>If you purchased multiple reports and only one has issues</li>
-                  <li>At our sole discretion as a goodwill gesture</li>
-                </ul>
-
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">Account Credit Alternative</h3>
-                <p className="text-slate-600 leading-relaxed">
-                  Instead of a monetary refund, we may offer account credit equal to the purchase price, which can be used for future report purchases. This option may be available when a full refund is not warranted but we recognize inconvenience was caused.
-                </p>
-              </section>
-
-              {/* Contact for Refund Requests */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">How to Contact Us</h2>
-                <p className="text-slate-600 leading-relaxed mb-4">
-                  To submit a refund request or ask questions about this policy, please use the contact form available on our website.
-                </p>
-                <p className="text-slate-600 leading-relaxed mb-4">
-                  When contacting us about a refund, please include:
-                </p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>Your full name and email address associated with the purchase</li>
-                  <li>Order confirmation number or transaction ID</li>
-                  <li>VIN associated with the report</li>
-                  <li>Detailed explanation of the issue</li>
-                  <li>Any supporting documentation (screenshots, error messages, etc.)</li>
-                </ul>
-                <p className="text-slate-600 leading-relaxed">
-                  We aim to respond to all refund requests within 2 business days.
-                </p>
-              </section>
-
-              {/* Relationship to Terms and Conditions */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">Relationship to Terms and Conditions</h2>
-                <p className="text-slate-600 leading-relaxed mb-4">
-                  This Money-Back Guarantee policy is supplementary to our <a href="/terms" className="text-blue-600 hover:text-blue-800 underline">Terms and Conditions</a>. In the event of any conflict between this policy and the Terms and Conditions, the Terms and Conditions shall prevail.
+                  If you have questions about our Money-Back Guarantee or need clarification on any terms, please contact us through our website. We're here to help you get the fair settlement you deserve.
                 </p>
                 <p className="text-slate-600 leading-relaxed">
-                  By making a purchase, you agree to both this Money-Back Guarantee policy and our complete Terms and Conditions.
+                  This guarantee demonstrates our confidence in the Premium Vehicle Valuation Report and our commitment to your success in negotiating with insurance carriers.
                 </p>
-              </section>
-
-              {/* Changes to This Policy */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">Changes to This Policy</h2>
-                <p className="text-slate-600 leading-relaxed mb-3">
-                  We reserve the right to modify this Money-Back Guarantee policy at any time. Changes will be effective immediately upon posting to our website. Your continued use of our services after changes are posted constitutes acceptance of the modified policy.
-                </p>
-                <p className="text-slate-600 leading-relaxed mb-4">
-                  <strong>Important:</strong> The policy in effect at the time of your purchase will govern any refund requests for that purchase.
-                </p>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>The "Effective Date" at the top of this page will be updated when changes are made</li>
-                  <li>Significant changes will be announced via email or website notice</li>
-                  <li>We recommend reviewing this policy periodically</li>
-                </ul>
               </section>
 
               {/* Footer */}
               <div className="border-t border-slate-200 pt-6 mt-8">
                 <p className="text-sm text-slate-500 mb-2">
-                  <strong>Last Updated:</strong> January 1, 2026
+                  <strong>Last Updated:</strong> January 1st, 2026
                 </p>
                 <p className="text-sm text-slate-500 mb-4">
                   <strong>Version:</strong> 1.0

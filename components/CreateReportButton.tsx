@@ -87,7 +87,7 @@ export default function CreateReportButton() {
           <svg className="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          {isChecking ? 'Checking...' : 'Create New Vehicle Valuation Report'}
+          {isChecking ? 'Checking...' : 'Create New Report'}
         </button>
 
         {/* Show wait time counter for non-admins who are rate limited */}

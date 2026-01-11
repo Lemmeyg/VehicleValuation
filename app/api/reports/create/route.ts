@@ -1,7 +1,7 @@
 /**
  * POST /api/reports/create
  *
- * Creates a new vehicle valuation report by fetching data from external APIs.
+ * Creates a new report by fetching data from external APIs.
  *
  * Data Sources:
  * - Auto.dev VIN Decode API: LIVE vehicle specifications (year, make, model, trim, engine, etc.)
@@ -9,7 +9,8 @@
  */
 
 import { NextResponse } from 'next/server'
-import { requireAuth, checkIfUserIsAdmin } from '@/lib/db/auth'
+import { requireAuth } from '@/lib/db/auth'
+import { isAdmin } from '@/lib/db/admin-auth'
 import { createRouteHandlerSupabaseClient, supabaseAdmin } from '@/lib/db/supabase'
 import { getVinValidationError, sanitizeVin } from '@/lib/utils/vin-validator'
 import {
@@ -33,17 +34,17 @@ export async function POST(request: Request) {
     const user = await requireAuth()
 
     // Weekly rate limit check: 1 report per 7 days (non-admin users)
-    const isAdmin = await checkIfUserIsAdmin(user.id)
+    const userIsAdmin = await isAdmin(user.id)
 
     console.log('[RATE_LIMIT_CHECK]', {
       userId: user.id,
       email: user.email,
-      isAdmin,
+      isAdmin: userIsAdmin,
       disableRateLimit: DISABLE_RATE_LIMIT,
-      willCheckRateLimit: !isAdmin && !DISABLE_RATE_LIMIT,
+      willCheckRateLimit: !userIsAdmin && !DISABLE_RATE_LIMIT,
     })
 
-    if (!isAdmin && !DISABLE_RATE_LIMIT) {
+    if (!userIsAdmin && !DISABLE_RATE_LIMIT) {
       const supabase = await createRouteHandlerSupabaseClient()
       const { data: lastReport, error: rateCheckError } = await supabase
         .from('reports')
@@ -264,10 +265,15 @@ export async function POST(request: Request) {
     const { error: updateError } = await supabase
       .from('reports')
       .update({
-        // Store normalized vehicle data for backward compatibility
+        // Store normalized vehicle data including original user-entered data
         vehicle_data: vehicleData
           ? {
-              vin: vehicleData.vin,
+              // Original user-entered data
+              vin: vin, // Use the sanitized VIN from user input
+              mileage: mileage, // User-entered mileage
+              zipCode: zipCode, // User-entered ZIP code
+
+              // API-fetched vehicle specifications
               year: vehicleData.vehicle.year.toString(),
               make: vehicleData.make,
               model: vehicleData.model,
@@ -278,7 +284,12 @@ export async function POST(request: Request) {
               driveType: vehicleData.drive,
               fuelType: vehicleData.type,
             }
-          : {},
+          : {
+              // If API fetch failed, still store user-entered data
+              vin: vin,
+              mileage: mileage,
+              zipCode: zipCode,
+            },
         // Store complete Auto.dev VIN decode response
         autodev_vin_data: vehicleData || null,
 

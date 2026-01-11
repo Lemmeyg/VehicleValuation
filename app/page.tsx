@@ -1,7 +1,7 @@
 /**
  * Home Page / Landing Page
  *
- * Main landing page for the Vehicle Valuation SaaS application.
+ * Main landing page for TotalLossToolKit.com
  * Updated with new funnel flow: Hero (with form) → Problem Statement → Knowledge Base → Directory → Value Props & CTA
  */
 

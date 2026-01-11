@@ -5,7 +5,7 @@ This directory contains Next.js API routes for the application.
 ## Structure
 
 - `/auth` - Authentication endpoints (login, register, logout)
-- `/reports` - Vehicle valuation report endpoints (create, retrieve, update)
+- `/reports` - Report endpoints (create, retrieve, update)
 - `/payments` - Stripe payment processing endpoints
 - `/webhooks` - Stripe webhook handlers
 

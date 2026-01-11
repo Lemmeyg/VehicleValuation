@@ -15,6 +15,7 @@ export type FilterStrategy =
   | 'closest_distance'    // Closest geographic distance
   | 'newest_listings'     // Most recently listed
   | 'fastest_selling'     // Lowest days on market
+  | 'lowest_dos_active'   // Lowest DOS_Active (days on site active)
   | 'dealer_type'         // Filter by dealer type (franchise/independent)
   | 'price_range'         // Within specific price range
   | 'mileage_range'       // Within specific mileage range
@@ -124,6 +125,15 @@ export function filterListings(
         const daysA = a.dos_active ?? a.dom ?? Infinity
         const daysB = b.dos_active ?? b.dom ?? Infinity
         return daysA - daysB // Lowest days first
+      })
+      break
+
+    case 'lowest_dos_active':
+      filtered = filtered.filter(l => l.dos_active !== undefined)
+      filtered.sort((a, b) => {
+        const daysA = a.dos_active ?? Infinity
+        const daysB = b.dos_active ?? Infinity
+        return daysA - daysB // Lowest DOS_Active first
       })
       break
 
@@ -252,6 +262,17 @@ export function getClosestListings(
   limit: number = 10
 ): MarketCheckComparable[] {
   return filterListings(listings, { strategy: 'closest_distance', limit })
+}
+
+/**
+ * Get listings with lowest DOS_Active (days on site active)
+ * This shows vehicles that are selling fastest
+ */
+export function getLowestDOSActiveListings(
+  listings: MarketCheckComparable[],
+  limit: number = 10
+): MarketCheckComparable[] {
+  return filterListings(listings, { strategy: 'lowest_dos_active', limit })
 }
 
 /**

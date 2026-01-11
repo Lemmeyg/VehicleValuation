@@ -2,18 +2,18 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db/supabase'
 
 /**
- * Check Email for Existing Reports Endpoint
+ * Check Email for Existing User Endpoint
  *
- * Checks if an email address already has reports in the system.
- * Used in hero form to determine if user should login or proceed with new report.
+ * Checks if an email address already exists in Supabase Auth.
+ * Used in hero form to determine if user should login or signup.
  *
  * POST /api/reports/check-email
  * Body: { email }
  *
  * Returns:
+ * - hasUser: boolean (true if user exists in Supabase Auth)
  * - hasReports: boolean (true if email has any reports)
  * - reportCount: number (total reports for this email)
- * - hasUser: boolean (true if user exists in Supabase Auth)
  */
 
 interface CheckEmailRequest {
@@ -46,7 +46,26 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check if email has any reports in the database (case-insensitive)
+    // FIRST: Check if user exists in Supabase Auth (primary check)
+    // This determines whether user should login or signup
+    let hasUser = false
+    try {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers()
+
+      if (!authError && authData?.users) {
+        hasUser = authData.users.some(user => user.email?.toLowerCase() === normalizedEmail)
+      }
+    } catch (authCheckError) {
+      console.error('[check-email] Error checking auth status:', authCheckError)
+      return NextResponse.json(
+        { error: 'Failed to check user authentication status' },
+        { status: 500 }
+      )
+    }
+
+    console.log('[check-email] User exists in auth:', hasUser)
+
+    // SECOND: Check if email has any reports in the database (optional info)
     const { data: reports, error: reportsError } = await supabaseAdmin
       .from('reports')
       .select('id, user_id, created_at')
@@ -55,10 +74,7 @@ export async function POST(request: Request) {
 
     if (reportsError) {
       console.error('[check-email] Error checking reports:', reportsError)
-      return NextResponse.json(
-        { error: 'Failed to check email' },
-        { status: 500 }
-      )
+      // Don't fail the request - reports check is secondary
     }
 
     const hasReports = reports && reports.length > 0
@@ -71,30 +87,14 @@ export async function POST(request: Request) {
       reportIds: reports?.map(r => r.id)
     })
 
-    // Check if user exists in Supabase Auth
-    // We'll check by trying to list users with this email (admin only operation)
-    let hasUser = false
-    try {
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers()
-
-      if (!authError && authData?.users) {
-        hasUser = authData.users.some(user => user.email?.toLowerCase() === normalizedEmail)
-      }
-    } catch (authCheckError) {
-      console.warn('[check-email] Could not check auth status:', authCheckError)
-      // Continue without auth check - we'll rely on reports check
-    }
-
-    console.log('[check-email] User exists in auth:', hasUser)
-
     return NextResponse.json({
       success: true,
+      hasUser,
       hasReports,
       reportCount,
-      hasUser,
-      message: hasReports
-        ? 'Email has existing reports'
-        : 'Email is new to the system',
+      message: hasUser
+        ? 'User account exists - please login'
+        : 'New user - please create account',
     })
 
   } catch (error) {

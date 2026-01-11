@@ -17,7 +17,7 @@ export default function ReportPreviewCondensed() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs text-slate-500 tracking-wide uppercase">
-              VEHICLE VALUATION REPORT › ID: B775F192
+              TOTALLOSSTOOLKIT REPORT › ID: B775F192
             </div>
             <div className="text-xs text-slate-500">Report Date: 12/29/2025</div>
           </div>

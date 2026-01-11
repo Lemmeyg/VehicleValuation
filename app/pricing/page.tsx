@@ -800,11 +800,11 @@ function PricingContent() {
             {/* Content */}
             <div className="text-center mb-6">
               <h2 className="text-2xl font-bold text-slate-900 mb-3">
-                Welcome Back - Your Report is Ready!
+                Congratulations - your Report is Free!
               </h2>
               <p className="text-lg text-slate-700 mb-4">
-                As an existing user, you have free access to your professional-grade independent
-                valuation.
+                While this tool is in Beta, your professional-grade independent valuation comes at
+                no cost to you.
               </p>
 
               <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded text-left">
@@ -812,11 +812,16 @@ function PricingContent() {
                   <strong>Your independent valuation includes:</strong>
                 </p>
                 <ul className="text-sm text-emerald-800 mt-2 space-y-1 ml-4 list-disc">
-                  <li>Dual independent price predictions (CarsXE + MarketCheck)</li>
-                  <li>10 comparable vehicles with full market data</li>
-                  <li>Complete vehicle history and specifications</li>
-                  <li>Professional PDF report for insurance negotiations</li>
+                  <li>10 Comparable vehicles &quot;Comps&quot; listings</li>
+                  <li>Market insights using all comps found within 100 miles</li>
+                  <li>
+                    Professional PDF Report with detailed guide for factors impacting your vehicle
+                    value
+                  </li>
                 </ul>
+                <p className="text-sm text-emerald-800 mt-3">
+                  All items designed to help you with your insurance negotiations
+                </p>
               </div>
             </div>
 

@@ -56,7 +56,7 @@ export default async function DashboardPage() {
           Welcome back{profile?.full_name ? `, ${profile.full_name}` : ''}!
         </h1>
         <p className="mt-2 text-base text-slate-600">
-          View your vehicle valuation reports and manage your account.
+          View your reports and manage your account.
         </p>
       </div>
 
@@ -210,8 +210,8 @@ export default async function DashboardPage() {
               </div>
               <h3 className="text-xl font-bold text-slate-900">No reports yet</h3>
               <p className="mt-2 text-base text-slate-600 max-w-md mx-auto">
-                Get started by creating your first vehicle valuation report. Our professional
-                analysis takes just minutes to request.
+                Get started by creating your first report. Our professional analysis takes just
+                minutes to request.
               </p>
               <div className="mt-6">
                 <CreateReportButton />

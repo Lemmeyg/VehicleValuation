@@ -7,7 +7,7 @@ import { Button } from './ui/Button'
 import { Menu, X, LogOut, LayoutDashboard } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { label: 'Vehicle Valuation Report', href: '#hero-form' },
+  { label: 'Get Report', href: '#hero-form' },
   { label: 'Articles', href: '/knowledge-base' },
   { label: 'Directory', href: '/directory' },
 ]
@@ -77,7 +77,7 @@ export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
         <div className="flex justify-between items-center">
           {/* Logo */}
           <Link href="/" className="flex items-center">
-            <span className="text-2xl font-bold text-emerald-700">Vehicle Valuation</span>
+            <span className="text-2xl font-bold text-emerald-700">TotalLossToolKit</span>
           </Link>
 
           {/* Desktop Links */}

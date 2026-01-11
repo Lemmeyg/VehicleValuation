@@ -1,0 +1,10 @@
+# Commit Message Template
+# Use [skip-deploy] to skip Netlify builds for minor changes
+#
+# Examples:
+#   docs: update README [skip-deploy]
+#   chore: fix typo in comments [skip-deploy]
+#   style: format code [skip-deploy]
+#
+# Remove [skip-deploy] for code changes that need deployment
+

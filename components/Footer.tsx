@@ -20,7 +20,7 @@ export default function Footer() {
       { name: 'FAQ', href: '/faq' },
     ],
     resources: [
-      { name: 'Vehicle Valuation Report', href: '#hero-form' },
+      { name: 'Get Report', href: '#hero-form' },
       { name: 'Articles', href: '#knowledge-base' },
       { name: 'Professional Services Directory', href: '#services-directory' },
     ],
@@ -73,7 +73,7 @@ export default function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             {/* Brand Column */}
             <div className="col-span-1">
-              <h3 className="text-xl font-bold text-white mb-4">Vehicle Valuation</h3>
+              <h3 className="text-xl font-bold text-white mb-4">TotalLossToolKit</h3>
               <p className="text-slate-400 text-sm mb-4">
                 Professional vehicle valuation reports backed by comprehensive market data.
               </p>
@@ -143,7 +143,7 @@ export default function Footer() {
           {/* Bottom Bar */}
           <div className="pt-8 border-t border-slate-900 text-center">
             <p className="text-slate-400 text-sm">
-              &copy; {new Date().getFullYear()} Vehicle Valuation SaaS. All rights reserved.
+              &copy; {new Date().getFullYear()} TotalLossToolKit.com. All rights reserved.
             </p>
           </div>
         </div>

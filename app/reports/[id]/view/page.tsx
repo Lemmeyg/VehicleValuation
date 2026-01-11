@@ -1,7 +1,7 @@
 /**
- * Elite Vehicle Valuation Report View
+ * Report View
  *
- * Matches the exact design from Elite Vehicle Valuation Report.pdf
+ * Professional report view page
  */
 
 import { getUser } from '@/lib/db/auth'
@@ -103,7 +103,7 @@ export default async function ReportViewPage({ params }: PageProps) {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-slate-500 tracking-wide uppercase">
-              VEHICLE VALUATION REPORT › ID: {report.id.substring(0, 8).toUpperCase()}
+              TOTALLOSSTOOLKIT REPORT › ID: {report.id.substring(0, 8).toUpperCase()}
             </div>
             <div className="text-xs text-slate-500">
               Report Date:{' '}

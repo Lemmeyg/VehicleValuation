@@ -15,7 +15,7 @@ export default function PrivacyPolicyPage() {
               </h1>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm text-slate-600">
                 <p>
-                  <strong>Effective Date:</strong> [Date]
+                  <strong>Effective Date:</strong> January 1st, 2026
                 </p>
                 <span className="hidden sm:inline">•</span>
                 <p>
@@ -46,7 +46,7 @@ export default function PrivacyPolicyPage() {
               <section id="introduction" className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Introduction</h2>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  Welcome to [Your Website Name]. We are committed to protecting your privacy and being transparent about how we collect, use, and protect your personal information. This Privacy Policy explains our practices regarding data collection and your rights as a user.
+                  Welcome to Total Loss Tool Kit. We are committed to protecting your privacy and being transparent about how we collect, use, and protect your personal information. This Privacy Policy explains our practices regarding data collection and your rights as a user.
                 </p>
                 <p className="text-slate-600 leading-relaxed">
                   Our service helps vehicle owners obtain comprehensive valuation reports for insurance negotiations. We take the sensitivity of vehicle-related data seriously and have implemented measures to protect your information.
@@ -69,19 +69,20 @@ export default function PrivacyPolicyPage() {
                 <p className="text-slate-600 leading-relaxed mb-3">To provide valuation reports, we collect:</p>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
                   <li><strong>Vehicle Identification Numbers (VINs)</strong> - We recognize that VINs are sensitive data as they can be linked to personal vehicle ownership records and may reveal information about your vehicle and insurance claims</li>
+                  <li><strong>Vehicle Mileage</strong> - This data is not considered sensitive or private but is handled in the same manner as VIN data</li>
                 </ul>
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Technical Information</h3>
                 <p className="text-slate-600 leading-relaxed mb-3">We automatically collect certain information when you use our service:</p>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
                   <li><strong>IP addresses</strong> - Used for security, fraud prevention, and general analytics</li>
-                  <li><strong>Usage data and analytics</strong> - We use PostHog to collect information about how you interact with our website, including pages visited, features used, and time spent on our platform</li>
+                  <li><strong>Usage data and analytics</strong> - We use standard software to collect information about how you interact with our website, including pages visited, features used, and time spent on our platform</li>
                 </ul>
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Payment Information</h3>
                 <p className="text-slate-600 leading-relaxed mb-3">We do not directly collect or store payment information. All payment processing is handled securely by:</p>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li><strong>Stripe</strong> or <strong>Lemon Squeezy</strong> - These third-party payment processors collect and process payment card information according to their own privacy policies and PCI-DSS compliance standards</li>
+                  <li><strong>Lemon Squeezy</strong> - These third-party payment processors collect and process payment card information according to their own privacy policies and PCI-DSS compliance standards</li>
                 </ul>
               </section>
 
@@ -93,9 +94,9 @@ export default function PrivacyPolicyPage() {
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">To Provide Our Services</h3>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
                   <li>Generate comprehensive vehicle valuation reports using VIN data</li>
-                  <li>Access premium vehicle data through our third-party API providers (Auto.dev, CarsXE, MarketCheck, VinAudit)</li>
+                  <li>Access premium vehicle data through our third-party API providers</li>
                   <li>Maintain and manage your user account</li>
-                  <li>Process your subscription payments through our payment processors</li>
+                  <li>Process your payments through our payment processors</li>
                 </ul>
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">To Improve Our Services</h3>
@@ -170,27 +171,15 @@ export default function PrivacyPolicyPage() {
                 </p>
 
                 <h4 className="text-lg font-semibold text-slate-900 mb-2">Vehicle Data API Providers:</h4>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>Auto.dev</li>
-                  <li>CarsXE</li>
-                  <li>MarketCheck</li>
-                  <li>VinAudit</li>
-                </ul>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  These providers receive VIN data solely to generate vehicle valuation reports. They operate under their own privacy policies and are contractually obligated to protect your information.
+                  We use multiple third-party API providers to generate vehicle valuation reports. These providers receive VIN data solely to generate vehicle valuation reports. They operate under their own privacy policies and are contractually obligated to protect your information.
                 </p>
 
                 <h4 className="text-lg font-semibold text-slate-900 mb-2">Payment Processors:</h4>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>Stripe or Lemon Squeezy handles all payment transactions</li>
+                  <li>Lemon Squeezy handles all payment transactions</li>
                   <li>We do not have access to your full payment card details</li>
                   <li>Payment processors maintain PCI-DSS compliance</li>
-                </ul>
-
-                <h4 className="text-lg font-semibold text-slate-900 mb-2">Analytics Provider:</h4>
-                <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>PostHog collects usage analytics to help us improve our service</li>
-                  <li>This data is used internally and not sold to third parties</li>
                 </ul>
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">What We Don't Do</h3>
@@ -328,7 +317,7 @@ export default function PrivacyPolicyPage() {
               {/* Footer */}
               <div className="border-t border-slate-200 pt-6 mt-8">
                 <p className="text-sm text-slate-500 mb-4">
-                  <strong>Last Updated:</strong> [Date]
+                  <strong>Last Updated:</strong> January 1st, 2026
                 </p>
                 <p className="text-sm text-slate-600 italic">
                   This Privacy Policy is designed to comply with applicable privacy laws including CCPA (California Consumer Privacy Act) and general privacy best practices. Users are advised to read this policy carefully and contact us with any questions.

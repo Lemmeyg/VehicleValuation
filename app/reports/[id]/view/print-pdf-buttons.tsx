@@ -59,8 +59,8 @@ export function PrintPdfButtons({ reportId }: PrintPdfButtonsProps) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Vehicle Valuation Report',
-          text: 'Check out this vehicle valuation report',
+          title: 'TotalLossToolKit Report',
+          text: 'Check out this report from TotalLossToolKit',
           url: url,
         })
       } catch (err) {

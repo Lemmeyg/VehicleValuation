@@ -105,16 +105,16 @@ function LoginContent() {
                 </h3>
                 <div className="mt-2 text-sm text-blue-700">
                   <p>
-                    You already have reports associated with this email address.
+                    You already have an account with this email address.
                     Please sign in to continue creating your new report.
                   </p>
                   <p className="mt-2">
-                    <strong>Don't have a password yet?</strong>{' '}
+                    <strong>Forgot your password?</strong>{' '}
                     <Link
                       href="/forgot-password"
                       className="underline hover:text-blue-900 font-medium"
                     >
-                      Click here to set one up
+                      Click here to reset it
                     </Link>
                   </p>
                 </div>

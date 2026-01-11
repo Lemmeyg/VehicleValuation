@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/db/supabase'
+import { supabaseAdmin } from '@/lib/db/supabase'
 
 /**
  * POST /api/contact
  *
  * Handles contact form submissions from the footer
  * Stores messages in Supabase for admin review
+ *
+ * Uses admin client to bypass RLS since contact forms should accept
+ * submissions from anyone (including unauthenticated users)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -34,10 +37,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use simple server-side supabase client for contact form (no auth needed)
+    // Use admin client to bypass RLS for public contact form submissions
+    // This is safe because we're only inserting validated data with no user context
 
     // Insert contact message into database
-    const { error: insertError } = await supabase.from('contact_messages').insert({
+    const { error: insertError } = await supabaseAdmin.from('contact_messages').insert({
       email,
       message,
       status: 'unread',

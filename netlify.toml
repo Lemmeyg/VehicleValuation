@@ -11,6 +11,8 @@
 [build]
   command = "npm run build"
   publish = ".next"
+  # Ignore builds if only specific files changed
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':!*.md' ':!*.txt' ':!.github/**' ':!docs/**' ':!Resources/**'"
 
 [build.environment]
   NODE_VERSION = "20"
@@ -40,8 +42,12 @@
 # =====================================================
 # DEV CONTEXT (dev branch or branch deploys)
 # =====================================================
+# NOTE: Consider disabling auto-deploys for dev branch
+# in Netlify UI to save build credits. Deploy manually when needed.
 [context.branch-deploy]
   command = "npm run build"
+  # More aggressive ignore for dev - skip docs, tests, config changes
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':!*.md' ':!*.txt' ':!.github/**' ':!docs/**' ':!Resources/**' ':!**/*.test.*' ':!**/*.spec.*' ':!playwright.config.*' ':!jest.config.*'"
 
 [context.branch-deploy.environment]
   NODE_ENV = "development"

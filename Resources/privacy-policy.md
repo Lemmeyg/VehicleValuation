@@ -22,7 +22,7 @@
 
 ## Introduction
 
-Welcome to [Your Website Name]. We are committed to protecting your privacy and being transparent about how we collect, use, and protect your personal information. This Privacy Policy explains our practices regarding data collection and your rights as a user.
+Welcome to Total Loss Tool Kit. We are committed to protecting your privacy and being transparent about how we collect, use, and protect your personal information. This Privacy Policy explains our practices regarding data collection and your rights as a user.
 
 Our service helps vehicle owners obtain comprehensive valuation reports for insurance negotiations. We take the sensitivity of vehicle-related data seriously and have implemented measures to protect your information.
 
@@ -38,16 +38,18 @@ When you create an account with us, we collect:
 
 ### Vehicle Information
 To provide valuation reports, we collect:
-- **Vehicle Identification Numbers (VINs)** - We recognize that VINs are sensitive data as they can be linked to personal vehicle ownership records and may reveal information about your vehicle and insurance claims
+- **Vehicle Identification Numbers (VINs)** - We recognize that VINs are sensitive data as they can be linked to personal vehicle ownership records and may reveal information about your vehicle and insurance claims - This data is not considered sensitive or private but is handled in the same manner as VIN data.
+
+- **Vehicle Mileage**
 
 ### Technical Information
 We automatically collect certain information when you use our service:
 - **IP addresses** - Used for security, fraud prevention, and general analytics
-- **Usage data and analytics** - We use PostHog to collect information about how you interact with our website, including pages visited, features used, and time spent on our platform
+- **Usage data and analytics** - We use standard software to collect information about how you interact with our website, including pages visited, features used, and time spent on our platform
 
 ### Payment Information
 We do not directly collect or store payment information. All payment processing is handled securely by:
-- **Stripe** or **Lemon Squeezy** - These third-party payment processors collect and process payment card information according to their own privacy policies and PCI-DSS compliance standards
+- **Lemon Squeezy** - These third-party payment processors collect and process payment card information according to their own privacy policies and PCI-DSS compliance standards
 
 ---
 
@@ -121,7 +123,7 @@ We share limited information with trusted third-party providers who help us deli
 These providers receive VIN data solely to generate vehicle valuation reports. They operate under their own privacy policies and are contractually obligated to protect your information.
 
 **Payment Processors:**
-- Stripe or Lemon Squeezy handles all payment transactions
+- Lemon Squeezy handles all payment transactions
 - We do not have access to your full payment card details
 - Payment processors maintain PCI-DSS compliance
 
@@ -226,7 +228,7 @@ We aim to respond to all privacy-related inquiries within 5-7 business days.
 
 ---
 
-**Last Updated:** [Date]
+**Last Updated:** January 1st, 2026.
 
 ---
 

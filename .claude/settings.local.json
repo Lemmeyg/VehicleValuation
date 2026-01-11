@@ -73,7 +73,26 @@
       "Bash(git merge:*)",
       "Bash(netlify api createSiteBuild:*)",
       "Bash(chmod:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Add pre-push hook to catch build failures before deployment\n\nAdded Husky pre-push hook that runs ''npm run build'' before allowing pushes.\n\nBenefits:\n- Catches TypeScript errors before they reach Netlify\n- Prevents failed deployments and wasted build minutes\n- Provides immediate feedback during development\n\nThe hook will:\n- Run full Next.js build with TypeScript type checking\n- Block the push if build fails\n- Show clear error messages to fix issues locally\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Add pre-push hook to catch build failures before deployment\n\nAdded Husky pre-push hook that runs ''npm run build'' before allowing pushes.\n\nBenefits:\n- Catches TypeScript errors before they reach Netlify\n- Prevents failed deployments and wasted build minutes\n- Provides immediate feedback during development\n\nThe hook will:\n- Run full Next.js build with TypeScript type checking\n- Block the push if build fails\n- Show clear error messages to fix issues locally\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(mkdir:*)",
+      "Bash(git merge dev -m \"$\\(cat <<''EOF''\nmerge: Deploy legal pages and terms agreement to staging\n\nMerging latest legal framework updates from dev branch:\n- Terms and Conditions, Privacy Policy, Money-Back Guarantee pages\n- Required terms agreement on signup\n- Knowledge Base disclaimers\n- Updated footer navigation\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(/c/Program Files/LibreOffice/program/soffice --headless --convert-to txt \"Money-Back Guarantee.docx\" --outdir .)",
+      "Bash(powershell -Command \"\nAdd-Type -AssemblyName System.IO.Compression.FileSystem\n$zipPath = ''Money-Back Guarantee.docx''\n$tempDir = ''temp_docx''\nif \\(Test-Path $tempDir\\) { Remove-Item $tempDir -Recurse -Force }\n[System.IO.Compression.ZipFile]::ExtractToDirectory\\($zipPath, $tempDir\\)\nGet-Content ''$tempDir/word/document.xml'' -Raw | Out-String\n\")",
+      "Bash(powershell -Command \"$word = New-Object -ComObject Word.Application; $word.Visible = $false; $doc = $word.Documents.Open\\(\\(Get-Item ''Money-Back Guarantee.docx''\\).FullName\\); $text = $doc.Content.Text; $doc.Close\\(\\); $word.Quit\\(\\); [System.Runtime.Interopservices.Marshal]::ReleaseComObject\\($word\\) | Out-Null; Write-Output $text\")",
+      "Bash(unzip:*)",
+      "Bash(fold:*)",
+      "Bash(git -C \"c:\\\\Users\\\\Gordo\\\\Documents\\\\Vehicle Comparison Site\" log --oneline -10)",
+      "Bash(npx supabase db dump:*)",
+      "Bash(npx supabase db push)",
+      "Bash(if [ -f \"lib/db/supabase-client.ts\" ])",
+      "Bash(then echo \"exists\")",
+      "Bash(else echo \"not found\")",
+      "Bash(fi)",
+      "Bash(taskkill:*)",
+      "Bash(if [ -f .env.local ])",
+      "Bash(then grep -E \"SUPABASE_SERVICE_ROLE_KEY|NEXT_PUBLIC_SUPABASE\" .env.local)",
+      "Bash(else echo \".env.local not found\")",
+      "Bash(claude --version:*)"
     ]
   }
 }

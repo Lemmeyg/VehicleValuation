@@ -36,8 +36,9 @@ export async function POST(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
 
-    // Check if report has been paid for
-    if (!report.price_paid || report.price_paid === 0) {
+    // Check if report has been paid for (unless payment check is disabled in development)
+    const disablePaymentCheck = process.env.DISABLE_PAYMENT_CHECK === 'true'
+    if (!disablePaymentCheck && (!report.price_paid || report.price_paid === 0)) {
       return NextResponse.json(
         { error: 'Report has not been paid for' },
         { status: 400 }

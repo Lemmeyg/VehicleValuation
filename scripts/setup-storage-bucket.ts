@@ -12,7 +12,20 @@ import * as path from 'path'
 // Load environment variables
 dotenv.config({ path: path.join(process.cwd(), '.env.local') })
 
-const BUCKET_NAME = 'knowledge-base-content'
+const BUCKETS = [
+  {
+    name: 'knowledge-base-content',
+    public: true,
+    fileSizeLimit: 5242880, // 5MB
+    allowedMimeTypes: ['text/markdown', 'text/plain'],
+  },
+  {
+    name: 'vehicle-reports',
+    public: true,
+    fileSizeLimit: 10485760, // 10MB
+    allowedMimeTypes: ['application/pdf'],
+  },
+]
 
 async function setupStorageBucket() {
   console.log('🚀 Starting storage bucket setup...\n')
@@ -40,97 +53,73 @@ async function setupStorageBucket() {
   console.log('✅ Connected to Supabase\n')
 
   try {
-    // Check if bucket exists
-    console.log(`🔍 Checking if bucket '${BUCKET_NAME}' exists...`)
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets()
+    // Get list of existing buckets
+    const { data: existingBuckets, error: listError } = await supabase.storage.listBuckets()
 
     if (listError) {
       console.error('❌ Error listing buckets:', listError.message)
       process.exit(1)
     }
 
-    const bucketExists = buckets?.some(bucket => bucket.name === BUCKET_NAME)
+    // Setup each bucket
+    for (const bucketConfig of BUCKETS) {
+      console.log(`\n🔍 Checking bucket '${bucketConfig.name}'...`)
 
-    if (bucketExists) {
-      console.log(`✅ Bucket '${BUCKET_NAME}' already exists\n`)
+      const bucketExists = existingBuckets?.some(bucket => bucket.name === bucketConfig.name)
 
-      // Get bucket details
-      const bucket = buckets?.find(b => b.name === BUCKET_NAME)
-      console.log('📋 Bucket details:')
-      console.log(`   - Name: ${bucket?.name}`)
-      console.log(`   - ID: ${bucket?.id}`)
-      console.log(`   - Public: ${bucket?.public}`)
-      console.log(`   - Created: ${bucket?.created_at}\n`)
+      if (bucketExists) {
+        console.log(`✅ Bucket '${bucketConfig.name}' already exists`)
 
-      if (!bucket?.public) {
-        console.log('⚠️  WARNING: Bucket is not public!')
-        console.log('   Uploaded files may not be accessible.')
-        console.log('   To make it public, run:')
-        console.log(`   - Go to Supabase Dashboard > Storage > ${BUCKET_NAME}`)
-        console.log('   - Click Settings > Make bucket public\n')
-      }
-    } else {
-      console.log(`📦 Creating bucket '${BUCKET_NAME}'...`)
+        // Get bucket details
+        const bucket = existingBuckets?.find(b => b.name === bucketConfig.name)
+        console.log('📋 Details:')
+        console.log(`   - ID: ${bucket?.id}`)
+        console.log(`   - Public: ${bucket?.public}`)
+        console.log(`   - Created: ${bucket?.created_at}`)
 
-      const { data: newBucket, error: createError } = await supabase.storage.createBucket(
-        BUCKET_NAME,
-        {
-          public: true,
-          fileSizeLimit: 5242880, // 5MB in bytes
-          allowedMimeTypes: ['text/markdown', 'text/plain']
+        if (!bucket?.public) {
+          console.log('⚠️  WARNING: Bucket is not public!')
+          console.log('   To make it public:')
+          console.log(`   - Go to Supabase Dashboard > Storage > ${bucketConfig.name}`)
+          console.log('   - Click Settings > Make bucket public')
         }
-      )
+      } else {
+        console.log(`📦 Creating bucket '${bucketConfig.name}'...`)
 
-      if (createError) {
-        console.error('❌ Error creating bucket:', createError.message)
-        process.exit(1)
+        const { error: createError } = await supabase.storage.createBucket(
+          bucketConfig.name,
+          {
+            public: bucketConfig.public,
+            fileSizeLimit: bucketConfig.fileSizeLimit,
+            allowedMimeTypes: bucketConfig.allowedMimeTypes,
+          }
+        )
+
+        if (createError) {
+          console.error(`❌ Error creating bucket '${bucketConfig.name}':`, createError.message)
+          console.error('   Continuing with remaining buckets...')
+          continue
+        }
+
+        console.log(`✅ Bucket '${bucketConfig.name}' created successfully!`)
+        console.log('📋 Details:')
+        console.log(`   - Name: ${bucketConfig.name}`)
+        console.log(`   - Public: ${bucketConfig.public}`)
+        console.log(`   - Max file size: ${(bucketConfig.fileSizeLimit / 1048576).toFixed(0)}MB`)
+        console.log(`   - Allowed types: ${bucketConfig.allowedMimeTypes.join(', ')}`)
       }
-
-      console.log(`✅ Bucket '${BUCKET_NAME}' created successfully!\n`)
-      console.log('📋 Bucket details:')
-      console.log(`   - Name: ${BUCKET_NAME}`)
-      console.log(`   - Public: true`)
-      console.log(`   - Max file size: 5MB`)
-      console.log(`   - Allowed types: text/markdown, text/plain\n`)
     }
 
-    // Test upload/download
-    console.log('🧪 Testing bucket access...')
-    const testContent = '# Test File\n\nThis is a test upload.'
-    const testPath = 'test/test-file.md'
-
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(testPath, testContent, {
-        contentType: 'text/markdown',
-        upsert: true
-      })
-
-    if (uploadError) {
-      console.error('❌ Error uploading test file:', uploadError.message)
-      console.error('\n💡 This might be a permissions issue.')
-      console.error('   Check RLS policies in Supabase Dashboard > Storage > Policies\n')
-      process.exit(1)
-    }
-
-    console.log('✅ Test file uploaded successfully')
-
-    // Clean up test file
-    const { error: deleteError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .remove([testPath])
-
-    if (deleteError) {
-      console.warn('⚠️  Warning: Could not delete test file:', deleteError.message)
-    } else {
-      console.log('✅ Test file cleaned up\n')
-    }
-
-    console.log('🎉 Storage bucket setup complete!\n')
-    console.log('Next steps:')
-    console.log('1. Upload markdown files via the admin panel at /admin/knowledge-base/upload')
-    console.log('2. Files will be stored in the bucket under knowledge-base/{category}/{slug}.md')
-    console.log('3. Article metadata will be saved in the articles table\n')
+    console.log('\n🎉 Storage bucket setup complete!\n')
+    console.log('📝 Next steps:')
+    console.log('1. For knowledge-base-content:')
+    console.log('   - Upload markdown files via /admin/knowledge-base/upload')
+    console.log('2. For vehicle-reports:')
+    console.log('   - PDF reports will be automatically generated and uploaded')
+    console.log('   - Users can download their reports from the report view page\n')
+    console.log('⚠️  Important: Configure RLS policies in Supabase Dashboard if needed')
+    console.log('   - Go to Storage > [bucket-name] > Policies')
+    console.log('   - See supabase/migrations/20260111000000_create_vehicle_reports_bucket.sql for policy examples\n')
 
   } catch (error) {
     console.error('❌ Unexpected error:', error)

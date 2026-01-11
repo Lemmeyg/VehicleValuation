@@ -5,7 +5,7 @@ import { Car, FileText } from 'lucide-react'
 /**
  * Report Preview Component
  *
- * Visual representation of the Elite Vehicle Valuation Report
+ * Visual representation of the Report
  * Matches the exact design from /reports/[id]/view
  * Based on 2021 BMW X3 report (ID: b775f192-c577-46cd-a724-50569c40d2cd)
  */
@@ -21,7 +21,7 @@ export default function ReportPreview() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-slate-500 tracking-wide uppercase">
-              VEHICLE VALUATION REPORT › ID: B775F192
+              TOTALLOSSTOOLKIT REPORT › ID: B775F192
             </div>
             <div className="text-xs text-slate-500">Report Date: 12/30/2024</div>
           </div>

@@ -13,7 +13,7 @@ interface FeatureCard {
 const FEATURE_CARDS: FeatureCard[] = [
   {
     id: 1,
-    title: 'Vehicle Valuation',
+    title: 'Get Report',
     description:
       'Get accurate, professional valuations for your vehicle. Our comprehensive reports help you negotiate with insurance companies and get the settlement you deserve.',
     icon: <FileText className="h-12 w-12" />,

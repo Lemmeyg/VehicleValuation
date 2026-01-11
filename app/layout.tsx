@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Vehicle Valuation Authority - Independent Market Valuations',
+  title: 'TotalLossToolKit.com - Independent Market Valuations',
   description:
     'Get independent, data-backed vehicle valuations. Professional reports for total loss claims, diminished value, and insurance negotiations.',
 }

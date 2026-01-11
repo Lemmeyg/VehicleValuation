@@ -10,7 +10,8 @@
  */
 
 import { NextResponse } from 'next/server'
-import { requireAuth, checkIfUserIsAdmin } from '@/lib/db/auth'
+import { requireAuth } from '@/lib/db/auth'
+import { isAdmin } from '@/lib/db/admin-auth'
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 
 const WEEKLY_LIMIT_HOURS = 168 // 7 days = 168 hours
@@ -21,8 +22,8 @@ export async function GET() {
     const user = await requireAuth()
 
     // 2. Check if admin (bypass rate limit)
-    const isAdmin = await checkIfUserIsAdmin(user.id)
-    if (isAdmin) {
+    const userIsAdmin = await isAdmin(user.id)
+    if (userIsAdmin) {
       console.log('[RATE_LIMIT] Admin bypass:', { userId: user.id, email: user.email })
       return NextResponse.json({
         canCreate: true,

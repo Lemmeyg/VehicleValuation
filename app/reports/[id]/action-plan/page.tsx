@@ -1,5 +1,5 @@
 /**
- * Vehicle Valuation Report - Action Plan / Next Steps Page
+ * Report - Action Plan / Next Steps Page
  *
  * Provides users with a comprehensive checklist for responding to insurance offers
  * and maximizing their settlement. Serves as a lead generator for the services directory.

@@ -143,9 +143,9 @@ export default function Hero() {
       const checkEmailData = await checkEmailResponse.json()
       console.log('[Hero] Email check result:', checkEmailData)
 
-      // STEP 2: If email has existing reports, redirect to login page with message
-      if (checkEmailData.hasReports) {
-        console.log('[Hero] Email has existing reports. Redirecting to login.')
+      // STEP 2: If user exists in auth, redirect to login page with message
+      if (checkEmailData.hasUser) {
+        console.log('[Hero] User account exists. Redirecting to login.')
 
         // Store the form data so they can still create a new report after login
         const formData = {
@@ -163,10 +163,10 @@ export default function Hero() {
         return
       }
 
-      // STEP 3: New email - proceed to pricing page as normal
-      console.log('[Hero] New email. Proceeding to pricing page.')
+      // STEP 3: New user (no auth account) - redirect to signup with form data
+      console.log('[Hero] New user. Redirecting to signup page.')
 
-      // Store form data in sessionStorage for pricing page
+      // Store form data in sessionStorage for signup page to use after account creation
       const formData = {
         email,
         vin: sanitizeVin(vin),
@@ -175,15 +175,9 @@ export default function Hero() {
       }
       sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
 
-      // Redirect to pricing page with URL params
-      const params = new URLSearchParams({
-        email,
-        vin: sanitizeVin(vin),
-        mileage: mileage,
-        zipCode: zipCode,
-      })
-
-      router.push(`/pricing?${params.toString()}`)
+      // Redirect to signup page with email and return URL to pricing
+      const returnUrl = `/pricing?email=${encodeURIComponent(email)}&vin=${encodeURIComponent(sanitizeVin(vin))}&mileage=${mileage}&zipCode=${zipCode}`
+      router.push(`/signup?email=${encodeURIComponent(email)}&returnUrl=${encodeURIComponent(returnUrl)}`)
     } catch (error) {
       console.error('[Hero] Form submission error:', error)
       setErrors({ submit: 'An unexpected error occurred. Please try again.' })
