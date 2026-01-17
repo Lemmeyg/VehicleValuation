@@ -40,6 +40,7 @@ function AuthCallbackContent() {
         // Create Supabase client for browser
         const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
         const reportId = searchParams?.get('reportId')
+        const nextUrl = searchParams?.get('next') // For OAuth redirects
 
         console.log('[auth-callback] Starting authentication callback')
         console.log('[auth-callback] Report ID from URL:', reportId)
@@ -106,11 +107,17 @@ function AuthCallbackContent() {
             }
           }
 
-          // Success - redirect to report
+          // Success - redirect to appropriate destination
           setStatus('success')
-          setMessage('Email verified! Redirecting to your report...')
+          setMessage('Success! Redirecting...')
 
-          const redirectUrl = reportId ? `/reports/${reportId}/view` : '/dashboard'
+          // Priority: nextUrl (OAuth) > reportId > dashboard
+          let redirectUrl = '/dashboard'
+          if (nextUrl) {
+            redirectUrl = decodeURIComponent(nextUrl)
+          } else if (reportId) {
+            redirectUrl = `/reports/${reportId}/view`
+          }
           console.log('[auth-callback] Redirecting to:', redirectUrl)
 
           // Small delay so user sees success message
@@ -118,7 +125,7 @@ function AuthCallbackContent() {
           return
         }
 
-        // Fallback: try to get existing session
+        // Fallback: try to get existing session (for OAuth flows)
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
         if (sessionError) {
@@ -161,11 +168,17 @@ function AuthCallbackContent() {
           }
         }
 
-        // Success - redirect to report
+        // Success - redirect to appropriate destination
         setStatus('success')
-        setMessage('Email verified! Redirecting to your report...')
+        setMessage('Success! Redirecting...')
 
-        const redirectUrl = reportId ? `/reports/${reportId}/view` : '/dashboard'
+        // Priority: nextUrl (OAuth) > reportId > dashboard
+        let redirectUrl = '/dashboard'
+        if (nextUrl) {
+          redirectUrl = decodeURIComponent(nextUrl)
+        } else if (reportId) {
+          redirectUrl = `/reports/${reportId}/view`
+        }
         console.log('Redirecting to:', redirectUrl)
 
         // Small delay so user sees success message

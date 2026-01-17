@@ -79,10 +79,10 @@ export default function Directory() {
               Professional Network
             </span>
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-3 mb-6">
-              Connect with Trusted Professionals
+              Connect with Certified Appraisers
             </h2>
             <p className="text-slate-600 max-w-2xl mx-auto text-lg mb-8">
-              Find certified experts who understand your challenges and fight for fair compensation.
+              Available After You Obtain Your Valuation Report.
             </p>
             <Link href="/directory">
               <Button variant="primary" size="lg" className="shadow-lg hover:shadow-xl">
@@ -107,10 +107,10 @@ export default function Directory() {
             Professional Network
           </span>
           <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-3 mb-6">
-            Connect with Trusted Professionals
+            Connect with Certified Appraisers
           </h2>
           <p className="text-slate-600 max-w-2xl mx-auto text-lg">
-            Find certified experts who understand your challenges and fight for fair compensation.
+            Available After You Obtain Your Valuation Report.
           </p>
         </div>
 

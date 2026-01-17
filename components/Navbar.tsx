@@ -129,12 +129,12 @@ export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
                 ) : (
                   <>
                     <Link
-                      href="/login"
+                      href="/auth"
                       className="text-sm font-medium text-slate-700 hover:text-emerald-600"
                     >
                       Login
                     </Link>
-                    <Link href="/signup">
+                    <Link href="/auth">
                       <Button variant="primary" size="sm">
                         Sign Up
                       </Button>
@@ -205,12 +205,12 @@ export default function Navbar({ alwaysScrolled = false }: NavbarProps) {
                     </>
                   ) : (
                     <>
-                      <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                      <Link href="/auth" onClick={() => setMobileMenuOpen(false)}>
                         <Button variant="outline" className="w-full">
                           Login
                         </Button>
                       </Link>
-                      <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
+                      <Link href="/auth" onClick={() => setMobileMenuOpen(false)}>
                         <Button variant="primary" className="w-full">
                           Sign Up
                         </Button>

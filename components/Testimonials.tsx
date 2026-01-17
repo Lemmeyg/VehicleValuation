@@ -22,9 +22,9 @@ interface ValueProp {
 const VALUE_PROPOSITIONS: ValueProp[] = [
   {
     id: 1,
-    title: 'Higher average settlements',
+    title: 'Achieve 34% Higher Settlements',
     description:
-      'Independent appraisals increase payouts by an average of over 20% across 2023-2025 total loss cases.',
+      'Based on 2023-2025 Claim Data.',
   },
   {
     id: 2,
@@ -34,14 +34,14 @@ const VALUE_PROPOSITIONS: ValueProp[] = [
   },
   {
     id: 3,
-    title: 'Faster resolutions',
-    description: 'Informed disputes with independent data cut negotiation times by over 20%.',
+    title: 'Resolve Claims 20-30% Faster',
+    description: 'Data-Driven Disputes Accelerate Agreements.',
   },
   {
     id: 4,
-    title: 'Pre-litigation leverage',
+    title: 'Gain Leverage Pre-Litigation',
     description:
-      'Invoking appraisal often prompts insurers to raise offers before formal process, avoiding court.',
+      'Insurers Often Adjust Offers Upon Seeing Independent Evidence.',
   },
   {
     id: 5,

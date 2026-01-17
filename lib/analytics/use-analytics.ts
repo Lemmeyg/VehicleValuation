@@ -66,6 +66,26 @@ export function useAnalytics() {
     events.trackReportDownload(format, reportId)
   }, [])
 
+  const trackArticleView = useCallback((properties: events.ArticleViewEvent) => {
+    events.trackArticleView(properties)
+  }, [])
+
+  const trackArticleClick = useCallback((properties: events.ArticleViewEvent) => {
+    events.trackArticleClick(properties)
+  }, [])
+
+  const trackAuthEvent = useCallback((properties: events.AuthEvent) => {
+    events.trackAuthEvent(properties)
+  }, [])
+
+  const trackReportWorkflow = useCallback((properties: events.ReportWorkflowEvent) => {
+    events.trackReportWorkflow(properties)
+  }, [])
+
+  const trackKnowledgeBasePageView = useCallback((properties?: { articleCount?: number; searchQuery?: string }) => {
+    events.trackKnowledgeBasePageView(properties)
+  }, [])
+
   const trackFeatureUsage = useCallback(
     (featureName: string, properties?: Record<string, unknown>) => {
       events.trackFeatureUsage(featureName, properties)
@@ -154,6 +174,17 @@ export function useAnalytics() {
     trackButtonClick,
     trackFormSubmission,
     trackEvent,
+
+    // Knowledge Base & Article tracking
+    trackArticleView,
+    trackArticleClick,
+    trackKnowledgeBasePageView,
+
+    // Auth tracking
+    trackAuthEvent,
+
+    // Report workflow tracking
+    trackReportWorkflow,
 
     // Feature flags
     isFeatureEnabled,

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { FileText, Download, Loader2, Share2 } from 'lucide-react'
+import { Download, Loader2, Share2 } from 'lucide-react'
+import { trackReportDownload, trackReportWorkflow, trackButtonClick } from '@/lib/analytics/events'
 
 interface PrintPdfButtonsProps {
   reportId: string
@@ -10,11 +11,6 @@ interface PrintPdfButtonsProps {
 export function PrintPdfButtons({ reportId }: PrintPdfButtonsProps) {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const [pdfError, setPdfError] = useState<string | null>(null)
-
-  const handlePrint = () => {
-    // Use browser's native print functionality
-    window.print()
-  }
 
   const handleDownloadPdf = async () => {
     try {
@@ -41,6 +37,9 @@ export function PrintPdfButtons({ reportId }: PrintPdfButtonsProps) {
       }
 
       if (data.pdfUrl) {
+        // Track successful PDF download
+        trackReportDownload('pdf', reportId)
+        trackReportWorkflow({ step: 'pdf_downloaded', reportId })
         // Open PDF in new tab for viewing/downloading
         window.open(data.pdfUrl, '_blank')
       }
@@ -54,6 +53,10 @@ export function PrintPdfButtons({ reportId }: PrintPdfButtonsProps) {
 
   const handleShare = async () => {
     const url = window.location.href
+
+    // Track share button click
+    trackButtonClick('share_report', { reportId })
+    trackReportWorkflow({ step: 'report_shared', reportId })
 
     // Use Web Share API if available
     if (navigator.share) {
@@ -91,15 +94,6 @@ export function PrintPdfButtons({ reportId }: PrintPdfButtonsProps) {
           <p className="text-sm text-red-600">{pdfError}</p>
         </div>
       )}
-
-      <button
-        onClick={handlePrint}
-        className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors print:hidden"
-        title="Print this report"
-      >
-        <FileText className="h-4 w-4 mr-2" />
-        Print
-      </button>
 
       <button
         onClick={handleDownloadPdf}

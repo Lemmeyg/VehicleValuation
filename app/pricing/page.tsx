@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { Button } from '@/components/ui/Button'
-import { Check, Car, CheckCircle2 } from 'lucide-react'
+import { Check, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { trackReportWorkflow, trackReportGeneration, trackPaymentInitiated, trackButtonClick } from '@/lib/analytics/events'
 
 const PRICING_TIERS = [
   {
@@ -153,6 +154,8 @@ function PricingContent() {
 
       if (response.ok) {
         setReport(data.report)
+        // Track pricing page view for existing report
+        trackReportWorkflow({ step: 'pricing_viewed', reportId: id })
       } else {
         setError(data.error || 'Failed to load report')
       }
@@ -193,6 +196,16 @@ function PricingContent() {
 
       // Store report ID for later reference
       sessionStorage.setItem('current_report_id', result.report.id)
+
+      // Track report creation and pricing page view
+      trackReportWorkflow({
+        step: 'report_created',
+        reportId: result.report.id,
+        vehicleYear: result.report.vehicle_data?.year,
+        vehicleMake: result.report.vehicle_data?.make,
+        vehicleModel: result.report.vehicle_data?.model,
+      })
+      trackReportWorkflow({ step: 'pricing_viewed', reportId: result.report.id })
 
       setLoading(false)
       setCreatingReport(false)
@@ -301,6 +314,17 @@ function PricingContent() {
   const handleSelectPlan = async (tier: (typeof PRICING_TIERS)[0]) => {
     if (!report) return
 
+    // Track plan selection
+    trackReportWorkflow({
+      step: 'plan_selected',
+      reportId: report.id,
+      planType: tier.id.toLowerCase() as 'basic' | 'premium',
+      vehicleYear: report.vehicle_data?.year,
+      vehicleMake: report.vehicle_data?.make,
+      vehicleModel: report.vehicle_data?.model,
+    })
+    trackButtonClick(`select_${tier.id.toLowerCase()}_plan`, { reportId: report.id, price: tier.price })
+
     // BETA MODE: Skip payment and show beta modal
     // Check if variant IDs are placeholder values or missing
     const basicVariantId = process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID
@@ -384,6 +408,15 @@ function PricingContent() {
 
     setProcessingPayment(true)
 
+    // Track payment initiation
+    trackPaymentInitiated({
+      plan: tier.id.toLowerCase() as 'basic' | 'premium',
+      amount: tier.price,
+      currency: 'USD',
+      paymentProcessor: 'lemonsqueezy',
+      variantId: tier.variantId,
+    })
+
     try {
       // Call Lemon Squeezy checkout endpoint
       const response = await fetch('/api/lemonsqueezy/create-checkout', {
@@ -458,51 +491,12 @@ function PricingContent() {
 
       <main className="pt-24 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="text-center mb-6">
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
-              Your Report is Being Prepared
-            </h1>
-            <p className="text-base text-slate-600">
-              Get prepared with a professional-grade independent valuation before you settle
-            </p>
-          </div>
-
-          {/* Vehicle Info Card */}
-          <div className="bg-white rounded-2xl shadow-lg p-4 mb-4 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between gap-6">
-              <div className="flex items-center gap-2">
-                <Car className="h-5 w-5 text-primary-600 flex-shrink-0" />
-              </div>
-
-              {/* VIN */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-600">VIN:</span>
-                <span className="font-semibold text-slate-900 font-mono text-xs">{report.vin}</span>
-              </div>
-
-              {/* Mileage */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-600">Mileage:</span>
-                <span className="font-semibold text-slate-900 text-xs">
-                  {report.mileage.toLocaleString()} mi
-                </span>
-              </div>
-
-              {/* Location */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-600">ZIP:</span>
-                <span className="font-semibold text-slate-900 text-xs">{report.zip_code}</span>
-              </div>
-            </div>
-          </div>
-
           {/* Why Independent Valuation? Section */}
           <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl shadow-lg p-6 mb-6">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 text-center mb-4">
+              <h1 className="text-3xl md:text-4xl font-bold text-slate-900 text-center mb-4">
                 Why Independent Valuation?
-              </h2>
+              </h1>
 
               <p className="text-sm text-slate-700 text-center mb-4 leading-relaxed">
                 Insurance adjusters undervalue 9 out of 10 total loss claims—by an average of 30%.

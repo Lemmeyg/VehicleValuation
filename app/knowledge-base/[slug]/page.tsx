@@ -2,6 +2,7 @@ import { getArticleBySlugStatic, getAllArticleSlugs } from '@/lib/knowledge-base
 import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { ArticlePageTracker } from '@/components/ArticlePageTracker'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -43,6 +44,11 @@ export default async function ArticlePage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-white">
+      <ArticlePageTracker
+        slug={article.slug}
+        title={article.title}
+        category={article.category}
+      />
       <Navbar />
       <main className="pt-24 pb-16">
         <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">

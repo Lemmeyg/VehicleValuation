@@ -36,9 +36,10 @@ export async function POST(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
 
-    // Check if report has been paid for (unless payment check is disabled in development)
-    const disablePaymentCheck = process.env.DISABLE_PAYMENT_CHECK === 'true'
-    if (!disablePaymentCheck && (!report.price_paid || report.price_paid === 0)) {
+    // Optional: Check if report has been paid for
+    // If you want to require payment before PDF download, set REQUIRE_PAYMENT_FOR_PDF=true
+    const requirePayment = process.env.REQUIRE_PAYMENT_FOR_PDF === 'true'
+    if (requirePayment && (!report.price_paid || report.price_paid === 0)) {
       return NextResponse.json(
         { error: 'Report has not been paid for' },
         { status: 400 }

@@ -10,9 +10,10 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Car, FileText } from 'lucide-react'
-import { getClosestMileageListings, getListingsStats } from '@/lib/utils/listing-filters'
+import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintPdfButtons } from './print-pdf-buttons'
+import { ReportViewTracker } from '@/components/ReportViewTracker'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -58,8 +59,8 @@ export default async function ReportViewPage({ params }: PageProps) {
   // Get ALL listings from database (no filtering yet)
   const allListings = (marketCheck?.recentComparables?.listings || marketCheck?.comparables || []) as any[]
 
-  // Filter to 10 vehicles with mileage closest to subject vehicle
-  const displayedComparables = getClosestMileageListings(allListings, report.mileage || 0, 10)
+  // Filter to 10 vehicles with lowest DOS_Active (fastest-selling)
+  const displayedComparables = getLowestDOSActiveListings(allListings, 10)
 
   // Get statistics from ALL listings
   const listingsStats = getListingsStats(allListings)
@@ -83,6 +84,12 @@ export default async function ReportViewPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-white">
+      <ReportViewTracker
+        reportId={id}
+        vehicleYear={autodevData?.vehicle?.year}
+        vehicleMake={autodevData?.make}
+        vehicleModel={autodevData?.model}
+      />
       {/* Header Navigation */}
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -311,7 +318,7 @@ export default async function ReportViewPage({ params }: PageProps) {
             </div>
             <div className="text-right">
               <div className="text-xs text-slate-500">
-                Showing 10 closest by mileage of {allListings.length} listings
+                Showing 10 most recent of {allListings.length} listings
               </div>
               <div className="text-xs text-slate-600 mt-1">
                 Avg: {formatCurrency(listingsStats.avgPrice)} • Range:{' '}
@@ -346,18 +353,6 @@ export default async function ReportViewPage({ params }: PageProps) {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {displayedComparables.map((comp: any, idx: number) => {
-                  // Extract dealer homepage URL from vdp_url
-                  const getDealerHomepage = (vdpUrl?: string) => {
-                    if (!vdpUrl) return null
-                    try {
-                      const url = new URL(vdpUrl)
-                      return `${url.protocol}//${url.hostname}`
-                    } catch {
-                      return null
-                    }
-                  }
-                  const dealerHomepage = getDealerHomepage(comp.vdp_url as string)
-
                   return (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="py-4 px-4">
@@ -393,12 +388,12 @@ export default async function ReportViewPage({ params }: PageProps) {
                         </div>
                       </td>
                       <td className="py-4 px-4 text-sm text-slate-700">
-                        {(comp.dom_180 || comp.dom || 'N/A') as React.ReactNode}
+                        {(comp.dos_active || comp.dom_180 || comp.dom || 'N/A') as React.ReactNode}
                       </td>
                       <td className="py-4 px-4">
-                        {dealerHomepage && comp.dealer_name ? (
+                        {comp.vdp_url && comp.dealer_name ? (
                           <a
-                            href={dealerHomepage}
+                            href={comp.vdp_url as string}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
@@ -419,99 +414,99 @@ export default async function ReportViewPage({ params }: PageProps) {
 
         {/* Additional Valuation Considerations */}
         <div className="bg-slate-50 rounded-lg border border-slate-200 p-8">
-          <h3 className="text-base font-bold text-slate-900 uppercase tracking-wide mb-4">
+          <h3 className="text-base font-bold text-slate-900 uppercase tracking-wide mb-4 text-center">
             Additional Valuation Considerations
           </h3>
-          <div className="prose prose-sm max-w-none text-slate-600 space-y-4">
-            <p className="font-semibold text-slate-700">
+          <div className="w-full text-slate-600 space-y-4 text-sm">
+            <p className="font-semibold text-slate-700 text-center">
               Note: The following undocumented factors can significantly impact your vehicle&apos;s
               actual cash value. Documenting these conditions with photos and records strengthens
               your position when contesting an insurance settlement offer.
             </p>
 
-            <div className="space-y-3">
-              <div>
+            <div className="space-y-4">
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Physical Condition:</span> Overall
                 vehicle condition (Excellent to Poor) based on exterior paint quality, body damage,
                 rust, interior upholstery wear, and mechanical condition of engine, transmission,
                 and brakes.{' '}
-                <span className="text-slate-700 italic">
+                <span className="font-bold text-slate-900">
                   Impact: -20% (poor) to +12% (excellent)
                 </span>
-              </div>
+              </p>
 
-              <div>
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Accident & Title History:</span>{' '}
                 Clean title vs. salvage/rebuilt, documented accident history, and number of previous
                 owners. One-owner vehicles with clean titles command premiums.{' '}
-                <span className="text-slate-700 italic">
+                <span className="font-bold text-slate-900">
                   Impact: -50% (salvage) to +8% (1-owner clean)
                 </span>
-              </div>
+              </p>
 
-              <div>
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Service Records:</span>{' '}
                 Well-documented maintenance history with receipts from authorized dealers or
                 reputable shops demonstrates proper care and increases buyer confidence.{' '}
-                <span className="text-slate-700 italic">Impact: +5% to +10%</span>
-              </div>
+                <span className="font-bold text-slate-900">Impact: +5% to +10%</span>
+              </p>
 
-              <div>
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Factory Options & Equipment:</span>{' '}
                 Premium features including navigation systems, sunroof, heated/ventilated seats,
                 advanced safety packages, leather interior, and technology upgrades add measurable
-                value. <span className="text-slate-700 italic">Impact: +3% to +15%</span>
-              </div>
+                value. <span className="font-bold text-slate-900">Impact: +3% to +15%</span>
+              </p>
 
-              <div>
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Vehicle Usage & Environment:</span>{' '}
                 Non-smoker vehicles, garage-kept storage, personal use (vs. fleet/rental/rideshare),
                 and climate history (rust-belt vs. sun-belt) affect long-term condition and
                 desirability.{' '}
-                <span className="text-slate-700 italic">
+                <span className="font-bold text-slate-900">
                   Impact: -15% (smoking) to +8% (garage-kept)
                 </span>
-              </div>
+              </p>
 
-              <div>
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Documentation Quality:</span>{' '}
                 Presence of both key fobs, owner&apos;s manual, service records, original equipment
                 (spare tire, jack, tools), and proof of recall completion demonstrates thorough
-                ownership. <span className="text-slate-700 italic">Impact: +2% to +5%</span>
-              </div>
+                ownership. <span className="font-bold text-slate-900">Impact: +2% to +5%</span>
+              </p>
 
-              <div>
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Regional Factors:</span> 4WD/AWD
                 commands premium in snow states, convertibles more valuable in warm climates, diesel
                 trucks in rural areas, and fuel efficiency during high gas prices.{' '}
-                <span className="text-slate-700 italic">
+                <span className="font-bold text-slate-900">
                   Impact: +5% to +15% (region-dependent)
                 </span>
-              </div>
+              </p>
 
-              <div>
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Recent Maintenance:</span> New tires,
                 recent brake service, fresh oil change, new battery, or completed major services
                 (timing belt, transmission service) add immediate value.{' '}
-                <span className="text-slate-700 italic">Impact: +$500 to $2,000</span>
-              </div>
+                <span className="font-bold text-slate-900">Impact: +$500 to $2,000</span>
+              </p>
 
-              <div>
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Special Circumstances:</span> Limited
                 edition models, performance variants, anniversary editions, remaining factory
                 warranty, prepaid maintenance plans, and unrepaired recall status all affect market
-                value. <span className="text-slate-700 italic">Impact: varies significantly</span>
-              </div>
+                value. <span className="font-bold text-slate-900">Impact: varies significantly</span>
+              </p>
 
-              <div>
+              <p className="text-justify">
                 <span className="font-semibold text-slate-900">Aftermarket Modifications:</span>{' '}
                 Quality additions like remote start or premium audio can add value, while excessive
                 modifications, lowering kits, or poor-quality work typically decrease value.{' '}
-                <span className="text-slate-700 italic">Impact: -10% to +5%</span>
-              </div>
+                <span className="font-bold text-slate-900">Impact: -10% to +5%</span>
+              </p>
             </div>
 
-            <p className="pt-4 border-t border-slate-300 font-semibold text-slate-900">
+            <p className="pt-4 border-t border-slate-300 font-semibold text-slate-900 text-justify">
               Recommendation: Photograph and document all positive factors listed above. For
               professional assistance with appraisals, inspections, or claims support, visit our{' '}
               <Link href="/services" className="text-emerald-600 hover:text-emerald-700 underline">

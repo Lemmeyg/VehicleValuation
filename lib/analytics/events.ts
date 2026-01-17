@@ -43,6 +43,29 @@ export type UserIdentificationEvent = {
   userId?: string
 }
 
+export type ArticleViewEvent = {
+  articleSlug: string
+  articleTitle: string
+  articleCategory: string
+  source: 'homepage_carousel' | 'homepage_list' | 'knowledge_base_page' | 'direct'
+}
+
+export type AuthEvent = {
+  method: 'email' | 'google' | 'magic_link'
+  step: 'started' | 'completed' | 'failed'
+  isNewUser?: boolean
+  error?: string
+}
+
+export type ReportWorkflowEvent = {
+  step: 'hero_form_started' | 'hero_form_submitted' | 'pricing_viewed' | 'plan_selected' | 'report_created' | 'report_viewed' | 'pdf_downloaded' | 'report_shared'
+  reportId?: string
+  planType?: 'basic' | 'premium'
+  vehicleYear?: number
+  vehicleMake?: string
+  vehicleModel?: string
+}
+
 // ============================================
 // Core Analytics Functions
 // ============================================
@@ -168,6 +191,66 @@ export function trackReportDownload(format: 'pdf' | 'json', reportId?: string) {
     posthog.capture('report_downloaded', {
       format,
       reportId,
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
+ * Track article views (Knowledge Base)
+ */
+export function trackArticleView(properties: ArticleViewEvent) {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('article_viewed', {
+      ...properties,
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
+ * Track article clicks (from carousels/lists)
+ */
+export function trackArticleClick(properties: ArticleViewEvent) {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('article_clicked', {
+      ...properties,
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
+ * Track authentication events
+ */
+export function trackAuthEvent(properties: AuthEvent) {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('auth_event', {
+      ...properties,
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
+ * Track report workflow steps
+ */
+export function trackReportWorkflow(properties: ReportWorkflowEvent) {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('report_workflow', {
+      ...properties,
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
+ * Track knowledge base page views
+ */
+export function trackKnowledgeBasePageView(properties?: { articleCount?: number; searchQuery?: string }) {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('knowledge_base_page_viewed', {
+      ...properties,
       timestamp: new Date().toISOString(),
     })
   }

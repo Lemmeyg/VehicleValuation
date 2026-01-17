@@ -9,6 +9,7 @@ import Footer from '@/components/Footer'
 import { BookOpen, Clock, Tag } from 'lucide-react'
 import { getAllArticles } from '@/lib/knowledge-base-db'
 import Link from 'next/link'
+import { KnowledgeBasePageTracker, ArticleLinkTracker } from '@/components/KnowledgeBaseTracker'
 
 export const metadata = {
   title: 'Knowledge Base | TotalLossToolKit.com',
@@ -19,6 +20,7 @@ export default async function KnowledgeBasePage() {
   const articles = await getAllArticles()
   return (
     <div className="min-h-screen bg-gray-50">
+      <KnowledgeBasePageTracker articleCount={articles.length} />
       <Navbar />
 
       <main className="pt-24 pb-16">
@@ -50,11 +52,14 @@ export default async function KnowledgeBasePage() {
           {/* Articles Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {articles.map(article => (
-              <Link
+              <ArticleLinkTracker
                 key={article.slug}
-                href={`/knowledge-base/${article.slug}`}
-                className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all cursor-pointer group border border-slate-100 hover:border-primary-200"
+                article={article}
               >
+                <Link
+                  href={`/knowledge-base/${article.slug}`}
+                  className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all cursor-pointer group border border-slate-100 hover:border-primary-200 block"
+                >
                 <div className="p-6">
                   {/* Badge */}
                   <div className="flex items-center justify-between mb-4">
@@ -113,7 +118,8 @@ export default async function KnowledgeBasePage() {
                     </svg>
                   </div>
                 </div>
-              </Link>
+                </Link>
+              </ArticleLinkTracker>
             ))}
           </div>
         </div>

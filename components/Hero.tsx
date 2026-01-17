@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from './ui/Button'
 import { ArrowRight, CheckCircle2, HelpCircle } from 'lucide-react'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
 import ReportPreviewCondensed from './ReportPreviewCondensed'
 import { Shield } from 'lucide-react'
+import { trackVehicleSearch, trackFormSubmission, trackReportWorkflow, trackButtonClick } from '@/lib/analytics/events'
 
 export default function Hero() {
   const router = useRouter()
@@ -21,6 +22,17 @@ export default function Hero() {
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showVinTooltip, setShowVinTooltip] = useState(false)
+
+  // Track form engagement
+  const hasTrackedFormStart = useRef(false)
+
+  // Track when user starts filling out the form (first field interaction)
+  const trackFormStart = () => {
+    if (!hasTrackedFormStart.current) {
+      hasTrackedFormStart.current = true
+      trackReportWorkflow({ step: 'hero_form_started' })
+    }
+  }
 
   // Email validation
   const validateEmail = (email: string): string | null => {
@@ -71,6 +83,7 @@ export default function Hero() {
 
   // Handle field changes
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     setEmail(e.target.value)
     if (errors.email) {
       setErrors(prev => ({ ...prev, email: '' }))
@@ -78,6 +91,7 @@ export default function Hero() {
   }
 
   const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
     if (value.length <= 17) {
       setVin(value)
@@ -88,6 +102,7 @@ export default function Hero() {
   }
 
   const handleMileageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.replace(/\D/g, '')
     setMileage(value)
     if (errors.mileage) {
@@ -96,6 +111,7 @@ export default function Hero() {
   }
 
   const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.replace(/\D/g, '').slice(0, 5)
     setZipCode(value)
     if (errors.zipCode) {
@@ -125,10 +141,31 @@ export default function Hero() {
     // If any errors, show them and stop
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      // Track form validation failure
+      trackFormSubmission('hero_vehicle_form', {
+        success: false,
+        error: 'validation_failed',
+        fields: Object.keys(newErrors),
+      })
       return
     }
 
     setLoading(true)
+
+    // Track successful form submission attempt
+    trackFormSubmission('hero_vehicle_form', {
+      success: true,
+      fields: ['email', 'vin', 'mileage', 'zipCode'],
+    })
+
+    // Track vehicle search
+    trackVehicleSearch({
+      vin: sanitizeVin(vin),
+      searchMethod: 'vin',
+    })
+
+    // Track report workflow step
+    trackReportWorkflow({ step: 'hero_form_submitted' })
 
     try {
       // STEP 1: Check if email already has reports in the system
@@ -143,30 +180,7 @@ export default function Hero() {
       const checkEmailData = await checkEmailResponse.json()
       console.log('[Hero] Email check result:', checkEmailData)
 
-      // STEP 2: If user exists in auth, redirect to login page with message
-      if (checkEmailData.hasUser) {
-        console.log('[Hero] User account exists. Redirecting to login.')
-
-        // Store the form data so they can still create a new report after login
-        const formData = {
-          email,
-          vin: sanitizeVin(vin),
-          mileage: parseInt(mileage),
-          zipCode,
-        }
-        sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
-        sessionStorage.setItem('existing_user_message', 'true')
-
-        // Redirect to login page with return URL
-        const returnUrl = `/pricing?email=${encodeURIComponent(email)}&vin=${encodeURIComponent(sanitizeVin(vin))}&mileage=${mileage}&zipCode=${zipCode}`
-        router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}&existingUser=true`)
-        return
-      }
-
-      // STEP 3: New user (no auth account) - redirect to signup with form data
-      console.log('[Hero] New user. Redirecting to signup page.')
-
-      // Store form data in sessionStorage for signup page to use after account creation
+      // Store form data in sessionStorage for auth page to use after login/signup
       const formData = {
         email,
         vin: sanitizeVin(vin),
@@ -175,9 +189,17 @@ export default function Hero() {
       }
       sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
 
-      // Redirect to signup page with email and return URL to pricing
+      // Build return URL for after authentication
       const returnUrl = `/pricing?email=${encodeURIComponent(email)}&vin=${encodeURIComponent(sanitizeVin(vin))}&mileage=${mileage}&zipCode=${zipCode}`
-      router.push(`/signup?email=${encodeURIComponent(email)}&returnUrl=${encodeURIComponent(returnUrl)}`)
+
+      // Redirect to unified auth page - it will detect if user exists and show appropriate form
+      if (checkEmailData.hasUser) {
+        console.log('[Hero] User account exists. Redirecting to auth page (login mode).')
+        router.push(`/auth?email=${encodeURIComponent(email)}&returnUrl=${encodeURIComponent(returnUrl)}&existingUser=true`)
+      } else {
+        console.log('[Hero] New user. Redirecting to auth page (signup mode).')
+        router.push(`/auth?email=${encodeURIComponent(email)}&returnUrl=${encodeURIComponent(returnUrl)}`)
+      }
     } catch (error) {
       console.error('[Hero] Form submission error:', error)
       setErrors({ submit: 'An unexpected error occurred. Please try again.' })
@@ -205,17 +227,15 @@ export default function Hero() {
           {/* Left Column: Value Proposition + Form */}
           <div className="animate-fade-in-up">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-4 drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]">
-              Protect Yourself Against Lowball Offers
+              Secure Fair Value for Your Totaled Vehicle
             </h1>
 
             <p className="text-xl md:text-2xl text-slate-200 mb-4 font-semibold">
-              Independent appraisals increase the settlement value by an average of over 25%
+              Owners Gain 34% Higher Settlements with Independent Appraisals
             </p>
 
             <p className="text-lg text-slate-300 mb-6 leading-relaxed max-w-lg">
-              Insurance adjusters undervalue 9 out of 10 claims. Don&apos;t settle
-              without knowing your vehicle&apos;s true market value. Get an independent data-backed
-              appraisal to level the playing field.
+              Insurance Adjusters Undervalue 90% of Claims—Verify Your Vehicle&apos;s Accurate Market Value Before Accepting an Offer.
             </p>
 
             {/* Trust Indicators Row */}
@@ -382,6 +402,11 @@ export default function Hero() {
                   {errors.submit}
                 </div>
               )}
+
+              {/* CTA Instruction */}
+              <p className="text-center text-sm font-medium text-slate-800 mb-3">
+                Enter Email and VIN Below—Receive Your Report Instantly.
+              </p>
 
               {/* Submit Button */}
               <Button

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from './ui/Button'
 import { ArrowRight, BookOpen, CheckCircle2 } from 'lucide-react'
+import { trackArticleClick, trackArticleView, trackButtonClick } from '@/lib/analytics/events'
 
 interface Article {
   slug: string
@@ -46,6 +47,46 @@ export default function KnowledgeBase() {
     return () => clearInterval(interval)
   }, [articles.length])
 
+  // Track article view when carousel rotates
+  useEffect(() => {
+    if (articles.length > 0 && articles[currentArticleIndex]) {
+      const article = articles[currentArticleIndex]
+      trackArticleView({
+        articleSlug: article.slug,
+        articleTitle: article.title,
+        articleCategory: article.category,
+        source: 'homepage_carousel',
+      })
+    }
+  }, [currentArticleIndex, articles])
+
+  // Track article click from featured carousel
+  const handleFeaturedArticleClick = () => {
+    if (currentArticle) {
+      trackArticleClick({
+        articleSlug: currentArticle.slug,
+        articleTitle: currentArticle.title,
+        articleCategory: currentArticle.category,
+        source: 'homepage_carousel',
+      })
+    }
+  }
+
+  // Track article click from the list
+  const handleListArticleClick = (article: Article) => {
+    trackArticleClick({
+      articleSlug: article.slug,
+      articleTitle: article.title,
+      articleCategory: article.category,
+      source: 'homepage_list',
+    })
+  }
+
+  // Track Browse All button click
+  const handleBrowseAllClick = () => {
+    trackButtonClick('browse_all_articles', { location: 'knowledge_base_section' })
+  }
+
   const currentArticle = articles[currentArticleIndex]
   const otherArticles = articles.filter((_, idx) => idx !== currentArticleIndex).slice(0, 3)
 
@@ -66,10 +107,9 @@ export default function KnowledgeBase() {
       <section id="knowledge-base" className="py-24 bg-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Vehicle Insights & Resources</h2>
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">Access Expert Guides with Your Report</h2>
             <p className="text-slate-600 text-lg mb-8">
-              Expert guides and resources to help you understand vehicle valuation, market trends,
-              and appraisal processes.
+              Learn to Challenge Comps and Navigate Claims Effectively.
             </p>
             <Link href="/knowledge-base">
               <Button variant="primary" size="lg" className="group shadow-lg hover:shadow-xl">
@@ -88,10 +128,12 @@ export default function KnowledgeBase() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-end mb-12">
           <div className="max-w-2xl">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Vehicle Insights & Resources</h2>
+            <p className="text-lg font-semibold text-primary-700 mb-3">
+              With Total Loss Claims Rising, Act Now to Strengthen Your Position.
+            </p>
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">Access Expert Guides with Your Report</h2>
             <p className="text-slate-600 text-lg mb-6">
-              Expert guides and resources to help you understand vehicle valuation, market trends,
-              and appraisal processes.
+              Learn to Challenge Comps and Navigate Claims Effectively.
             </p>
 
             {/* Value Props */}
@@ -121,7 +163,7 @@ export default function KnowledgeBase() {
             </div>
           </div>
           <div className="mt-6 md:mt-0">
-            <Link href="/knowledge-base">
+            <Link href="/knowledge-base" onClick={handleBrowseAllClick}>
               <Button variant="primary" size="lg" className="group shadow-lg hover:shadow-xl">
                 Browse All Articles{' '}
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -132,7 +174,11 @@ export default function KnowledgeBase() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Featured Article - Rotating */}
-          <div className="relative rounded-2xl overflow-hidden group cursor-pointer h-full min-h-[400px] bg-gradient-to-br from-primary-600 to-emerald-700">
+          <Link
+            href={`/knowledge-base/${currentArticle.slug}`}
+            onClick={handleFeaturedArticleClick}
+            className="relative rounded-2xl overflow-hidden group cursor-pointer h-full min-h-[400px] bg-gradient-to-br from-primary-600 to-emerald-700 block"
+          >
             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
 
             {/* Decorative pattern */}
@@ -150,9 +196,9 @@ export default function KnowledgeBase() {
               <h3 className="text-2xl font-bold text-white mb-3">{currentArticle.title}</h3>
               <p className="text-slate-200 mb-4">{currentArticle.description}</p>
               <div className="flex items-center justify-between">
-                <Link href={`/knowledge-base/${currentArticle.slug}`} className="text-white font-medium flex items-center text-sm group-hover:text-primary-300 transition-colors">
+                <span className="text-white font-medium flex items-center text-sm group-hover:text-primary-300 transition-colors">
                   Read Article <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                </span>
                 <span className="text-slate-300 text-xs">{currentArticle.readingTime}</span>
               </div>
             </div>
@@ -168,7 +214,7 @@ export default function KnowledgeBase() {
                 />
               ))}
             </div>
-          </div>
+          </Link>
 
           {/* List of other articles */}
           <div className="flex flex-col space-y-4">
@@ -176,6 +222,7 @@ export default function KnowledgeBase() {
               <Link
                 key={article.slug}
                 href={`/knowledge-base/${article.slug}`}
+                onClick={() => handleListArticleClick(article)}
                 className="flex gap-6 p-6 rounded-2xl border border-slate-100 hover:border-primary-100 hover:shadow-md transition-all cursor-pointer group bg-white"
               >
                 <div className="h-24 w-24 flex-shrink-0 rounded-lg bg-gradient-to-br from-primary-500 to-emerald-600 overflow-hidden flex items-center justify-center">

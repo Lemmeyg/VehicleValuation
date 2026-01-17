@@ -23,14 +23,14 @@ export default function ProblemStatement() {
             <span className="text-sm font-semibold">The Problem</span>
           </div>
           <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
-            Remember, Insurance Companies Don't Work For You
+            Insurers Prioritize Profit Over Accuracy
           </h2>
         </div>
 
         {/* Main Content Card */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 md:p-12 shadow-xl border border-slate-200">
           <p className="text-center text-xl md:text-2xl text-slate-700 leading-relaxed font-medium max-w-4xl mx-auto">
-            Insurers employ streamlined valuations aligned with their operational priorities—often undervaluing claims by <span className="text-primary-600 font-bold">over 27%</span>. Securing an independent appraisal beforehand not only elevates your average settlement amount but also reduces resolution times by <span className="text-primary-600 font-bold">20-30%</span>, expediting access to your fair compensation efficiently.
+            Insurers Prioritize Profit and Efficiency Over Accuracy, Undervaluing Claims by <span className="text-primary-600 font-bold">27% on Average</span>—Independent Appraisals Deliver <span className="text-primary-600 font-bold">34% Higher Settlements</span>.
           </p>
         </div>
       </div>
