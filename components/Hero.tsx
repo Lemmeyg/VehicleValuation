@@ -208,7 +208,7 @@ export default function Hero() {
   }
 
   return (
-    <section className="relative min-h-[90vh] flex items-center bg-slate-900 pt-20 pb-16 overflow-hidden">
+    <section className="relative min-h-[90vh] bg-slate-900 pt-20 pb-16 overflow-hidden">
       {/* Background Gradient Blobs */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
         <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-primary-600/20 rounded-full blur-[120px] animate-blob" />
@@ -222,38 +222,105 @@ export default function Hero() {
         />
       </div>
 
+      {/* Full-width Title - spans entire page width */}
+      <div className="w-full relative z-10 mb-10 overflow-hidden">
+        <h1 className="text-[4.2vw] font-bold text-white leading-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] animate-fade-in-up text-center whitespace-nowrap px-2">
+          Secure Fair Value for Your Totaled Vehicle
+        </h1>
+      </div>
+
+      {/* Subheader text - full width above the grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full mb-8">
+        <div className="max-w-2xl">
+          <p className="text-xl md:text-2xl text-slate-200 mb-4 font-semibold animate-fade-in-up">
+            Owners Gain 34% Higher Settlements with Independent Appraisals
+          </p>
+
+          <p className="text-lg text-slate-300 mb-6 leading-relaxed animate-fade-in-up">
+            Insurance Adjusters Undervalue 90% of Claims—Verify Your Vehicle&apos;s Accurate Market Value Before Accepting an Offer.
+          </p>
+
+          {/* Trust Indicators Row */}
+          <div className="flex flex-wrap items-center gap-4 md:gap-6 text-slate-300 text-sm animate-fade-in-up">
+            <div className="flex items-center">
+              <CheckCircle2 className="h-4 w-4 mr-2 text-primary-400" />
+              34% Avg Settlement Increase*
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Left Column: Value Proposition + Form */}
+        {/* Top Row: Value Points (left) + Report Preview (right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start mb-10">
+          {/* Left Column: Report Value Points */}
           <div className="animate-fade-in-up">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-4 drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]">
-              Secure Fair Value for Your Totaled Vehicle
-            </h1>
-
-            <p className="text-xl md:text-2xl text-slate-200 mb-4 font-semibold">
-              Owners Gain 34% Higher Settlements with Independent Appraisals
+            <h3 className="text-2xl font-bold text-white mb-6">What You Get in Your Report:</h3>
+            <ul className="space-y-4 text-slate-200">
+              <li className="flex items-start gap-3">
+                <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
+                <span><strong className="text-white">Accurate Market Value</strong> — Based on real-time comparable sales in your area</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
+                <span><strong className="text-white">Comparable Vehicle Listings</strong> — Evidence to counter lowball offers</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
+                <span><strong className="text-white">VIN Based Results</strong> — Return the data most relevant to your own vehicle</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
+                <span><strong className="text-white">Market Analysis</strong> — Regional pricing data and confidence scoring</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
+                <span><strong className="text-white">Further Pricing Factors</strong> — Complete list of factors that could further increase the vehicle valuation</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
+                <span><strong className="text-white">Most Recent Data</strong> — Free updates available to keep the report as accurate as possible</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
+                <span><strong className="text-white">Negotiation Ready</strong> — Professional format for credibility with carriers</span>
+              </li>
+            </ul>
+            <p className="text-xs text-slate-400 mt-6">
+              *Texas Department of Insurance (2024)
             </p>
+          </div>
 
-            <p className="text-lg text-slate-300 mb-6 leading-relaxed max-w-lg">
-              Insurance Adjusters Undervalue 90% of Claims—Verify Your Vehicle&apos;s Accurate Market Value Before Accepting an Offer.
-            </p>
+          {/* Right Column: Report Preview Visual */}
+          <div className="hidden lg:block relative">
+            <p className="text-sm text-slate-300 font-medium mb-3">Vehicle Valuation Report</p>
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20 max-h-[500px] overflow-y-auto">
+              <ReportPreviewCondensed />
 
-            {/* Trust Indicators Row */}
-            <div className="flex flex-wrap items-center gap-4 md:gap-6 mb-8 text-slate-300 text-sm">
-              <div className="flex items-center">
-                <CheckCircle2 className="h-4 w-4 mr-2 text-primary-400" />
-                34% Avg Settlement Increase*
+              {/* 90-Day Money Back Guarantee Badge */}
+              <div className="absolute top-4 right-4 bg-emerald-500 text-white rounded-full p-3 shadow-2xl border-4 border-white z-20">
+                <div className="flex flex-col items-center justify-center">
+                  <Shield className="h-6 w-6 mb-1" />
+                  <div className="text-[10px] font-bold text-center leading-tight">
+                    90-DAY<br />GUARANTEE
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* Form */}
-            <form
-              id="hero-form"
-              onSubmit={handleSubmit}
-              className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-2xl max-w-md"
-            >
+        {/* Full-width Form Section */}
+        <div className="animate-fade-in-up">
+          <form
+            id="hero-form"
+            onSubmit={handleSubmit}
+            className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-2xl"
+          >
+            {/* Two-column grid for form fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               {/* Email Field */}
-              <div className="mb-4">
+              <div>
                 <label htmlFor="email" className="block text-sm font-semibold text-slate-900 mb-2">
                   Your Email Address
                 </label>
@@ -269,9 +336,6 @@ export default function Hero() {
                   aria-required="true"
                   aria-describedby="email-helper email-error"
                 />
-                <p id="email-helper" className="text-xs text-slate-700 mt-1">
-                  We&apos;ll send your report here—no spam, ever.
-                </p>
                 {errors.email && (
                   <p id="email-error" className="text-sm text-red-600 mt-1" role="alert">
                     {errors.email}
@@ -280,10 +344,10 @@ export default function Hero() {
               </div>
 
               {/* VIN Field */}
-              <div className="mb-4 relative">
+              <div className="relative">
                 <div className="flex items-center justify-between mb-2">
                   <label htmlFor="vin" className="block text-sm font-semibold text-slate-900">
-                    Vehicle Identification Number (VIN)
+                    VIN
                   </label>
                   <button
                     type="button"
@@ -310,9 +374,6 @@ export default function Hero() {
                   aria-required="true"
                   aria-describedby="vin-helper vin-error"
                 />
-                <p id="vin-helper" className="text-xs text-slate-700 mt-1">
-                  17 characters, no spaces. {vin.length}/17
-                </p>
                 {errors.vin && (
                   <p id="vin-error" className="text-sm text-red-600 mt-1" role="alert">
                     {errors.vin}
@@ -334,7 +395,7 @@ export default function Hero() {
               </div>
 
               {/* Mileage Field */}
-              <div className="mb-4">
+              <div>
                 <label
                   htmlFor="mileage"
                   className="block text-sm font-semibold text-slate-900 mb-2"
@@ -355,9 +416,6 @@ export default function Hero() {
                   aria-required="true"
                   aria-describedby="mileage-helper mileage-error"
                 />
-                <p id="mileage-helper" className="text-xs text-slate-700 mt-1">
-                  Current odometer reading
-                </p>
                 {errors.mileage && (
                   <p id="mileage-error" className="text-sm text-red-600 mt-1" role="alert">
                     {errors.mileage}
@@ -366,7 +424,7 @@ export default function Hero() {
               </div>
 
               {/* ZIP Code Field */}
-              <div className="mb-6">
+              <div>
                 <label
                   htmlFor="zipCode"
                   className="block text-sm font-semibold text-slate-900 mb-2"
@@ -386,33 +444,30 @@ export default function Hero() {
                   aria-required="true"
                   aria-describedby="zipcode-helper zipcode-error"
                 />
-                <p id="zipcode-helper" className="text-xs text-slate-700 mt-1">
-                  Where is the vehicle located? {zipCode.length}/5
-                </p>
                 {errors.zipCode && (
                   <p id="zipcode-error" className="text-sm text-red-600 mt-1" role="alert">
                     {errors.zipCode}
                   </p>
                 )}
               </div>
+            </div>
 
-              {/* Submit Error */}
-              {errors.submit && (
-                <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-400 text-red-700 text-sm rounded">
-                  {errors.submit}
-                </div>
-              )}
+            {/* Submit Error */}
+            {errors.submit && (
+              <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-400 text-red-700 text-sm rounded">
+                {errors.submit}
+              </div>
+            )}
 
-              {/* CTA Instruction */}
-              <p className="text-center text-sm font-medium text-slate-800 mb-3">
-                Enter Email and VIN Below—Receive Your Report Instantly.
+            {/* Submit Button Row */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <p className="text-sm text-slate-600">
+                Takes 60 seconds • No credit card required • Instant results
               </p>
-
-              {/* Submit Button */}
               <Button
                 type="submit"
                 size="lg"
-                className="w-full group"
+                className="w-full md:w-auto px-8 group"
                 disabled={
                   loading || !email || vin.length !== 17 || !mileage || zipCode.length !== 5
                 }
@@ -420,42 +475,8 @@ export default function Hero() {
                 {loading ? 'Processing...' : 'Get My Independent Valuation'}
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Button>
-
-              {/* Below-Button Microcopy */}
-              <p className="text-center text-xs text-slate-700 mt-4">
-                Takes 60 seconds • No credit card required • Instant results
-              </p>
-
-              {/* Data Source Footnote */}
-              <p className="text-center text-[10px] text-slate-600 mt-3 leading-tight">
-                Data based on 2023-2025 closed claim analysis. Independent appraisals increased
-                settlements by 34% on average across all total loss cases. Source: AppraiseItNow,
-                2025.
-              </p>
-            </form>
-
-            {/* Citation for Trust Indicators */}
-            <p className="text-xs text-slate-400 mt-4 max-w-md">
-              *Texas Department of Insurance (2024)
-            </p>
-          </div>
-
-          {/* Right Column: Report Preview Visual */}
-          <div className="hidden lg:block">
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20 max-h-[800px] overflow-y-auto">
-              <ReportPreviewCondensed />
-
-              {/* 90-Day Money Back Guarantee Badge */}
-              <div className="absolute -top-4 -right-4 bg-emerald-500 text-white rounded-full p-4 shadow-2xl border-4 border-white z-20">
-                <div className="flex flex-col items-center justify-center">
-                  <Shield className="h-8 w-8 mb-1" />
-                  <div className="text-xs font-bold text-center leading-tight">
-                    90-DAY<br />MONEY BACK<br />GUARANTEE
-                  </div>
-                </div>
-              </div>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     </section>

@@ -1,0 +1,23 @@
+# robots.txt for vehiclevaluationauthority.com
+
+# Allow all crawlers to index public content
+User-agent: *
+Allow: /
+
+# Block API routes (backend endpoints)
+Disallow: /api/
+
+# Block admin and dashboard areas
+Disallow: /admin/
+Disallow: /dashboard/
+
+# Block authentication flow pages that shouldn't be indexed
+Disallow: /reset-password
+Disallow: /auth/
+
+# Block Next.js internals
+Disallow: /_next/static/chunks/
+Disallow: /_next/static/development/
+
+# Sitemap location
+Sitemap: https://vehiclevaluationauthority.com/sitemap.xml

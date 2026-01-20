@@ -15,9 +15,8 @@ export default function Footer() {
 
   const footerLinks = {
     company: [
-      { name: 'About Us', href: '/about' },
-      { name: 'Contact Us', href: '#', onClick: () => setShowContactModal(true) },
       { name: 'FAQ', href: '/faq' },
+      { name: 'Contact Us', href: '#', onClick: () => setShowContactModal(true) },
     ],
     resources: [
       { name: 'Get Report', href: '#hero-form' },
