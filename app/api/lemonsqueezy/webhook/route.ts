@@ -56,13 +56,13 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
   try {
     // Extract custom data from the webhook
     const customData = event.meta.custom_data
-    const { reportId, reportType } = customData
+    const { reportId, userId, reportType } = customData
 
     const orderId = event.data.id
     const amount = event.data.attributes.total
     const status = event.data.attributes.status
 
-    console.log(`Processing order ${orderId} for report ${reportId}`)
+    console.log(`Processing order ${orderId} for report ${reportId}, user ${userId}`)
 
     // Only process paid orders
     if (status !== 'paid') {
@@ -76,6 +76,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
     // Create payment record
     const { error: paymentError } = await supabase.from('payments').insert({
       report_id: reportId,
+      user_id: userId, // Required field - from checkout customData
       stripe_payment_id: orderId, // Reusing column for Lemon Squeezy order ID
       amount: amount,
       status: 'succeeded',
