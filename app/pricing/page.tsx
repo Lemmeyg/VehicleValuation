@@ -7,13 +7,17 @@ import Footer from '@/components/Footer'
 import { Button } from '@/components/ui/Button'
 import { Check, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { trackReportWorkflow, trackReportGeneration, trackPaymentInitiated, trackButtonClick } from '@/lib/analytics/events'
+import {
+  trackReportWorkflow,
+  trackPaymentInitiated,
+  trackButtonClick,
+} from '@/lib/analytics/events'
 
 const PRICING_TIERS = [
   {
     id: 'BASIC',
     name: 'Basic Report',
-    price: 29,
+    price: 19,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID!,
     features: [
       'Vehicle fair price valuation with low and high prices',
@@ -27,7 +31,7 @@ const PRICING_TIERS = [
   {
     id: 'PREMIUM',
     name: 'Premium Report',
-    price: 49,
+    price: 25,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID!,
     features: ['Same as Basic report', 'Two free updates of the report', 'Money Back guarantee'],
     recommended: true,
@@ -298,6 +302,7 @@ function PricingContent() {
             dataPoints: data.data.totalComparablesFound,
             dataSource: 'marketcheck',
           },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any)
       }
 
@@ -323,7 +328,10 @@ function PricingContent() {
       vehicleMake: report.vehicle_data?.make,
       vehicleModel: report.vehicle_data?.model,
     })
-    trackButtonClick(`select_${tier.id.toLowerCase()}_plan`, { reportId: report.id, price: tier.price })
+    trackButtonClick(`select_${tier.id.toLowerCase()}_plan`, {
+      reportId: report.id,
+      price: tier.price,
+    })
 
     // BETA MODE: Skip payment and show beta modal
     // Check if variant IDs are placeholder values or missing
