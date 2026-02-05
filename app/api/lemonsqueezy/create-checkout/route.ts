@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         reportType,
       },
-      successUrl: `${appUrl}/reports/${reportId}/success?session_id={CHECKOUT_ID}`,
+      successUrl: `${appUrl}/reports/${reportId}/success`,
       cancelUrl: `${appUrl}/reports/${reportId}`,
     })
 
