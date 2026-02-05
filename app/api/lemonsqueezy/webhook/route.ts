@@ -152,6 +152,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
             vin: report.vin,
             mileage: report.mileage,
             zip_code: report.zip_code,
+            dealer_type: 'franchise',
           },
           response_data: {
             predicted_price: mcResult.data.predictedPrice,
@@ -173,6 +174,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
             vin: report.vin,
             mileage: report.mileage,
             zip_code: report.zip_code,
+            dealer_type: 'franchise',
           },
         })
       }

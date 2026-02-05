@@ -180,7 +180,7 @@ export async function fetchMarketCheckData(
   zipCode: string,
   isCertified: boolean = false,
   retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG,
-  subjectVehicle?: {
+  _subjectVehicle?: {
     make?: string
     model?: string
     trim?: string
@@ -227,20 +227,27 @@ export async function fetchMarketCheckData(
 
   for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
     try {
+      // CORRECTED ENDPOINT: /comparables for premium service
+      const url = new URL(
+        'https://api.marketcheck.com/v2/predict/car/us/marketcheck_price/comparables'
+      )
+      url.searchParams.append('api_key', apiKey)
+      url.searchParams.append('vin', vin)
+      url.searchParams.append('miles', miles.toString())
+      url.searchParams.append('zip', zipCode)
+      url.searchParams.append('dealer_type', 'franchise')
+      url.searchParams.append('is_certified', isCertified ? 'true' : 'false')
+
+      // Log the full URL (masking API key for security)
+      const debugUrl = url.toString().replace(apiKey, 'API_KEY_HIDDEN')
       console.log(`[MarketCheck] Attempt ${attempt}/${retryConfig.maxAttempts}`, {
         vin,
         miles,
         zipCode,
+        dealer_type: 'franchise',
+        is_certified: isCertified,
+        fullUrl: debugUrl,
       })
-
-      // CORRECTED ENDPOINT: /comparables for premium service
-      const url = new URL('https://api.marketcheck.com/v2/predict/car/us/marketcheck_price/comparables')
-      url.searchParams.append('api_key', apiKey)
-      url.searchParams.append('vin', vin)
-      url.searchParams.append('miles', miles.toString())
-      url.searchParams.append('zip', zipCode) // Changed from 'location'
-      url.searchParams.append('dealer_type', 'franchise') // HARDCODED: franchise per user requirement
-      url.searchParams.append('is_certified', isCertified ? 'true' : 'false')
 
       const response = await fetch(url.toString(), {
         method: 'GET',
@@ -292,8 +299,12 @@ export async function fetchMarketCheckData(
           hasListings: !!data.recent_comparables.listings,
           listingsIsArray: Array.isArray(data.recent_comparables.listings),
           listingsLength: data.recent_comparables.listings?.length,
-          listingsKeys: data.recent_comparables.listings ? 'array' : Object.keys(data.recent_comparables),
-          firstListingKeys: data.recent_comparables.listings?.[0] ? Object.keys(data.recent_comparables.listings[0]) : 'none',
+          listingsKeys: data.recent_comparables.listings
+            ? 'array'
+            : Object.keys(data.recent_comparables),
+          firstListingKeys: data.recent_comparables.listings?.[0]
+            ? Object.keys(data.recent_comparables.listings[0])
+            : 'none',
         })
       } else {
         console.log('[MarketCheck] WARNING: No recent_comparables in API response')
@@ -340,7 +351,8 @@ export async function fetchMarketCheckData(
         },
 
         // Total comparables found (metadata only - listings NOT stored)
-        totalComparablesFound: data.comparables?.num_found || data.total_listings || data.total || 0,
+        totalComparablesFound:
+          data.comparables?.num_found || data.total_listings || data.total || 0,
 
         // Statistical analysis from ALL comparables (Premium API)
         // IMPORTANT: These stats are from the full comparables dataset
@@ -352,7 +364,9 @@ export async function fetchMarketCheckData(
           ? {
               num_found: data.recent_comparables.num_found || 0,
               listings:
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 ((data.recent_comparables.listings || []) as any[])
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   .map((listing: any) => ({
                     // Basic vehicle info
                     id: listing.id,
@@ -377,14 +391,15 @@ export async function fetchMarketCheckData(
                     dealer_id: listing.dealer_id,
 
                     // Location data
-                    location: listing.dealer_address || listing.location
-                      ? {
-                          city: listing.dealer_address?.city || listing.location?.city,
-                          state: listing.dealer_address?.state || listing.location?.state,
-                          zip: listing.dealer_address?.zip || listing.location?.zip,
-                          distance_miles: listing.dist || listing.distance || 0,
-                        }
-                      : undefined,
+                    location:
+                      listing.dealer_address || listing.location
+                        ? {
+                            city: listing.dealer_address?.city || listing.location?.city,
+                            state: listing.dealer_address?.state || listing.location?.state,
+                            zip: listing.dealer_address?.zip || listing.location?.zip,
+                            distance_miles: listing.dist || listing.distance || 0,
+                          }
+                        : undefined,
                     latitude: listing.latitude,
                     longitude: listing.longitude,
 
@@ -436,6 +451,7 @@ export async function fetchMarketCheckData(
 /**
  * Map MarketCheck confidence to our standard levels
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapConfidenceLevel(apiConfidence: any): 'low' | 'medium' | 'high' {
   if (typeof apiConfidence === 'string') {
     const lower = apiConfidence.toLowerCase()
