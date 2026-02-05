@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/lemonsqueezy/client'
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { supabaseAdmin } from '@/lib/db/supabase'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
 import type { LemonSqueezyWebhookEvent } from '@/lib/lemonsqueezy/types'
 
@@ -70,8 +70,8 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
       return
     }
 
-    // Get Supabase client (using service role for webhook context)
-    const supabase = await createServerSupabaseClient()
+    // Use admin client (service role) to bypass RLS - webhooks have no user session
+    const supabase = supabaseAdmin
 
     // Create payment record
     const { error: paymentError } = await supabase.from('payments').insert({
@@ -129,7 +129,8 @@ async function handleOrderRefunded(event: LemonSqueezyWebhookEvent) {
 
     console.log(`Processing refund for order ${orderId}`)
 
-    const supabase = await createServerSupabaseClient()
+    // Use admin client (service role) to bypass RLS - webhooks have no user session
+    const supabase = supabaseAdmin
 
     // Update payment status to refunded
     const { error } = await supabase

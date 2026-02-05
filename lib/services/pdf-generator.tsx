@@ -7,7 +7,7 @@
 import React from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { VehicleReportPDF } from '@/lib/pdf/report-template'
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { supabaseAdmin } from '@/lib/db/supabase'
 
 interface GeneratePDFOptions {
   reportId: string
@@ -17,7 +17,9 @@ interface ReportData {
   id: string
   vin: string
   user_id: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   autodev_vin_data: any // Auto.dev VIN decode data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   marketcheck_valuation: any // MarketCheck price prediction and comparables
   price_paid: number
   status: string
@@ -33,8 +35,8 @@ export async function generateAndUploadPDF(
   try {
     const { reportId } = options
 
-    // Fetch report data from database
-    const supabase = await createServerSupabaseClient()
+    // Use admin client to bypass RLS - called from webhook context without user session
+    const supabase = supabaseAdmin
     const { data: report, error: fetchError } = await supabase
       .from('reports')
       .select('*')
@@ -68,7 +70,7 @@ export async function generateAndUploadPDF(
     const filepath = `reports/${reportData.user_id}/${filename}`
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('vehicle-reports')
       .upload(filepath, pdfBuffer, {
         contentType: 'application/pdf',
@@ -116,7 +118,7 @@ export async function generateAndUploadPDF(
  */
 export async function generatePDFBuffer(reportId: string): Promise<Buffer | null> {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = supabaseAdmin
     const { data: report, error } = await supabase
       .from('reports')
       .select('*')
