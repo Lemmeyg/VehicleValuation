@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/lemonsqueezy/client'
 import { supabaseAdmin } from '@/lib/db/supabase'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
+import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
+import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import type { LemonSqueezyWebhookEvent } from '@/lib/lemonsqueezy/types'
 
 export async function POST(request: NextRequest) {
@@ -93,14 +95,190 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
       throw new Error(`Failed to create payment record: ${paymentError.message}`)
     }
 
-    // Update report with payment information
+    // Fetch the report to get VIN, mileage, ZIP for API calls
+    const { data: report, error: fetchError } = await supabase
+      .from('reports')
+      .select('vin, mileage, zip_code, vehicle_data, marketcheck_valuation')
+      .eq('id', reportId)
+      .single()
+
+    if (fetchError || !report) {
+      console.error('Error fetching report for API calls:', fetchError)
+      throw new Error(`Failed to fetch report: ${fetchError?.message}`)
+    }
+
+    console.log(`[Webhook] Report ${reportId} fetched for API calls:`, {
+      vin: report.vin?.substring(0, 8) + '...',
+      mileage: report.mileage,
+      zip_code: report.zip_code,
+      hasExistingMarketCheck: !!report.marketcheck_valuation,
+    })
+
+    // ========================================
+    // FETCH MARKETCHECK DATA (if not already present)
+    // ========================================
+    let marketcheckData = report.marketcheck_valuation
+
+    if (!marketcheckData) {
+      console.log(`[Webhook] Fetching MarketCheck data for report ${reportId}`)
+      const mcStartTime = Date.now()
+
+      const mcResult = await fetchMarketCheckData(
+        report.vin,
+        report.mileage,
+        report.zip_code,
+        false // is_certified
+      )
+
+      const mcResponseTime = Date.now() - mcStartTime
+
+      if (mcResult.success && mcResult.data) {
+        console.log(`[Webhook] MarketCheck success for report ${reportId}:`, {
+          predictedPrice: mcResult.data.predictedPrice,
+          totalComparables: mcResult.data.totalComparablesFound,
+          responseTimeMs: mcResponseTime,
+        })
+        marketcheckData = mcResult.data
+
+        // Log API call for cost tracking
+        await supabase.from('api_call_logs').insert({
+          report_id: reportId,
+          api_provider: 'marketcheck',
+          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+          cost: 0.09,
+          success: true,
+          response_time_ms: mcResponseTime,
+          request_data: {
+            vin: report.vin,
+            mileage: report.mileage,
+            zip_code: report.zip_code,
+          },
+          response_data: {
+            predicted_price: mcResult.data.predictedPrice,
+            total_comparables_found: mcResult.data.totalComparablesFound,
+          },
+        })
+      } else {
+        console.error(`[Webhook] MarketCheck failed for report ${reportId}:`, mcResult.error)
+        // Log failed API call
+        await supabase.from('api_call_logs').insert({
+          report_id: reportId,
+          api_provider: 'marketcheck',
+          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+          cost: 0.0,
+          success: false,
+          error_message: mcResult.error,
+          response_time_ms: mcResponseTime,
+          request_data: {
+            vin: report.vin,
+            mileage: report.mileage,
+            zip_code: report.zip_code,
+          },
+        })
+      }
+    } else {
+      console.log(
+        `[Webhook] MarketCheck data already exists for report ${reportId}, skipping API call`
+      )
+    }
+
+    // ========================================
+    // FETCH AUTO.DEV VIN DECODE DATA
+    // ========================================
+    let autodevVinData = null
+
+    console.log(`[Webhook] Fetching Auto.dev VIN decode for report ${reportId}`)
+    const vinStartTime = Date.now()
+
+    const vinResult = await fetchAutoDevVinDecode(report.vin)
+    const vinResponseTime = Date.now() - vinStartTime
+
+    if (vinResult.success && vinResult.data) {
+      console.log(`[Webhook] Auto.dev VIN decode success for report ${reportId}:`, {
+        make: vinResult.data.make,
+        model: vinResult.data.model,
+        year: vinResult.data.vehicle?.year,
+        responseTimeMs: vinResponseTime,
+      })
+
+      autodevVinData = {
+        ...vinResult.data,
+        generatedAt: new Date().toISOString(),
+      }
+
+      // Log API call
+      await supabase.from('api_call_logs').insert({
+        report_id: reportId,
+        api_provider: 'autodev',
+        endpoint: '/vin/{vin}',
+        cost: 0.0,
+        success: true,
+        response_time_ms: vinResponseTime,
+        request_data: { vin: report.vin },
+        response_data: {
+          make: vinResult.data.make,
+          model: vinResult.data.model,
+          year: vinResult.data.vehicle?.year,
+        },
+      })
+    } else {
+      console.warn(`[Webhook] Auto.dev VIN decode failed for report ${reportId}:`, vinResult.error)
+      // Log failed API call
+      await supabase.from('api_call_logs').insert({
+        report_id: reportId,
+        api_provider: 'autodev',
+        endpoint: '/vin/{vin}',
+        cost: 0.0,
+        success: false,
+        error_message: vinResult.error,
+        response_time_ms: vinResponseTime,
+        request_data: { vin: report.vin },
+      })
+    }
+
+    // ========================================
+    // UPDATE REPORT WITH API DATA AND PAYMENT INFO
+    // ========================================
+    const updateData: Record<string, unknown> = {
+      price_paid: amount,
+      stripe_payment_id: orderId,
+      status: 'pending',
+    }
+
+    // Add MarketCheck data if fetched
+    if (marketcheckData) {
+      updateData.marketcheck_valuation = marketcheckData
+      updateData.marketcheck_predicted_price = marketcheckData.predictedPrice
+      updateData.marketcheck_msrp = marketcheckData.msrp || null
+      updateData.marketcheck_price_range_min = marketcheckData.priceRange?.min || null
+      updateData.marketcheck_price_range_max = marketcheckData.priceRange?.max || null
+      updateData.marketcheck_confidence = marketcheckData.confidence
+      updateData.marketcheck_total_comparables_found = marketcheckData.totalComparablesFound
+      updateData.marketcheck_recent_comparables_found =
+        marketcheckData.recentComparables?.num_found || 0
+
+      // Also update valuation_result for consistency
+      updateData.valuation_result = {
+        predictedPrice: marketcheckData.predictedPrice,
+        lowValue:
+          marketcheckData.priceRange?.min || Math.round(marketcheckData.predictedPrice * 0.9),
+        averageValue: marketcheckData.predictedPrice,
+        highValue:
+          marketcheckData.priceRange?.max || Math.round(marketcheckData.predictedPrice * 1.1),
+        confidence: marketcheckData.confidence,
+        dataPoints: marketcheckData.totalComparablesFound,
+        dataSource: 'marketcheck',
+      }
+    }
+
+    // Add Auto.dev VIN data if fetched
+    if (autodevVinData) {
+      updateData.autodev_vin_data = autodevVinData
+    }
+
     const { error: reportError } = await supabase
       .from('reports')
-      .update({
-        price_paid: amount,
-        stripe_payment_id: orderId,
-        status: 'pending',
-      })
+      .update(updateData)
       .eq('id', reportId)
 
     if (reportError) {
@@ -108,16 +286,21 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
       throw new Error(`Failed to update report: ${reportError.message}`)
     }
 
-    console.log(`Report ${reportId} updated with payment info`)
+    console.log(`[Webhook] Report ${reportId} updated with payment info and API data`)
 
     // Generate PDF asynchronously
     // Note: In production, consider using a queue for this
     generateAndUploadPDF({ reportId }).catch(error => {
       console.error(`PDF generation failed for report ${reportId}:`, error)
-      // Optionally: Update report status to 'failed' or send alert
+      // Update report status to 'failed'
+      supabase
+        .from('reports')
+        .update({ status: 'failed' })
+        .eq('id', reportId)
+        .then(() => console.log(`Report ${reportId} marked as failed`))
     })
 
-    console.log(`PDF generation initiated for report ${reportId}`)
+    console.log(`[Webhook] PDF generation initiated for report ${reportId}`)
   } catch (error) {
     console.error('Error handling order_created event:', error)
     throw error
