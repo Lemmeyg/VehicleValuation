@@ -1,19 +1,22 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from './ui/Button'
 import { ArrowRight, CheckCircle2, HelpCircle } from 'lucide-react'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
 import ReportPreviewCondensed from './ReportPreviewCondensed'
 import { Shield } from 'lucide-react'
-import { trackVehicleSearch, trackFormSubmission, trackReportWorkflow, trackButtonClick } from '@/lib/analytics/events'
+import {
+  trackVehicleSearch,
+  trackFormSubmission,
+  trackReportWorkflow,
+} from '@/lib/analytics/events'
 
 export default function Hero() {
   const router = useRouter()
 
-  // Form state
-  const [email, setEmail] = useState('')
+  // Form state (no email - collected during auth)
   const [vin, setVin] = useState('')
   const [mileage, setMileage] = useState('')
   const [zipCode, setZipCode] = useState('')
@@ -32,28 +35,6 @@ export default function Hero() {
       hasTrackedFormStart.current = true
       trackReportWorkflow({ step: 'hero_form_started' })
     }
-  }
-
-  // Email validation
-  const validateEmail = (email: string): string | null => {
-    if (!email) return 'Email address is required'
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) return 'Please enter a valid email address'
-
-    // Optional: Block common disposable email domains
-    const disposableDomains = [
-      'tempmail.com',
-      'guerrillamail.com',
-      '10minutemail.com',
-      'throwaway.email',
-    ]
-    const domain = email.split('@')[1]?.toLowerCase()
-    if (disposableDomains.includes(domain)) {
-      return 'Please use a permanent email address'
-    }
-
-    return null
   }
 
   // VIN validation
@@ -82,14 +63,6 @@ export default function Hero() {
   }
 
   // Handle field changes
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    trackFormStart()
-    setEmail(e.target.value)
-    if (errors.email) {
-      setErrors(prev => ({ ...prev, email: '' }))
-    }
-  }
-
   const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     trackFormStart()
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -123,11 +96,8 @@ export default function Hero() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validate all fields
+    // Validate all fields (no email - collected during auth)
     const newErrors: Record<string, string> = {}
-
-    const emailError = validateEmail(email)
-    if (emailError) newErrors.email = emailError
 
     const vinError = validateVin(vin)
     if (vinError) newErrors.vin = vinError
@@ -155,7 +125,7 @@ export default function Hero() {
     // Track successful form submission attempt
     trackFormSubmission('hero_vehicle_form', {
       success: true,
-      fields: ['email', 'vin', 'mileage', 'zipCode'],
+      fields: ['vin', 'mileage', 'zipCode'],
     })
 
     // Track vehicle search
@@ -167,44 +137,19 @@ export default function Hero() {
     // Track report workflow step
     trackReportWorkflow({ step: 'hero_form_submitted' })
 
-    try {
-      // STEP 1: Check if email already has reports in the system
-      console.log('[Hero] Checking if email has existing reports:', email)
-
-      const checkEmailResponse = await fetch('/api/reports/check-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
-
-      const checkEmailData = await checkEmailResponse.json()
-      console.log('[Hero] Email check result:', checkEmailData)
-
-      // Store form data in sessionStorage for auth page to use after login/signup
-      const formData = {
-        email,
-        vin: sanitizeVin(vin),
-        mileage: parseInt(mileage),
-        zipCode,
-      }
-      sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
-
-      // Build return URL for after authentication
-      const returnUrl = `/pricing?email=${encodeURIComponent(email)}&vin=${encodeURIComponent(sanitizeVin(vin))}&mileage=${mileage}&zipCode=${zipCode}`
-
-      // Redirect to unified auth page - it will detect if user exists and show appropriate form
-      if (checkEmailData.hasUser) {
-        console.log('[Hero] User account exists. Redirecting to auth page (login mode).')
-        router.push(`/auth?email=${encodeURIComponent(email)}&returnUrl=${encodeURIComponent(returnUrl)}&existingUser=true`)
-      } else {
-        console.log('[Hero] New user. Redirecting to auth page (signup mode).')
-        router.push(`/auth?email=${encodeURIComponent(email)}&returnUrl=${encodeURIComponent(returnUrl)}`)
-      }
-    } catch (error) {
-      console.error('[Hero] Form submission error:', error)
-      setErrors({ submit: 'An unexpected error occurred. Please try again.' })
-      setLoading(false)
+    // Store form data in sessionStorage for pricing page to use after auth
+    const formData = {
+      vin: sanitizeVin(vin),
+      mileage: parseInt(mileage),
+      zipCode,
     }
+    sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
+    console.log('[Hero] Form data stored in sessionStorage:', formData)
+
+    // Redirect to auth page - user will authenticate, then be redirected to pricing
+    const returnUrl = '/pricing'
+    console.log('[Hero] Redirecting to auth page with returnUrl:', returnUrl)
+    router.push(`/auth?returnUrl=${encodeURIComponent(returnUrl)}&fromHero=true`)
   }
 
   return (
@@ -237,7 +182,8 @@ export default function Hero() {
           </p>
 
           <p className="text-lg text-slate-300 mb-6 leading-relaxed animate-fade-in-up">
-            Insurance Adjusters Undervalue 90% of Claims—Verify Your Vehicle&apos;s Accurate Market Value Before Accepting an Offer.
+            Insurance Adjusters Undervalue 90% of Claims—Verify Your Vehicle&apos;s Accurate Market
+            Value Before Accepting an Offer.
           </p>
 
           {/* Trust Indicators Row */}
@@ -259,36 +205,55 @@ export default function Hero() {
             <ul className="space-y-4 text-slate-200">
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-white">Accurate Market Value</strong> — Based on real-time comparable sales in your area</span>
+                <span>
+                  <strong className="text-white">Accurate Market Value</strong> — Based on real-time
+                  comparable sales in your area
+                </span>
               </li>
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-white">Comparable Vehicle Listings</strong> — Evidence to counter lowball offers</span>
+                <span>
+                  <strong className="text-white">Comparable Vehicle Listings</strong> — Evidence to
+                  counter lowball offers
+                </span>
               </li>
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-white">VIN Based Results</strong> — Return the data most relevant to your own vehicle</span>
+                <span>
+                  <strong className="text-white">VIN Based Results</strong> — Return the data most
+                  relevant to your own vehicle
+                </span>
               </li>
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-white">Market Analysis</strong> — Regional pricing data and confidence scoring</span>
+                <span>
+                  <strong className="text-white">Market Analysis</strong> — Regional pricing data
+                  and confidence scoring
+                </span>
               </li>
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-white">Further Pricing Factors</strong> — Complete list of factors that could further increase the vehicle valuation</span>
+                <span>
+                  <strong className="text-white">Further Pricing Factors</strong> — Complete list of
+                  factors that could further increase the vehicle valuation
+                </span>
               </li>
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-white">Most Recent Data</strong> — Free updates available to keep the report as accurate as possible</span>
+                <span>
+                  <strong className="text-white">Most Recent Data</strong> — Free updates available
+                  to keep the report as accurate as possible
+                </span>
               </li>
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="h-6 w-6 text-primary-400 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-white">Negotiation Ready</strong> — Professional format for credibility with carriers</span>
+                <span>
+                  <strong className="text-white">Negotiation Ready</strong> — Professional format
+                  for credibility with carriers
+                </span>
               </li>
             </ul>
-            <p className="text-xs text-slate-400 mt-6">
-              *Texas Department of Insurance (2024)
-            </p>
+            <p className="text-xs text-slate-400 mt-6">*Texas Department of Insurance (2024)</p>
           </div>
 
           {/* Right Column: Report Preview Visual */}
@@ -302,7 +267,9 @@ export default function Hero() {
                 <div className="flex flex-col items-center justify-center">
                   <Shield className="h-6 w-6 mb-1" />
                   <div className="text-[10px] font-bold text-center leading-tight">
-                    90-DAY<br />GUARANTEE
+                    90-DAY
+                    <br />
+                    GUARANTEE
                   </div>
                 </div>
               </div>
@@ -317,32 +284,8 @@ export default function Hero() {
             onSubmit={handleSubmit}
             className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-2xl"
           >
-            {/* Two-column grid for form fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {/* Email Field */}
-              <div>
-                <label htmlFor="email" className="block text-sm font-semibold text-slate-900 mb-2">
-                  Your Email Address
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={handleEmailChange}
-                  placeholder="you@example.com"
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-slate-900 ${
-                    errors.email ? 'border-red-400' : 'border-slate-200'
-                  }`}
-                  aria-required="true"
-                  aria-describedby="email-helper email-error"
-                />
-                {errors.email && (
-                  <p id="email-error" className="text-sm text-red-600 mt-1" role="alert">
-                    {errors.email}
-                  </p>
-                )}
-              </div>
-
+            {/* Three-column grid for form fields (VIN, Mileage, ZIP) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {/* VIN Field */}
               <div className="relative">
                 <div className="flex items-center justify-between mb-2">
@@ -468,9 +411,7 @@ export default function Hero() {
                 type="submit"
                 size="lg"
                 className="w-full md:w-auto px-8 group"
-                disabled={
-                  loading || !email || vin.length !== 17 || !mileage || zipCode.length !== 5
-                }
+                disabled={loading || vin.length !== 17 || !mileage || zipCode.length !== 5}
               >
                 {loading ? 'Processing...' : 'Get My Independent Valuation'}
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />

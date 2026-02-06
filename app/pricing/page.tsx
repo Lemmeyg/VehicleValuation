@@ -79,12 +79,8 @@ function PricingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Get data from multiple possible sources
+  // Get data from URL params (legacy support for existing reportId flow)
   const reportId = searchParams?.get('reportId')
-  const urlEmail = searchParams?.get('email')
-  const urlVin = searchParams?.get('vin')
-  const urlMileage = searchParams?.get('mileage')
-  const urlZipCode = searchParams?.get('zipCode')
 
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
@@ -114,29 +110,21 @@ function PricingContent() {
   }, [])
 
   const initializePricingPage = async () => {
-    // Option A: Existing reportId flow (authenticated users)
+    // Option A: Existing reportId flow (authenticated users with existing report)
     if (reportId) {
       await fetchExistingReport(reportId)
       return
     }
 
-    // Option B: URL parameters from hero form (new anonymous flow)
-    if (urlEmail && urlVin && urlMileage && urlZipCode) {
-      await createAnonymousReport({
-        email: urlEmail,
-        vin: urlVin,
-        mileage: parseInt(urlMileage),
-        zipCode: urlZipCode,
-      })
-      return
-    }
-
-    // Option C: SessionStorage fallback
+    // Option B: New flow - user authenticated, get data from sessionStorage
     const storedData = sessionStorage.getItem('hero_form_data')
     if (storedData) {
       try {
         const data = JSON.parse(storedData)
-        await createAnonymousReport(data)
+        console.log('[PricingPage] Found hero form data in sessionStorage:', data)
+
+        // Create authenticated report (user should be logged in at this point)
+        await createAuthenticatedReport(data)
         return
       } catch (err) {
         console.error('SessionStorage parse error:', err)
@@ -171,8 +159,7 @@ function PricingContent() {
     }
   }
 
-  const createAnonymousReport = async (data: {
-    email: string
+  const createAuthenticatedReport = async (data: {
     vin: string
     mileage: number
     zipCode: string
@@ -181,40 +168,91 @@ function PricingContent() {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/reports/create-anonymous', {
+      // First check if user is authenticated
+      const sessionResponse = await fetch('/api/auth/session')
+      const sessionData = await sessionResponse.json()
+
+      if (!sessionData.user) {
+        // User not authenticated - redirect to auth page
+        console.log('[PricingPage] User not authenticated, redirecting to auth')
+        router.push(`/auth?returnUrl=${encodeURIComponent('/pricing')}&fromHero=true`)
+        return
+      }
+
+      console.log('[PricingPage] User authenticated:', sessionData.user.email)
+
+      // Create authenticated report
+      const response = await fetch('/api/reports/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          vin: data.vin,
+          mileage: data.mileage,
+          zipCode: data.zipCode,
+        }),
       })
 
       const result = await response.json()
 
       if (!response.ok) {
+        // Handle rate limit errors specially
+        if (result.error === 'RATE_LIMIT_EXCEEDED') {
+          setError(result.message)
+          setLoading(false)
+          setCreatingReport(false)
+          return
+        }
         setError(result.error || 'Failed to create report')
         setLoading(false)
         setCreatingReport(false)
         return
       }
 
-      setReport(result.report)
+      // Transform the response to match our Report interface
+      const reportData: Report = {
+        id: result.report.id,
+        vin: result.report.vin,
+        mileage: result.report.mileage,
+        zip_code: result.report.zipCode,
+        email: sessionData.user.email,
+        dealer_type: result.report.dealerType,
+        vehicle_data: result.report.vehicleData
+          ? {
+              year: parseInt(result.report.vehicleData.vehicle?.year || '0'),
+              make: result.report.vehicleData.make || '',
+              model: result.report.vehicleData.model || '',
+              trim: result.report.vehicleData.trim,
+            }
+          : {
+              year: 0,
+              make: '',
+              model: '',
+            },
+        marketcheck_valuation: result.report.marketcheckValuation,
+      }
+
+      setReport(reportData)
 
       // Store report ID for later reference
-      sessionStorage.setItem('current_report_id', result.report.id)
+      sessionStorage.setItem('current_report_id', reportData.id)
+
+      // Clear hero form data from sessionStorage (no longer needed)
+      sessionStorage.removeItem('hero_form_data')
 
       // Track report creation and pricing page view
       trackReportWorkflow({
         step: 'report_created',
-        reportId: result.report.id,
-        vehicleYear: result.report.vehicle_data?.year,
-        vehicleMake: result.report.vehicle_data?.make,
-        vehicleModel: result.report.vehicle_data?.model,
+        reportId: reportData.id,
+        vehicleYear: reportData.vehicle_data?.year,
+        vehicleMake: reportData.vehicle_data?.make,
+        vehicleModel: reportData.vehicle_data?.model,
       })
-      trackReportWorkflow({ step: 'pricing_viewed', reportId: result.report.id })
+      trackReportWorkflow({ step: 'pricing_viewed', reportId: reportData.id })
 
       setLoading(false)
       setCreatingReport(false)
     } catch (err) {
-      console.error('Create anonymous report error:', err)
+      console.error('Create authenticated report error:', err)
       setError('An unexpected error occurred while creating your report')
       setLoading(false)
       setCreatingReport(false)

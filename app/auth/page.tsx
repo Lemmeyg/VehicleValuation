@@ -16,7 +16,16 @@
 import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Eye, EyeOff, Mail, Loader2, ArrowLeft, CheckCircle } from 'lucide-react'
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Loader2,
+  ArrowLeft,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import { trackAuthEvent, identifyUser, trackButtonClick } from '@/lib/analytics/events'
 
@@ -28,6 +37,7 @@ function AuthContent() {
   const redirectTo = searchParams.get('returnUrl') || searchParams.get('redirect') || '/dashboard'
   const prefilledEmail = searchParams.get('email')
   const isExistingUser = searchParams.get('existingUser') === 'true'
+  const fromHero = searchParams.get('fromHero') === 'true'
 
   // Auth state
   const [step, setStep] = useState<AuthStep>('email')
@@ -44,11 +54,13 @@ function AuthContent() {
   const [checkingEmail, setCheckingEmail] = useState(false)
   const [error, setError] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [showEmailForm, setShowEmailForm] = useState(false)
 
   // Pre-fill email from URL params
   useEffect(() => {
     if (prefilledEmail) {
       setEmail(decodeURIComponent(prefilledEmail))
+      setShowEmailForm(true) // Show email form if email is prefilled
       // If existingUser flag is set, go directly to login step
       if (isExistingUser) {
         setStep('login')
@@ -121,7 +133,12 @@ function AuthContent() {
 
       if (!response.ok) {
         setError(data.error || 'Login failed')
-        trackAuthEvent({ method: 'email', step: 'failed', isNewUser: false, error: data.error || 'login_failed' })
+        trackAuthEvent({
+          method: 'email',
+          step: 'failed',
+          isNewUser: false,
+          error: data.error || 'login_failed',
+        })
         return
       }
 
@@ -136,7 +153,12 @@ function AuthContent() {
     } catch (err) {
       setError('An unexpected error occurred')
       console.error('Login error:', err)
-      trackAuthEvent({ method: 'email', step: 'failed', isNewUser: false, error: 'unexpected_error' })
+      trackAuthEvent({
+        method: 'email',
+        step: 'failed',
+        isNewUser: false,
+        error: 'unexpected_error',
+      })
     } finally {
       setLoading(false)
     }
@@ -179,7 +201,12 @@ function AuthContent() {
 
       if (!response.ok) {
         setError(data.error || 'Signup failed')
-        trackAuthEvent({ method: 'email', step: 'failed', isNewUser: true, error: data.error || 'signup_failed' })
+        trackAuthEvent({
+          method: 'email',
+          step: 'failed',
+          isNewUser: true,
+          error: data.error || 'signup_failed',
+        })
         return
       }
 
@@ -202,7 +229,12 @@ function AuthContent() {
     } catch (err) {
       setError('An unexpected error occurred')
       console.error('Signup error:', err)
-      trackAuthEvent({ method: 'email', step: 'failed', isNewUser: true, error: 'unexpected_error' })
+      trackAuthEvent({
+        method: 'email',
+        step: 'failed',
+        isNewUser: true,
+        error: 'unexpected_error',
+      })
     } finally {
       setLoading(false)
     }
@@ -227,7 +259,11 @@ function AuthContent() {
 
       if (!response.ok) {
         setError(data.error || 'Failed to send magic link')
-        trackAuthEvent({ method: 'magic_link', step: 'failed', error: data.error || 'magic_link_failed' })
+        trackAuthEvent({
+          method: 'magic_link',
+          step: 'failed',
+          error: data.error || 'magic_link_failed',
+        })
         return
       }
 
@@ -300,13 +336,16 @@ function AuthContent() {
         {/* Header */}
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            {step === 'email' && 'Welcome'}
+            {step === 'email' && (fromHero ? 'Get Your Vehicle Report' : 'Welcome')}
             {step === 'login' && 'Welcome back'}
             {step === 'signup' && 'Create your account'}
             {step === 'magic-link-sent' && 'Check your email'}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            {step === 'email' && 'Enter your email to get started'}
+            {step === 'email' &&
+              (fromHero
+                ? 'Sign in or create an account to continue'
+                : 'Enter your email to get started')}
             {step === 'login' && 'Sign in to continue'}
             {step === 'signup' && 'Just a few details to get started'}
             {step === 'magic-link-sent' && `We sent a login link to ${email}`}
@@ -336,12 +375,12 @@ function AuthContent() {
         {/* Email Step */}
         {step === 'email' && (
           <div className="space-y-6">
-            {/* Google OAuth Button */}
+            {/* Google OAuth Button - Prominent */}
             <button
               type="button"
               onClick={handleGoogleSignIn}
               disabled={googleLoading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full flex items-center justify-center gap-3 px-4 py-4 border-2 border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {googleLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -368,57 +407,76 @@ function AuthContent() {
               Continue with Google
             </button>
 
-            {/* Divider */}
+            {/* Divider with collapsible email option */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-50 text-gray-500">or continue with email</span>
+                <span className="px-2 bg-gray-50 text-gray-500">or</span>
               </div>
             </div>
 
-            {/* Email Form */}
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
-              {error && (
-                <div className="rounded-md bg-red-50 p-4">
-                  <p className="text-sm text-red-800">{error}</p>
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email address
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="you@example.com"
-                  disabled={checkingEmail}
-                />
-              </div>
-
+            {/* Collapsible Email Section */}
+            <div>
               <button
-                type="submit"
-                disabled={checkingEmail || !email}
-                className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                type="button"
+                onClick={() => setShowEmailForm(!showEmailForm)}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
-                {checkingEmail ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    Checking...
-                  </>
+                <Mail className="w-5 h-5" />
+                Continue with email
+                {showEmailForm ? (
+                  <ChevronUp className="w-4 h-4 ml-1" />
                 ) : (
-                  'Continue'
+                  <ChevronDown className="w-4 h-4 ml-1" />
                 )}
               </button>
-            </form>
+
+              {/* Email Form - Collapsible */}
+              {showEmailForm && (
+                <form onSubmit={handleEmailSubmit} className="mt-4 space-y-4">
+                  {error && (
+                    <div className="rounded-md bg-red-50 p-4">
+                      <p className="text-sm text-red-800">{error}</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                      Email address
+                    </label>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="you@example.com"
+                      disabled={checkingEmail}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={checkingEmail || !email}
+                    className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {checkingEmail ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        Checking...
+                      </>
+                    ) : (
+                      'Continue'
+                    )}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
         )}
 
@@ -568,7 +626,10 @@ function AuthContent() {
               </div>
 
               <div>
-                <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="new-password"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Password
                 </label>
                 <div className="relative">
@@ -596,7 +657,10 @@ function AuthContent() {
               </div>
 
               <div>
-                <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="confirm-password"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Confirm password
                 </label>
                 <div className="relative">
@@ -618,7 +682,11 @@ function AuthContent() {
                     className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                     tabIndex={-1}
                   >
-                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </div>
