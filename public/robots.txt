@@ -1,4 +1,4 @@
-# robots.txt for vehiclevaluationauthority.com
+# robots.txt for www.totallosstoolkit.com
 
 # Allow all crawlers to index public content
 User-agent: *
@@ -20,4 +20,4 @@ Disallow: /_next/static/chunks/
 Disallow: /_next/static/development/
 
 # Sitemap location
-Sitemap: https://vehiclevaluationauthority.com/sitemap.xml
+Sitemap: https://www.totallosstoolkit.com/sitemap.xml

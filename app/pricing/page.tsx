@@ -12,6 +12,7 @@ import {
   trackPaymentInitiated,
   trackButtonClick,
 } from '@/lib/analytics/events'
+import { trackRedditViewContent, trackRedditAddToCart } from '@/lib/analytics/reddit-events'
 
 const PRICING_TIERS = [
   {
@@ -116,18 +117,20 @@ function PricingContent() {
       return
     }
 
-    // Option B: New flow - user authenticated, get data from sessionStorage
-    const storedData = sessionStorage.getItem('hero_form_data')
+    // Option B: New flow - user authenticated, get data from localStorage
+    const storedData = localStorage.getItem('hero_form_data')
     if (storedData) {
       try {
         const data = JSON.parse(storedData)
-        console.log('[PricingPage] Found hero form data in sessionStorage:', data)
+        console.log('[PricingPage] Found hero form data in localStorage:', data)
+        // Clear stored data now that we've consumed it
+        localStorage.removeItem('hero_form_data')
 
         // Create authenticated report (user should be logged in at this point)
         await createAuthenticatedReport(data)
         return
       } catch (err) {
-        console.error('SessionStorage parse error:', err)
+        console.error('localStorage parse error:', err)
       }
     }
 
@@ -148,6 +151,7 @@ function PricingContent() {
         setReport(data.report)
         // Track pricing page view for existing report
         trackReportWorkflow({ step: 'pricing_viewed', reportId: id })
+        trackRedditViewContent()
       } else {
         setError(data.error || 'Failed to load report')
       }
@@ -248,6 +252,7 @@ function PricingContent() {
         vehicleModel: reportData.vehicle_data?.model,
       })
       trackReportWorkflow({ step: 'pricing_viewed', reportId: reportData.id })
+      trackRedditViewContent()
 
       setLoading(false)
       setCreatingReport(false)
@@ -369,6 +374,13 @@ function PricingContent() {
     trackButtonClick(`select_${tier.id.toLowerCase()}_plan`, {
       reportId: report.id,
       price: tier.price,
+    })
+
+    // Reddit Pixel: track plan selection as AddToCart
+    trackRedditAddToCart({
+      itemCount: 1,
+      value: tier.price,
+      currency: 'USD',
     })
 
     // BETA MODE: Skip payment and show beta modal

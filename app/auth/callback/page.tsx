@@ -83,7 +83,10 @@ function AuthCallbackContent() {
 
           // Link anonymous reports to this user
           if (sessionData.session.user.email) {
-            console.log('[auth-callback] Linking reports for email:', sessionData.session.user.email)
+            console.log(
+              '[auth-callback] Linking reports for email:',
+              sessionData.session.user.email
+            )
 
             try {
               const response = await fetch('/api/reports/link', {
@@ -111,13 +114,17 @@ function AuthCallbackContent() {
           setStatus('success')
           setMessage('Success! Redirecting...')
 
-          // Priority: nextUrl (OAuth) > reportId > dashboard
-          let redirectUrl = '/dashboard'
+          // Priority: nextUrl (OAuth) > localStorage fallback > reportId > pricing default
+          const storedRedirect = localStorage.getItem('auth_redirect_to')
+          let redirectUrl = '/pricing'
           if (nextUrl) {
             redirectUrl = decodeURIComponent(nextUrl)
+          } else if (storedRedirect) {
+            redirectUrl = storedRedirect
           } else if (reportId) {
             redirectUrl = `/reports/${reportId}/view`
           }
+          localStorage.removeItem('auth_redirect_to')
           console.log('[auth-callback] Redirecting to:', redirectUrl)
 
           // Small delay so user sees success message
@@ -126,7 +133,10 @@ function AuthCallbackContent() {
         }
 
         // Fallback: try to get existing session (for OAuth flows)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
 
         if (sessionError) {
           console.error('Session error:', sessionError)
@@ -172,18 +182,21 @@ function AuthCallbackContent() {
         setStatus('success')
         setMessage('Success! Redirecting...')
 
-        // Priority: nextUrl (OAuth) > reportId > dashboard
-        let redirectUrl = '/dashboard'
+        // Priority: nextUrl (OAuth) > localStorage fallback > reportId > pricing default
+        const storedRedirect = localStorage.getItem('auth_redirect_to')
+        let redirectUrl = '/pricing'
         if (nextUrl) {
           redirectUrl = decodeURIComponent(nextUrl)
+        } else if (storedRedirect) {
+          redirectUrl = storedRedirect
         } else if (reportId) {
           redirectUrl = `/reports/${reportId}/view`
         }
+        localStorage.removeItem('auth_redirect_to')
         console.log('Redirecting to:', redirectUrl)
 
         // Small delay so user sees success message
         setTimeout(() => router.push(redirectUrl), 1000)
-
       } catch (error) {
         console.error('Unexpected error in auth callback:', error)
         setStatus('error')
@@ -201,9 +214,7 @@ function AuthCallbackContent() {
         {status === 'loading' && (
           <>
             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary-600 mx-auto mb-4"></div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">
-              Verifying Your Email
-            </h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Verifying Your Email</h2>
             <p className="text-gray-600">{message}</p>
           </>
         )}
@@ -225,9 +236,7 @@ function AuthCallbackContent() {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">
-              Success!
-            </h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Success!</h2>
             <p className="text-gray-600">{message}</p>
           </>
         )}
@@ -249,9 +258,7 @@ function AuthCallbackContent() {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">
-              Verification Failed
-            </h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Verification Failed</h2>
             <p className="text-gray-600">{message}</p>
           </>
         )}
@@ -262,14 +269,16 @@ function AuthCallbackContent() {
 
 export default function AuthCallbackPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary-600 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading...</h2>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary-600 mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading...</h2>
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <AuthCallbackContent />
     </Suspense>
   )

@@ -12,6 +12,7 @@ import {
   trackFormSubmission,
   trackReportWorkflow,
 } from '@/lib/analytics/events'
+import { trackRedditLead } from '@/lib/analytics/reddit-events'
 
 export default function Hero() {
   const router = useRouter()
@@ -137,14 +138,17 @@ export default function Hero() {
     // Track report workflow step
     trackReportWorkflow({ step: 'hero_form_submitted' })
 
-    // Store form data in sessionStorage for pricing page to use after auth
+    // Reddit Pixel: track as Lead conversion
+    trackRedditLead()
+
+    // Store form data in localStorage for pricing page to use after auth
     const formData = {
       vin: sanitizeVin(vin),
       mileage: parseInt(mileage),
       zipCode,
     }
-    sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
-    console.log('[Hero] Form data stored in sessionStorage:', formData)
+    localStorage.setItem('hero_form_data', JSON.stringify(formData))
+    console.log('[Hero] Form data stored in localStorage:', formData)
 
     // Redirect to auth page - user will authenticate, then be redirected to pricing
     const returnUrl = '/pricing'
