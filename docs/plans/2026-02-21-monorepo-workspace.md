@@ -6,7 +6,14 @@
 
 **Architecture:** A new standalone directory at `C:\Users\Gordo\Documents\totallosstoolkit-workspace\` containing a VS Code multi-root workspace file, a `.mcp.json` for PostHog + GitHub MCPs, a `CLAUDE.md` with full ecosystem context, and a `monorepo.md` living checklist. Both existing projects stay untouched.
 
-**Tech Stack:** VS Code workspace, Claude Code CLAUDE.md, MCP JSON config, GitHub CLI, Markdown docs
+**Tech Stack:** VS Code workspace, Claude Code CLAUDE.md, MCP JSON config, Markdown docs
+
+---
+
+## ⚠️ Environment Notes
+
+- **GitHub CLI (`gh`)** — not working in this environment. Task 7 uses GitHub web UI instead.
+- **Supabase CLI (`supabase`)** — not working in this environment. `CLAUDE.md` references the JS client / REST API as the alternative. The Supabase CLI steps in the original design are replaced with web dashboard instructions.
 
 ---
 
@@ -15,8 +22,8 @@
 Before starting, complete these manual actions and check them off in `monorepo.md`:
 
 1. **PostHog API key** — go to https://app.posthog.com/project/settings → "Personal API Keys" → create a key with read access. Note the key and your Project ID (visible in the URL: `app.posthog.com/project/XXXXX`).
-2. **GitHub CLI authenticated** — run `gh auth status` in terminal. If not logged in, run `gh auth login`.
-3. **Supabase CLI** — run `npm install -g supabase` then `supabase login` (uses browser OAuth).
+2. **GitHub token** — go to https://github.com/settings/tokens → "Generate new token (classic)" → select `repo` scope → copy the token.
+3. **Supabase project ref** — go to your Supabase dashboard → project → Settings → General → copy the "Reference ID".
 
 ---
 
@@ -297,21 +304,21 @@ cd "../VV KB Creator" && pip install -r requirements.txt
 # Run via Claude Code Skills in conversation — see WORKFLOW.md
 ```
 
-### Supabase (CLI)
+### Supabase
+
+⚠️ Supabase CLI is not available in this environment. Use the REST API or JS client instead.
 
 ```bash
-# Install CLI (once)
-npm install -g supabase
+# Query via REST API (curl)
+curl "https://YOUR_PROJECT_REF.supabase.co/rest/v1/articles?select=count" \
+  -H "apikey: YOUR_ANON_KEY" \
+  -H "Authorization: Bearer YOUR_ANON_KEY"
 
-# Login (once — browser OAuth)
-supabase login
-
-# Run a query
-supabase db execute --project-ref <YOUR_PROJECT_REF> --sql "SELECT count(*) FROM articles;"
-
-# Project ref is the subdomain from your Supabase URL:
-# https://XXXXXXXXXXXX.supabase.co → ref is XXXXXXXXXXXX
+# Or use the Supabase web dashboard SQL editor:
+# https://supabase.com/dashboard/project/YOUR_PROJECT_REF/sql
 ```
+
+For scripts, use the JS client (`@supabase/supabase-js`) which is already installed in the website project.
 
 ### GitHub
 
@@ -568,24 +575,31 @@ git commit -m "docs: add business context, article pipeline, and growth playbook
 
 ## Task 7: Create GitHub Repo and Push
 
+**⚠️ GitHub CLI not available — use web UI + git commands instead.**
+
 **YOU execute this task manually.**
 
-**Step 1: Create the GitHub repo**
+**Step 1: Create the GitHub repo via web UI**
+
+1. Go to https://github.com/new
+2. Repository name: `totallosstoolkit-workspace`
+3. Set to **Private**
+4. **Do NOT** initialize with README, .gitignore, or license (repo already has commits)
+5. Click "Create repository"
+
+**Step 2: Add remote and push**
+
+GitHub will show you the remote URL. Use it in the terminal:
 
 ```bash
 cd "/c/Users/Gordo/Documents/totallosstoolkit-workspace"
-gh repo create totallosstoolkit-workspace --private --source=. --remote=origin --push
+git remote add origin https://github.com/YOUR_USERNAME/totallosstoolkit-workspace.git
+git push -u origin main
 ```
 
-Expected output:
+Replace `YOUR_USERNAME` with your actual GitHub username.
 
-```
-✓ Created repository YourUsername/totallosstoolkit-workspace on GitHub
-✓ Added remote origin
-✓ Pushed commits to origin/main
-```
-
-**Step 2: Verify on GitHub**
+**Step 3: Verify on GitHub**
 
 Open: https://github.com/YOUR_USERNAME/totallosstoolkit-workspace
 
@@ -599,7 +613,7 @@ Confirm these files are visible:
 
 Note: `.mcp.json` should NOT be visible (it's gitignored).
 
-**Step 3: Update `monorepo.md` checklist**
+**Step 4: Update `monorepo.md` checklist**
 
 Check off "Task 7: Create GitHub repo and push" in `monorepo.md`.
 
