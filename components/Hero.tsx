@@ -17,7 +17,7 @@ import { trackRedditLead } from '@/lib/analytics/reddit-events'
 export default function Hero() {
   const router = useRouter()
 
-  // Form state (no email - collected during auth)
+  // Form state (VIN, mileage, ZIP — email collected at LemonSqueezy checkout)
   const [vin, setVin] = useState('')
   const [mileage, setMileage] = useState('')
   const [zipCode, setZipCode] = useState('')
@@ -97,7 +97,7 @@ export default function Hero() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validate all fields (no email - collected during auth)
+    // Validate all fields
     const newErrors: Record<string, string> = {}
 
     const vinError = validateVin(vin)
@@ -141,7 +141,7 @@ export default function Hero() {
     // Reddit Pixel: track as Lead conversion
     trackRedditLead()
 
-    // Store form data in localStorage for pricing page to use after auth
+    // Store form data in localStorage for pricing page
     const formData = {
       vin: sanitizeVin(vin),
       mileage: parseInt(mileage),
@@ -150,10 +150,9 @@ export default function Hero() {
     localStorage.setItem('hero_form_data', JSON.stringify(formData))
     console.log('[Hero] Form data stored in localStorage:', formData)
 
-    // Redirect to auth page - user will authenticate, then be redirected to pricing
-    const returnUrl = '/pricing'
-    console.log('[Hero] Redirecting to auth page with returnUrl:', returnUrl)
-    router.push(`/auth?returnUrl=${encodeURIComponent(returnUrl)}&fromHero=true`)
+    // Redirect directly to pricing — no auth required before purchase
+    console.log('[Hero] Redirecting to pricing page')
+    router.push('/pricing')
   }
 
   return (
