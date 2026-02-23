@@ -3,7 +3,7 @@
 
 export interface LemonSqueezyCheckoutData {
   reportId: string
-  userId: string
+  userId: string | null
   reportType: 'BASIC' | 'PREMIUM'
 }
 
