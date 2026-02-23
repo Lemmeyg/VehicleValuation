@@ -1,12 +1,16 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { requireAuth } from '@/lib/db/auth'
+import { getUser } from '@/lib/db/auth'
 import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { RedditPurchaseTracker } from './RedditPurchaseTracker'
 
 /**
  * Payment Success Page
  *
  * Displays confirmation after successful report purchase.
+ * Auth-optional: authenticated users see full order details;
+ * anonymous buyers (who paid without an account) see a
+ * "check your email" message instead of being redirected.
  */
 
 interface PageProps {
@@ -18,10 +22,43 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
   const { id: reportId } = await params
   const { session_id: sessionId } = await searchParams
 
-  // Require authentication
-  const user = await requireAuth()
+  // Auth-optional: returns null for anonymous/unauthenticated users
+  const user = await getUser()
 
-  // Fetch report details
+  // Anonymous buyer — skip report fetch and show email-check message
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg
+              className="w-8 h-8 text-green-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Payment Successful!</h1>
+          <p className="text-slate-600 mb-6">
+            Check your email for a magic link to access your report. The link will take you directly
+            to your valuation report.
+          </p>
+          <p className="text-sm text-slate-500">
+            Didn&apos;t receive an email? Check your spam folder or contact support.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Authenticated user — fetch report details as before
   const supabase = await createServerSupabaseClient()
 
   const { data: report, error } = await supabase
@@ -42,6 +79,11 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <RedditPurchaseTracker
+        value={report.price_paid / 100}
+        currency="USD"
+        transactionId={sessionId}
+      />
       {/* Navigation */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -88,9 +130,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
 
             {/* Success Message */}
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Payment Successful!
-              </h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
               <p className="text-lg text-gray-600">
                 Thank you for your purchase. Your report is being generated.
               </p>
@@ -98,15 +138,11 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
 
             {/* Payment Details */}
             <div className="bg-gray-50 rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Order Details
-              </h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Details</h2>
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">VIN:</span>
-                  <span className="font-mono font-medium text-gray-900">
-                    {report.vin}
-                  </span>
+                  <span className="font-mono font-medium text-gray-900">{report.vin}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Report Type:</span>
@@ -123,9 +159,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                 {sessionId && (
                   <div className="flex justify-between">
                     <span className="text-gray-600">Payment ID:</span>
-                    <span className="font-mono text-sm text-gray-900">
-                      {sessionId}
-                    </span>
+                    <span className="font-mono text-sm text-gray-900">{sessionId}</span>
                   </div>
                 )}
               </div>
@@ -133,9 +167,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
 
             {/* What's Next */}
             <div className="bg-blue-50 rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-semibold text-blue-900 mb-3">
-                What Happens Next?
-              </h2>
+              <h2 className="text-lg font-semibold text-blue-900 mb-3">What Happens Next?</h2>
               <ul className="space-y-2 text-blue-800">
                 <li className="flex items-start">
                   <svg
@@ -152,7 +184,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                     />
                   </svg>
                   <span>
-                    Click "View Full Report" to see your complete valuation analysis
+                    Click &ldquo;View Full Report&rdquo; to see your complete valuation analysis
                   </span>
                 </li>
                 <li className="flex items-start">
@@ -169,9 +201,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <span>
-                    View dual price predictions from CarsXE and MarketCheck
-                  </span>
+                  <span>View dual price predictions from CarsXE and MarketCheck</span>
                 </li>
                 <li className="flex items-start">
                   <svg
@@ -187,9 +217,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <span>
-                    See 10 comparable vehicles with detailed pricing and location data
-                  </span>
+                  <span>See 10 comparable vehicles with detailed pricing and location data</span>
                 </li>
                 <li className="flex items-start">
                   <svg
@@ -205,9 +233,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <span>
-                    Download your professional PDF report (if available)
-                  </span>
+                  <span>Download your professional PDF report (if available)</span>
                 </li>
                 <li className="flex items-start">
                   <svg
@@ -223,9 +249,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <span>
-                    Access your report anytime from your dashboard
-                  </span>
+                  <span>Access your report anytime from your dashboard</span>
                 </li>
               </ul>
             </div>
@@ -237,7 +261,8 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
               </h2>
               <p className="text-green-800 text-sm">
                 If the insurance settlement falls short of our valuation, you can request a full
-                refund within 90 days of receiving your report. We're confident in our valuations.
+                refund within 90 days of receiving your report. We&apos;re confident in our
+                valuations.
               </p>
             </div>
 
