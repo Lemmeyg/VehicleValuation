@@ -20,11 +20,30 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import ContactUsDialog from '@/components/directory/ContactUsDialog'
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
+
 export const metadata: Metadata = {
   title:
-    'Professional Services Directory - Vehicle Appraisers & Claims Advocates | Vehicle Valuation Authority',
+    'Professional Services Directory - Vehicle Appraisers & Claims Advocates | TotalLossToolKit.com',
   description:
     'Connect with experts who help vehicle owners understand their situation and make the right decision for them.',
+  alternates: {
+    canonical: `${siteUrl}/directory`,
+  },
+  openGraph: {
+    title: 'Professional Services Directory | TotalLossToolKit.com',
+    description:
+      'Connect with experts who help vehicle owners understand their situation and make the right decision for them.',
+    type: 'website',
+    url: `${siteUrl}/directory`,
+    siteName: 'TotalLossToolKit.com',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Professional Services Directory | TotalLossToolKit.com',
+    description:
+      'Connect with experts who help vehicle owners understand their situation and make the right decision for them.',
+  },
 }
 
 interface SearchParams {

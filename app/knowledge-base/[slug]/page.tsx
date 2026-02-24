@@ -19,6 +19,8 @@ export async function generateMetadata({ params }: Props) {
 
   if (!article) return {}
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
+
   return {
     title: `${article.title} | TotalLossToolKit.com`,
     description: article.description,
@@ -26,10 +28,17 @@ export async function generateMetadata({ params }: Props) {
       title: article.title,
       description: article.description,
       type: 'article',
+      url: `${siteUrl}/knowledge-base/${slug}`,
       publishedTime: article.datePublished,
       modifiedTime: article.dateModified,
       authors: [article.author],
       tags: article.tags,
+      siteName: 'TotalLossToolKit.com',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: article.title,
+      description: article.description,
     },
   }
 }
@@ -44,11 +53,7 @@ export default async function ArticlePage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-white">
-      <ArticlePageTracker
-        slug={article.slug}
-        title={article.title}
-        category={article.category}
-      />
+      <ArticlePageTracker slug={article.slug} title={article.title} category={article.category} />
       <Navbar />
       <main className="pt-24 pb-16">
         <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -58,9 +63,7 @@ export default async function ArticlePage({ params }: Props) {
                 {article.category}
               </span>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-              {article.title}
-            </h1>
+            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">{article.title}</h1>
             <div className="flex items-center text-sm text-slate-600 space-x-4">
               <span>{article.author}</span>
               <span>•</span>

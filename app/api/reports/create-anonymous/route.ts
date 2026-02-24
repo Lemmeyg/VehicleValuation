@@ -6,17 +6,29 @@ import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
  * Create Anonymous Report Endpoint
  *
  * Allows users to create a report WITHOUT authentication.
- * Email is stored with the report for later account linking during payment.
+ * Email is optional — LemonSqueezy collects it at checkout.
  *
  * POST /api/reports/create-anonymous
- * Body: { email, vin, mileage, zipCode }
+ * Body: { vin, mileage, zipCode, email? }
  */
 
 interface CreateAnonymousReportRequest {
-  email: string
+  email?: string
   vin: string
   mileage: number
   zipCode: string
+}
+
+interface VehicleData {
+  year: string | null
+  make: string | null
+  model: string | null
+  trim: string | null
+  body_style: string | null
+  engine: string | null
+  transmission: string | null
+  drive_type: string | null
+  fuel_type: string | null
 }
 
 export async function POST(request: Request) {
@@ -25,29 +37,20 @@ export async function POST(request: Request) {
     const { email, vin, mileage, zipCode } = body
 
     // Normalize email to lowercase for consistency
-    const normalizedEmail = email?.toLowerCase().trim()
+    const normalizedEmail = email?.toLowerCase().trim() ?? null
 
     console.log('[create-anonymous] Request received:', {
       email: normalizedEmail,
       vin: vin?.substring(0, 8) + '...',
       mileage,
-      zipCode
+      zipCode,
     })
 
-    // Validate required fields
-    if (!normalizedEmail || !vin || !mileage || !zipCode) {
+    // Validate required fields (email is optional — collected by LemonSqueezy at checkout)
+    if (!vin || !mileage || !zipCode) {
       console.error('[create-anonymous] Missing required fields')
       return NextResponse.json(
-        { error: 'Missing required fields: email, vin, mileage, zipCode' },
-        { status: 400 }
-      )
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(normalizedEmail)) {
-      return NextResponse.json(
-        { error: 'Invalid email address format' },
+        { error: 'Missing required fields: vin, mileage, zipCode' },
         { status: 400 }
       )
     }
@@ -56,10 +59,7 @@ export async function POST(request: Request) {
     const sanitizedVin = sanitizeVin(vin)
     const vinError = getVinValidationError(sanitizedVin)
     if (vinError) {
-      return NextResponse.json(
-        { error: `VIN validation failed: ${vinError}` },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: `VIN validation failed: ${vinError}` }, { status: 400 })
     }
 
     // Validate mileage
@@ -73,10 +73,7 @@ export async function POST(request: Request) {
 
     // Validate ZIP code
     if (!/^\d{5}$/.test(zipCode)) {
-      return NextResponse.json(
-        { error: 'Invalid ZIP code. Must be 5 digits' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid ZIP code. Must be 5 digits' }, { status: 400 })
     }
 
     // Use admin client to bypass RLS for anonymous report creation
@@ -87,12 +84,12 @@ export async function POST(request: Request) {
     // This prevents duplicate reports from double-clicks or React StrictMode double-rendering
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
-    const { data: recentReports, error: checkError } = await supabase
+    const { data: recentReports, error: _checkError } = await supabase
       .from('reports')
       .select('id, vin, email, mileage, created_at')
       .eq('vin', sanitizedVin)
-      .ilike('email', normalizedEmail)
       .eq('mileage', mileageNum)
+      .eq('zip_code', zipCode)
       .gte('created_at', fiveMinutesAgo)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -125,18 +122,25 @@ export async function POST(request: Request) {
     let authenticatedUserId: string | null = null
     try {
       const authSupabase = await createRouteHandlerSupabaseClient()
-      const { data: { session } } = await authSupabase.auth.getSession()
+      const {
+        data: { session },
+      } = await authSupabase.auth.getSession()
 
-      if (session?.user?.id && session.user.email?.toLowerCase() === normalizedEmail) {
+      if (session?.user?.id) {
         authenticatedUserId = session.user.id
-        console.log('[create-anonymous] User is authenticated, linking report to user:', authenticatedUserId)
+        console.log(
+          '[create-anonymous] User is authenticated, linking report to user:',
+          authenticatedUserId
+        )
       }
-    } catch (authError) {
-      console.log('[create-anonymous] No authenticated session found (expected for anonymous users)')
+    } catch (_authError) {
+      console.log(
+        '[create-anonymous] No authenticated session found (expected for anonymous users)'
+      )
     }
 
     // Step 1: Decode VIN using VinAudit API
-    let vehicleData: any = null
+    let vehicleData: VehicleData | null = null
     try {
       const vinAuditResponse = await fetch(
         `https://vindecoder.p.rapidapi.com/decode_vin?vin=${sanitizedVin}`,
@@ -188,7 +192,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: 'Failed to create report. Please try again.',
-          details: process.env.NODE_ENV === 'development' ? insertError.message : undefined
+          details: process.env.NODE_ENV === 'development' ? insertError.message : undefined,
         },
         { status: 500 }
       )
@@ -235,7 +239,6 @@ export async function POST(request: Request) {
         created_at: report.created_at,
       },
     })
-
   } catch (error) {
     console.error('Unexpected error in create-anonymous:', error)
     return NextResponse.json(

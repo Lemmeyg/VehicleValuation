@@ -33,6 +33,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!supplier) return {}
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
+
   return {
     title: `${supplier.businessName} - ${supplier.city}, ${supplier.state} | Provider Directory`,
     description: supplier.valueProposition.substring(0, 160),
@@ -40,6 +42,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: supplier.businessName,
       description: supplier.valueProposition,
       type: 'website',
+      url: `${siteUrl}/directory/${slug}`,
+      siteName: 'TotalLossToolKit.com',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: supplier.businessName,
+      description: supplier.valueProposition.substring(0, 160),
     },
   }
 }
@@ -79,19 +88,19 @@ export default async function SupplierDetailPage({ params }: Props) {
         '@type': 'ListItem',
         position: 1,
         name: 'Home',
-        item: process.env.NEXT_PUBLIC_SITE_URL || 'https://vehiclevaluationauthority.com',
+        item: process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com',
       },
       {
         '@type': 'ListItem',
         position: 2,
         name: 'Directory',
-        item: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://vehiclevaluationauthority.com'}/directory`,
+        item: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'}/directory`,
       },
       {
         '@type': 'ListItem',
         position: 3,
         name: supplier.businessName,
-        item: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://vehiclevaluationauthority.com'}/directory/${slug}`,
+        item: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'}/directory/${slug}`,
       },
     ],
   }

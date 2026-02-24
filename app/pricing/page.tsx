@@ -12,6 +12,7 @@ import {
   trackPaymentInitiated,
   trackButtonClick,
 } from '@/lib/analytics/events'
+import { trackRedditViewContent, trackRedditAddToCart } from '@/lib/analytics/reddit-events'
 
 const PRICING_TIERS = [
   {
@@ -116,18 +117,20 @@ function PricingContent() {
       return
     }
 
-    // Option B: New flow - user authenticated, get data from sessionStorage
-    const storedData = sessionStorage.getItem('hero_form_data')
+    // Option B: New flow - user authenticated, get data from localStorage
+    const storedData = localStorage.getItem('hero_form_data')
     if (storedData) {
       try {
         const data = JSON.parse(storedData)
-        console.log('[PricingPage] Found hero form data in sessionStorage:', data)
+        console.log('[PricingPage] Found hero form data in localStorage:', data)
+        // Clear stored data now that we've consumed it
+        localStorage.removeItem('hero_form_data')
 
-        // Create authenticated report (user should be logged in at this point)
-        await createAuthenticatedReport(data)
+        // Create anonymous report — no auth required before purchase
+        await createAnonymousReport(data)
         return
       } catch (err) {
-        console.error('SessionStorage parse error:', err)
+        console.error('localStorage parse error:', err)
       }
     }
 
@@ -139,6 +142,67 @@ function PricingContent() {
     }, 3000)
   }
 
+  const createAnonymousReport = async (data: { vin: string; mileage: number; zipCode: string }) => {
+    setCreatingReport(true)
+    setLoading(true)
+
+    try {
+      const response = await fetch('/api/reports/create-anonymous', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vin: data.vin, mileage: data.mileage, zipCode: data.zipCode }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setError(result.error || 'Failed to create report')
+        setLoading(false)
+        setCreatingReport(false)
+        return
+      }
+
+      // Anonymous endpoint returns snake_case with flat vehicle_data shape
+      const reportData: Report = {
+        id: result.report.id,
+        vin: result.report.vin,
+        mileage: result.report.mileage,
+        zip_code: result.report.zip_code || data.zipCode,
+        dealer_type: 'private',
+        vehicle_data: result.report.vehicle_data
+          ? {
+              year: parseInt(result.report.vehicle_data.year || '0'),
+              make: result.report.vehicle_data.make || '',
+              model: result.report.vehicle_data.model || '',
+              trim: result.report.vehicle_data.trim,
+            }
+          : { year: 0, make: '', model: '' },
+        marketcheck_valuation: result.report.marketcheck_valuation,
+      }
+
+      setReport(reportData)
+      sessionStorage.setItem('current_report_id', reportData.id)
+
+      trackReportWorkflow({
+        step: 'report_created',
+        reportId: reportData.id,
+        vehicleYear: reportData.vehicle_data?.year,
+        vehicleMake: reportData.vehicle_data?.make,
+        vehicleModel: reportData.vehicle_data?.model,
+      })
+      trackReportWorkflow({ step: 'pricing_viewed', reportId: reportData.id })
+      trackRedditViewContent()
+
+      setLoading(false)
+      setCreatingReport(false)
+    } catch (err) {
+      console.error('Create anonymous report error:', err)
+      setError('An unexpected error occurred while creating your report')
+      setLoading(false)
+      setCreatingReport(false)
+    }
+  }
+
   const fetchExistingReport = async (id: string) => {
     try {
       const response = await fetch(`/api/reports/${id}`)
@@ -148,6 +212,7 @@ function PricingContent() {
         setReport(data.report)
         // Track pricing page view for existing report
         trackReportWorkflow({ step: 'pricing_viewed', reportId: id })
+        trackRedditViewContent()
       } else {
         setError(data.error || 'Failed to load report')
       }
@@ -156,106 +221,6 @@ function PricingContent() {
       setError('An error occurred while loading the report')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const createAuthenticatedReport = async (data: {
-    vin: string
-    mileage: number
-    zipCode: string
-  }) => {
-    setCreatingReport(true)
-    setLoading(true)
-
-    try {
-      // First check if user is authenticated
-      const sessionResponse = await fetch('/api/auth/session')
-      const sessionData = await sessionResponse.json()
-
-      if (!sessionData.user) {
-        // User not authenticated - redirect to auth page
-        console.log('[PricingPage] User not authenticated, redirecting to auth')
-        router.push(`/auth?returnUrl=${encodeURIComponent('/pricing')}&fromHero=true`)
-        return
-      }
-
-      console.log('[PricingPage] User authenticated:', sessionData.user.email)
-
-      // Create authenticated report
-      const response = await fetch('/api/reports/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vin: data.vin,
-          mileage: data.mileage,
-          zipCode: data.zipCode,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        // Handle rate limit errors specially
-        if (result.error === 'RATE_LIMIT_EXCEEDED') {
-          setError(result.message)
-          setLoading(false)
-          setCreatingReport(false)
-          return
-        }
-        setError(result.error || 'Failed to create report')
-        setLoading(false)
-        setCreatingReport(false)
-        return
-      }
-
-      // Transform the response to match our Report interface
-      const reportData: Report = {
-        id: result.report.id,
-        vin: result.report.vin,
-        mileage: result.report.mileage,
-        zip_code: result.report.zipCode,
-        email: sessionData.user.email,
-        dealer_type: result.report.dealerType,
-        vehicle_data: result.report.vehicleData
-          ? {
-              year: parseInt(result.report.vehicleData.vehicle?.year || '0'),
-              make: result.report.vehicleData.make || '',
-              model: result.report.vehicleData.model || '',
-              trim: result.report.vehicleData.trim,
-            }
-          : {
-              year: 0,
-              make: '',
-              model: '',
-            },
-        marketcheck_valuation: result.report.marketcheckValuation,
-      }
-
-      setReport(reportData)
-
-      // Store report ID for later reference
-      sessionStorage.setItem('current_report_id', reportData.id)
-
-      // Clear hero form data from sessionStorage (no longer needed)
-      sessionStorage.removeItem('hero_form_data')
-
-      // Track report creation and pricing page view
-      trackReportWorkflow({
-        step: 'report_created',
-        reportId: reportData.id,
-        vehicleYear: reportData.vehicle_data?.year,
-        vehicleMake: reportData.vehicle_data?.make,
-        vehicleModel: reportData.vehicle_data?.model,
-      })
-      trackReportWorkflow({ step: 'pricing_viewed', reportId: reportData.id })
-
-      setLoading(false)
-      setCreatingReport(false)
-    } catch (err) {
-      console.error('Create authenticated report error:', err)
-      setError('An unexpected error occurred while creating your report')
-      setLoading(false)
-      setCreatingReport(false)
     }
   }
 
@@ -369,6 +334,13 @@ function PricingContent() {
     trackButtonClick(`select_${tier.id.toLowerCase()}_plan`, {
       reportId: report.id,
       price: tier.price,
+    })
+
+    // Reddit Pixel: track plan selection as AddToCart
+    trackRedditAddToCart({
+      itemCount: 1,
+      value: tier.price,
+      currency: 'USD',
     })
 
     // BETA MODE: Skip payment and show beta modal
@@ -600,6 +572,12 @@ function PricingContent() {
               </h2>
               <p className="text-sm text-slate-600">
                 One-time payment • Instant access • 100% satisfaction guarantee
+              </p>
+              <p className="text-xs text-slate-500 mt-2">
+                Already have an account?{' '}
+                <a href="/auth" className="text-primary-600 hover:underline">
+                  Sign in
+                </a>
               </p>
             </div>
 

@@ -58,13 +58,23 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
   try {
     // Extract custom data from the webhook
     const customData = event.meta.custom_data
-    const { reportId, userId, reportType } = customData
+    const { reportId, userId: rawUserId, reportType } = customData
+    const customerEmail = event.data.attributes.user_email
 
     const orderId = event.data.id
     const amount = event.data.attributes.total
     const status = event.data.attributes.status
 
-    console.log(`Processing order ${orderId} for report ${reportId}, user ${userId}`)
+    console.log(
+      `Processing order ${orderId} for report ${reportId}, user ${rawUserId ?? 'anonymous'}`
+    )
+
+    // Resolve user ID: use the authenticated userId from checkout, or find/create from email
+    let resolvedUserId: string | null = rawUserId ?? null
+    if (!resolvedUserId && customerEmail) {
+      console.log(`[Webhook] Anonymous purchase — resolving user from email: ${customerEmail}`)
+      resolvedUserId = await resolveUserFromEmail(customerEmail, reportId)
+    }
 
     // Only process paid orders
     if (status !== 'paid') {
@@ -78,7 +88,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
     // Create payment record
     const { error: paymentError } = await supabase.from('payments').insert({
       report_id: reportId,
-      user_id: userId, // Required field - from checkout customData
+      user_id: resolvedUserId,
       stripe_payment_id: orderId, // Reusing column for Lemon Squeezy order ID
       amount: amount,
       status: 'succeeded',
@@ -247,6 +257,12 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
       status: 'pending',
     }
 
+    // For anonymous purchases: stamp the report with the resolved user_id and email
+    if (!rawUserId && resolvedUserId) {
+      updateData.user_id = resolvedUserId
+      updateData.email = customerEmail
+    }
+
     // Add MarketCheck data if fetched
     if (marketcheckData) {
       updateData.marketcheck_valuation = marketcheckData
@@ -336,4 +352,78 @@ async function handleOrderRefunded(event: LemonSqueezyWebhookEvent) {
     console.error('Error handling order_refunded event:', error)
     throw error
   }
+}
+
+/**
+ * For anonymous purchases: find or create the Supabase user for the given email,
+ * then send them a magic link to access their report.
+ *
+ * Uses admin.createUser to get the user ID directly (no listUsers scan needed).
+ * Falls back to listUsers only when the user already exists (createUser returns error).
+ */
+async function resolveUserFromEmail(email: string, reportId: string): Promise<string | null> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  let resolvedUserId: string | null = null
+
+  // Try to create the user — returns the user object with ID on success
+  const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+  })
+
+  if (!createError && createData?.user) {
+    // New user created — ID is available immediately from the response
+    resolvedUserId = createData.user.id
+    console.log('[Webhook] Created new Supabase user for anonymous buyer:', {
+      email,
+      userId: resolvedUserId,
+    })
+  } else {
+    // User already exists — find their ID via listUsers
+    // (Supabase admin SDK v2 has no getUserByEmail; listUsers is the available option)
+    const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+      perPage: 1000,
+    })
+
+    if (listError) {
+      console.error('[Webhook] Failed to list users while resolving existing user:', listError)
+      return null
+    }
+
+    const existingUser = listData.users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+
+    if (!existingUser) {
+      console.error(
+        '[Webhook] User not found after createUser error for email:',
+        email,
+        'Error:',
+        createError
+      )
+      return null
+    }
+
+    resolvedUserId = existingUser.id
+    console.log('[Webhook] Found existing Supabase user for anonymous buyer:', {
+      email,
+      userId: resolvedUserId,
+    })
+  }
+
+  // Send magic link — user now guaranteed to exist in DB
+  const { error: otpError } = await supabaseAdmin.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: `${appUrl}/reports/${reportId}`,
+      shouldCreateUser: false, // User already exists — no need to create again
+    },
+  })
+
+  if (otpError) {
+    // Non-fatal — payment succeeded; user can request a new magic link later
+    console.error('[Webhook] Failed to send magic link to', email, ':', otpError)
+  } else {
+    console.log('[Webhook] Magic link sent to', email)
+  }
+
+  return resolvedUserId
 }

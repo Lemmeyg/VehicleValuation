@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/db/auth'
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { getUser } from '@/lib/db/auth'
+import { supabaseAdmin } from '@/lib/db/supabase'
 import { createCheckout } from '@/lib/lemonsqueezy/client'
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user
-    const user = await requireAuth()
+    // Session is optional — anonymous users may initiate checkout
+    const user = await getUser()
 
     // Parse request body
     const body = await request.json()
@@ -24,9 +24,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get report and verify ownership
-    const supabase = await createServerSupabaseClient()
-    const { data: report, error: reportError } = await supabase
+    // Get report and verify ownership — use admin client so anonymous (no-session) users
+    // can still look up their own report. Ownership is verified explicitly below.
+    const { data: report, error: reportError } = await supabaseAdmin
       .from('reports')
       .select('*')
       .eq('id', reportId)
@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
 
-    // Verify ownership
-    if (report.user_id !== user.id) {
+    // Verify ownership only when user is authenticated and report has a user_id
+    if (user && report.user_id && report.user_id !== user.id) {
       return NextResponse.json(
         { error: 'Unauthorized: You do not own this report' },
         { status: 403 }
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
       variantId,
       customData: {
         reportId,
-        userId: user.id,
         reportType,
+        ...(user?.id ? { userId: user.id } : {}),
       },
       successUrl: `${appUrl}/reports/${reportId}/success`,
       cancelUrl: `${appUrl}/reports/${reportId}`,

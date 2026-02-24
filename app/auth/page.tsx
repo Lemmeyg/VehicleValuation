@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import { trackAuthEvent, identifyUser, trackButtonClick } from '@/lib/analytics/events'
+import { trackRedditSignUp } from '@/lib/analytics/reddit-events'
 
 type AuthStep = 'email' | 'login' | 'signup' | 'magic-link-sent'
 
@@ -214,11 +215,13 @@ function AuthContent() {
       if (data.requiresEmailConfirmation) {
         setStep('magic-link-sent')
         trackAuthEvent({ method: 'email', step: 'completed', isNewUser: true })
+        trackRedditSignUp()
         return
       }
 
       // Track successful signup and identify user
       trackAuthEvent({ method: 'email', step: 'completed', isNewUser: true })
+      trackRedditSignUp()
       if (data.user?.id) {
         identifyUser(data.user.id, { email, name: fullName, signup_method: 'email' })
       }
@@ -299,6 +302,10 @@ function AuthContent() {
 
       const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+
+      // Store redirect target in localStorage as fallback — Supabase may strip
+      // the ?next= query param from redirectTo during the OAuth flow
+      localStorage.setItem('auth_redirect_to', redirectTo)
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

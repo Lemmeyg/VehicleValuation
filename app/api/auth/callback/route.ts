@@ -30,7 +30,8 @@ export async function GET(request: Request) {
     console.log('Password recovery flow detected, exchanging code for session...')
 
     const supabase = await createRouteHandlerSupabaseClient()
-    const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: sessionData, error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code)
 
     if (exchangeError) {
       console.error('❌ Recovery code exchange error:', exchangeError.message)
@@ -48,63 +49,49 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/login?error=session_failed', requestUrl.origin))
   }
 
-  // WORKAROUND: Supabase strips query params from redirectTo URL
-  // If we have a code but no type/reportId/next params, assume it's password reset
-  if (code && !type && !reportId && !next) {
-    console.warn('⚠️ Auth code present but type parameter missing!')
-    console.warn('Assuming this is password reset flow (Supabase strips query params from redirectTo)')
+  // Handle OAuth / general code exchange (Google OAuth, email confirmation, etc.)
+  // Supabase strips custom query params from redirectTo, so OAuth callbacks
+  // arrive with just ?code=... and no type/next params. This is NOT a password reset.
+  if (code) {
+    console.log('Auth code present, exchanging for session...')
 
     const supabase = await createRouteHandlerSupabaseClient()
-    const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: sessionData, error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code)
 
     if (exchangeError) {
-      console.error('❌ Recovery code exchange error:', exchangeError.message)
-      return NextResponse.redirect(new URL('/login?error=invalid_reset_link', requestUrl.origin))
+      console.error('❌ Code exchange error:', exchangeError.message)
+      console.error('Error details:', JSON.stringify(exchangeError, null, 2))
+      return NextResponse.redirect(new URL('/auth?error=auth_failed', requestUrl.origin))
     }
 
     if (sessionData?.session) {
-      console.log('✅ Recovery session established (workaround path) for user:', sessionData.session.user.id)
-      return NextResponse.redirect(new URL('/reset-password', requestUrl.origin))
-    }
-
-    console.error('❌ Code exchange succeeded but no session returned')
-    return NextResponse.redirect(new URL('/login?error=session_failed', requestUrl.origin))
-  }
-
-  // For magic links, the session is automatically established via hash params
-  // We need to get the current session instead of exchanging a code
-  const supabase = await createRouteHandlerSupabaseClient()
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-  console.log('Session check - User:', session?.user?.id || 'none')
-
-  // Handle OAuth code exchange (if code is present)
-  if (code && !session) {
-    console.log('Attempting code exchange for session...')
-    const { data: sessionData, error: codeError } = await supabase.auth.exchangeCodeForSession(code)
-
-    if (codeError) {
-      console.error('❌ Code exchange error:', codeError.message)
-      console.error('Error details:', JSON.stringify(codeError, null, 2))
-      console.error('Code was:', code?.substring(0, 10) + '...')
-      return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin))
-    }
-
-    if (sessionData?.session) {
-      // Continue with the session data from code exchange
       const userId = sessionData.session.user.id
       const userEmail = sessionData.session.user.email
 
-      console.log('User authenticated via OAuth:', userId, userEmail)
+      console.log('✅ User authenticated:', userId, userEmail)
 
       // Link reports
       if (userEmail) {
         await linkReportsToUser(userId, userEmail)
       }
 
+      // Redirect: next param > reportId > /pricing (hero flow default) > /dashboard
       return redirectToReport(reportId, next, requestUrl.origin)
     }
+
+    console.error('❌ Code exchange succeeded but no session returned')
+    return NextResponse.redirect(new URL('/auth?error=session_failed', requestUrl.origin))
   }
+
+  // For magic links, the session is established via hash params on the client side
+  const supabase = await createRouteHandlerSupabaseClient()
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession()
+
+  console.log('Session check - User:', session?.user?.id || 'none')
 
   // Handle magic link authentication (session already established)
   if (session?.user) {
@@ -139,7 +126,9 @@ async function linkReportsToUser(userId: string, userEmail: string) {
     if (linkError) {
       console.error('Error linking reports to user:', linkError)
     } else {
-      console.log(`Linked ${updatedReports?.length || 0} anonymous reports for ${userEmail} to user ${userId}`)
+      console.log(
+        `Linked ${updatedReports?.length || 0} anonymous reports for ${userEmail} to user ${userId}`
+      )
     }
   } catch (err) {
     console.error('Unexpected error linking reports:', err)
@@ -148,16 +137,16 @@ async function linkReportsToUser(userId: string, userEmail: string) {
 
 // Helper function to determine redirect destination
 function redirectToReport(reportId: string | null, next: string | null, origin: string) {
-  let redirectUrl = '/dashboard'
+  let redirectUrl = '/pricing'
 
-  if (reportId) {
-    redirectUrl = `/reports/${reportId}`
-    console.log('Redirecting to specific report:', redirectUrl)
-  } else if (next) {
+  if (next) {
     redirectUrl = next
     console.log('Redirecting to next URL:', redirectUrl)
+  } else if (reportId) {
+    redirectUrl = `/reports/${reportId}`
+    console.log('Redirecting to specific report:', redirectUrl)
   } else {
-    console.log('Redirecting to dashboard')
+    console.log('Redirecting to pricing (default for OAuth flow)')
   }
 
   return NextResponse.redirect(new URL(redirectUrl, origin))
