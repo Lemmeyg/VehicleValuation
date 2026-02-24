@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
       variantId,
       customData: {
         reportId,
-        userId: user?.id ?? '',
         reportType,
+        ...(user?.id ? { userId: user.id } : {}),
       },
       successUrl: `${appUrl}/reports/${reportId}/success`,
       cancelUrl: `${appUrl}/reports/${reportId}`,
