@@ -24,16 +24,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TEMP DEBUG — remove after diagnosis
-    console.log('[checkout-debug]', {
-      reportId,
-      reportIdType: typeof reportId,
-      reportIdLength: reportId?.length,
-      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-      serviceKeyPrefix: process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 30),
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    })
-
     // Get report and verify ownership — use admin client so anonymous (no-session) users
     // can still look up their own report. Ownership is verified explicitly below.
     const { data: report, error: reportError } = await supabaseAdmin
@@ -79,7 +69,7 @@ export async function POST(request: NextRequest) {
       variantId,
       customData: {
         reportId,
-        userId: user?.id ?? null,
+        userId: user?.id ?? '',
         reportType,
       },
       successUrl: `${appUrl}/reports/${reportId}/success`,
