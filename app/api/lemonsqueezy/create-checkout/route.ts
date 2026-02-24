@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUser } from '@/lib/db/auth'
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { supabaseAdmin } from '@/lib/db/supabase'
 import { createCheckout } from '@/lib/lemonsqueezy/client'
 
 export async function POST(request: NextRequest) {
@@ -24,9 +24,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get report and verify ownership
-    const supabase = await createServerSupabaseClient()
-    const { data: report, error: reportError } = await supabase
+    // TEMP DEBUG — remove after diagnosis
+    console.log('[checkout-debug]', {
+      reportId,
+      reportIdType: typeof reportId,
+      reportIdLength: reportId?.length,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      serviceKeyPrefix: process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 30),
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    })
+
+    // Get report and verify ownership — use admin client so anonymous (no-session) users
+    // can still look up their own report. Ownership is verified explicitly below.
+    const { data: report, error: reportError } = await supabaseAdmin
       .from('reports')
       .select('*')
       .eq('id', reportId)
