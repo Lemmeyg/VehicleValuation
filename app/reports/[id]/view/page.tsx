@@ -5,7 +5,7 @@
  */
 
 import { getUser } from '@/lib/db/auth'
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { supabaseAdmin } from '@/lib/db/supabase'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -20,21 +20,16 @@ interface PageProps {
 }
 
 export default async function ReportViewPage({ params }: PageProps) {
+  // Auth is optional — UUID is the access credential for paid reports
   const user = await getUser()
-  if (!user) {
-    redirect('/login')
-  }
 
   const { id } = await params
 
-  const supabase = await createServerSupabaseClient()
-
-  // Fetch report data
-  const { data: report, error } = await supabase
+  // Use admin client: no user_id filter — anyone with the UUID can view if paid
+  const { data: report, error } = await supabaseAdmin
     .from('reports')
     .select('*')
     .eq('id', id)
-    .eq('user_id', user.id)
     .single()
 
   if (error || !report) {
@@ -53,11 +48,21 @@ export default async function ReportViewPage({ params }: PageProps) {
     )
   }
 
+  // Paid gate: only show report if payment has been processed
+  if (!report.price_paid || report.price_paid === 0) {
+    redirect(`/reports/${id}`)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const autodevData = report.autodev_vin_data as any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const marketCheck = report.marketcheck_valuation as any
 
   // Get ALL listings from database (no filtering yet)
-  const allListings = (marketCheck?.recentComparables?.listings || marketCheck?.comparables || []) as any[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allListings = (marketCheck?.recentComparables?.listings ||
+    marketCheck?.comparables ||
+    []) as any[]
 
   // Filter to 10 vehicles with lowest DOS_Active (fastest-selling)
   const displayedComparables = getLowestDOSActiveListings(allListings, 10)
@@ -84,6 +89,18 @@ export default async function ReportViewPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Anonymous visitor banner */}
+      {!user && (
+        <div className="bg-emerald-700 text-white text-center py-3 px-4 text-sm">
+          <span>Save this report to your account — </span>
+          <a
+            href={`/login?redirect=/reports/${id}/view`}
+            className="underline font-semibold hover:text-emerald-200"
+          >
+            Sign in or create a free account
+          </a>
+        </div>
+      )}
       <ReportViewTracker
         reportId={id}
         vehicleYear={autodevData?.vehicle?.year}
@@ -95,8 +112,11 @@ export default async function ReportViewPage({ params }: PageProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <Link href="/dashboard" className="text-sm text-slate-600 hover:text-slate-900">
-                ← Back to Dashboard
+              <Link
+                href={user ? '/dashboard' : '/'}
+                className="text-sm text-slate-600 hover:text-slate-900"
+              >
+                {user ? '← Back to Dashboard' : '← Home'}
               </Link>
             </div>
             <PrintPdfButtons reportId={id} />
@@ -352,6 +372,7 @@ export default async function ReportViewPage({ params }: PageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {displayedComparables.map((comp: any, idx: number) => {
                   return (
                     <tr key={idx} className="hover:bg-slate-50">
@@ -401,7 +422,9 @@ export default async function ReportViewPage({ params }: PageProps) {
                             {comp.dealer_name as React.ReactNode}
                           </a>
                         ) : (
-                          <span className="text-slate-700">{(comp.dealer_name || 'N/A') as React.ReactNode}</span>
+                          <span className="text-slate-700">
+                            {(comp.dealer_name || 'N/A') as React.ReactNode}
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -495,7 +518,8 @@ export default async function ReportViewPage({ params }: PageProps) {
                 <span className="font-semibold text-slate-900">Special Circumstances:</span> Limited
                 edition models, performance variants, anniversary editions, remaining factory
                 warranty, prepaid maintenance plans, and unrepaired recall status all affect market
-                value. <span className="font-bold text-slate-900">Impact: varies significantly</span>
+                value.{' '}
+                <span className="font-bold text-slate-900">Impact: varies significantly</span>
               </p>
 
               <p className="text-justify">
