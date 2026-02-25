@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getUser } from '@/lib/db/auth'
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import { RedditPurchaseTracker } from './RedditPurchaseTracker'
+import { ReportReadyPoller } from './ReportReadyPoller'
 
 /**
  * Payment Success Page
@@ -25,37 +26,9 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
   // Auth-optional: returns null for anonymous/unauthenticated users
   const user = await getUser()
 
-  // Anonymous buyer — skip report fetch and show email-check message
+  // Anonymous buyer — poll until webhook completes, then redirect to /view
   if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg
-              className="w-8 h-8 text-green-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Payment Successful!</h1>
-          <p className="text-slate-600 mb-6">
-            Check your email for a magic link to access your report. The link will take you directly
-            to your valuation report.
-          </p>
-          <p className="text-sm text-slate-500">
-            Didn&apos;t receive an email? Check your spam folder or contact support.
-          </p>
-        </div>
-      </div>
-    )
+    return <ReportReadyPoller reportId={reportId} />
   }
 
   // Authenticated user — fetch report details as before
