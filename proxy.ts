@@ -63,9 +63,17 @@ export async function proxy(request: NextRequest) {
   const isAuthCallbackPage = request.nextUrl.pathname === '/auth/callback'
   // Allow the post-payment success page — anonymous buyers land here after purchase
   const isReportSuccessPage = /^\/reports\/[^/]+\/success(\/)?$/.test(request.nextUrl.pathname)
+  // Allow the report view page — UUID is the access credential; page handles paid gate
+  const isReportViewPage = /^\/reports\/[^/]+\/view(\/)?$/.test(request.nextUrl.pathname)
 
   // Redirect to login if accessing protected route without authentication
-  if (isProtectedRoute && !user && !isAuthCallbackPage && !isReportSuccessPage) {
+  if (
+    isProtectedRoute &&
+    !user &&
+    !isAuthCallbackPage &&
+    !isReportSuccessPage &&
+    !isReportViewPage
+  ) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'
     redirectUrl.searchParams.set('redirect', request.nextUrl.pathname)
