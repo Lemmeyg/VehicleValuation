@@ -61,9 +61,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payment configuration error' }, { status: 500 })
     }
 
-    // Get app URL for redirect — derive from request origin as fallback so preview
-    // and production deployments never redirect to localhost
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
+    // Get app URL for redirect.
+    // On Vercel the internal serverless request URL is not the public-facing URL;
+    // the real hostname is in x-forwarded-host / x-forwarded-proto headers.
+    const forwardedHost = request.headers.get('x-forwarded-host')
+    const forwardedProto = request.headers.get('x-forwarded-proto') || 'https'
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (forwardedHost ? `${forwardedProto}://${forwardedHost}` : request.nextUrl.origin)
+    console.log('[create-checkout] appUrl resolved to:', appUrl)
 
     // Create checkout session
     const checkout = await createCheckout({
