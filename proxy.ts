@@ -61,9 +61,11 @@ export async function proxy(request: NextRequest) {
 
   // Allow auth callback page without authentication (needed for magic link)
   const isAuthCallbackPage = request.nextUrl.pathname === '/auth/callback'
+  // Allow the post-payment success page — anonymous buyers land here after purchase
+  const isReportSuccessPage = /^\/reports\/[^/]+\/success(\/)?$/.test(request.nextUrl.pathname)
 
   // Redirect to login if accessing protected route without authentication
-  if (isProtectedRoute && !user && !isAuthCallbackPage) {
+  if (isProtectedRoute && !user && !isAuthCallbackPage && !isReportSuccessPage) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'
     redirectUrl.searchParams.set('redirect', request.nextUrl.pathname)
@@ -71,8 +73,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Redirect to dashboard if accessing auth pages while already logged in
-  const isAuthPage =
-    request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup'
+  const isAuthPage = request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup'
 
   if (isAuthPage && user) {
     const redirectUrl = request.nextUrl.clone()
