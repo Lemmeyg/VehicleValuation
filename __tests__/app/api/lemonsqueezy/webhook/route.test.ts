@@ -134,7 +134,8 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     expect(signInWithOtpMock).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({
-          emailRedirectTo: 'https://www.totallosstoolkit.com/reports/report-abc/view',
+          emailRedirectTo:
+            'https://www.totallosstoolkit.com/auth/callback?next=/reports/report-abc/view',
         }),
       })
     )
@@ -159,7 +160,8 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     expect(signInWithOtpMock).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({
-          emailRedirectTo: 'https://totallosstoolkit.com/reports/report-abc/view',
+          emailRedirectTo:
+            'https://totallosstoolkit.com/auth/callback?next=/reports/report-abc/view',
         }),
       })
     )
@@ -188,7 +190,8 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     await POST(request)
 
     const callArgs = signInWithOtpMock.mock.calls[0][0]
+    expect(callArgs.options.emailRedirectTo).toContain('/auth/callback')
+    expect(callArgs.options.emailRedirectTo).toContain('next=')
     expect(callArgs.options.emailRedirectTo).toContain('/view')
-    expect(callArgs.options.emailRedirectTo).not.toMatch(/\/reports\/[^/]+$/)
   })
 })
