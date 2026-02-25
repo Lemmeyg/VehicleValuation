@@ -61,8 +61,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payment configuration error' }, { status: 500 })
     }
 
-    // Get app URL for redirect
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    // Get app URL for redirect — derive from request origin as fallback so preview
+    // and production deployments never redirect to localhost
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
 
     // Create checkout session
     const checkout = await createCheckout({
