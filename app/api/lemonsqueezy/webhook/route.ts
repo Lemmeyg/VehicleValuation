@@ -24,6 +24,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 
+    // Resolve the public app URL (needed for magic link emails)
+    const forwardedHost = request.headers.get('x-forwarded-host')
+    const forwardedProto = request.headers.get('x-forwarded-proto') || 'https'
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (forwardedHost ? `${forwardedProto}://${forwardedHost}` : request.nextUrl.origin)
+
     // Parse the event
     const event: LemonSqueezyWebhookEvent = JSON.parse(rawBody)
     const eventName = event.meta.event_name
@@ -33,7 +40,7 @@ export async function POST(request: NextRequest) {
     // Handle different event types
     switch (eventName) {
       case 'order_created':
-        await handleOrderCreated(event)
+        await handleOrderCreated(event, appUrl)
         break
       case 'order_refunded':
         await handleOrderRefunded(event)
@@ -54,7 +61,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
+async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: string) {
   try {
     // Extract custom data from the webhook
     const customData = event.meta.custom_data
@@ -73,7 +80,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
     let resolvedUserId: string | null = rawUserId ?? null
     if (!resolvedUserId && customerEmail) {
       console.log(`[Webhook] Anonymous purchase — resolving user from email: ${customerEmail}`)
-      resolvedUserId = await resolveUserFromEmail(customerEmail, reportId)
+      resolvedUserId = await resolveUserFromEmail(customerEmail, reportId, appUrl)
     }
 
     // Only process paid orders
@@ -361,8 +368,11 @@ async function handleOrderRefunded(event: LemonSqueezyWebhookEvent) {
  * Uses admin.createUser to get the user ID directly (no listUsers scan needed).
  * Falls back to listUsers only when the user already exists (createUser returns error).
  */
-async function resolveUserFromEmail(email: string, reportId: string): Promise<string | null> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+async function resolveUserFromEmail(
+  email: string,
+  reportId: string,
+  appUrl: string
+): Promise<string | null> {
   let resolvedUserId: string | null = null
 
   // Try to create the user — returns the user object with ID on success
@@ -413,7 +423,7 @@ async function resolveUserFromEmail(email: string, reportId: string): Promise<st
   const { error: otpError } = await supabaseAdmin.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${appUrl}/reports/${reportId}`,
+      emailRedirectTo: `${appUrl}/reports/${reportId}/view`,
       shouldCreateUser: false, // User already exists — no need to create again
     },
   })
