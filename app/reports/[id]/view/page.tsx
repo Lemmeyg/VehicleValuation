@@ -48,8 +48,9 @@ export default async function ReportViewPage({ params }: PageProps) {
     )
   }
 
-  // Paid gate: only show report if payment has been processed
-  if (!report.price_paid || report.price_paid === 0) {
+  // Paid gate: only show report if payment has been processed, or if
+  // it's an admin-created free report (price_paid=0 but status='completed')
+  if (!report.price_paid && report.status !== 'completed') {
     redirect(`/reports/${id}`)
   }
 
