@@ -1,5 +1,6 @@
 /**
  * Admin Free Report Creation API Tests
+ * @jest-environment node
  *
  * Tests the admin-only endpoint that creates reports without payment.
  * CRITICAL: All external APIs are mocked to prevent costs.
@@ -11,11 +12,24 @@ import { POST } from '@/app/api/admin/reports/create-free/route'
 
 // Mock all dependencies
 jest.mock('@/lib/db/admin-auth')
-jest.mock('@/lib/db/supabase')
+jest.mock('@/lib/db/supabase', () => ({ supabaseAdmin: { from: jest.fn() } }))
 jest.mock('@/lib/api/autodev-client')
 jest.mock('@/lib/api/marketcheck-client')
-jest.mock('@/lib/services/pdf-generator')
+jest.mock('@/lib/services/pdf-generator', () => ({ generateAndUploadPDF: jest.fn() }))
 jest.mock('@/lib/utils/dealer-type-classifier')
+jest.mock(
+  '@react-pdf/renderer',
+  () => ({
+    StyleSheet: { create: jest.fn(() => ({})) },
+    Document: jest.fn(),
+    Page: jest.fn(),
+    View: jest.fn(),
+    Text: jest.fn(),
+    Image: jest.fn(),
+    Font: { register: jest.fn() },
+  }),
+  { virtual: true }
+)
 
 import { requireAdmin } from '@/lib/db/admin-auth'
 import { supabaseAdmin } from '@/lib/db/supabase'
@@ -42,8 +56,6 @@ const mockFrom = jest.fn(() => ({
   select: mockSelect,
 }))
 
-;(supabaseAdmin as any) = { from: mockFrom }
-
 const VALID_VIN = '1HGBH41JXMN109186'
 
 function makeRequest(body: object) {
@@ -59,7 +71,7 @@ describe('POST /api/admin/reports/create-free', () => {
     jest.clearAllMocks()
 
     // Reset supabase mock (cleared above)
-    ;(supabaseAdmin as any) = { from: mockFrom }
+    ;(supabaseAdmin as any).from = mockFrom
     mockFrom.mockReturnValue({ insert: mockInsert, update: mockUpdate, select: mockSelect })
     mockInsert.mockReturnValue({ select: mockSelect, single: mockSingle })
     mockSelect.mockReturnValue({ single: mockSingle })
