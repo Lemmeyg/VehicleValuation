@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { Button } from '@/components/ui/Button'
-import { Check, CheckCircle2 } from 'lucide-react'
+import { Check, CheckCircle2, Quote, ShieldCheck, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   trackReportWorkflow,
@@ -587,6 +587,34 @@ function PricingContent() {
                 Don&apos;t leave money on the table. Get prepared with professional-grade market
                 data before you settle.
               </p>
+            </div>
+          </div>
+
+          {/* Social Proof Strip */}
+          <div className="mb-8">
+            <p className="text-center text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
+              Real outcomes from real claimants
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <blockquote className="bg-white border-l-4 border-primary-500 pl-5 py-4 pr-5 rounded-r-xl shadow-sm">
+                <div className="flex items-start gap-3">
+                  <Quote className="h-5 w-5 text-primary-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-slate-700 italic text-sm leading-relaxed">
+                    &ldquo;First offer was $23.5K... sent an updated list of comps and ended up
+                    receiving <strong className="text-primary-600 not-italic">$28K</strong>.&rdquo;
+                  </p>
+                </div>
+              </blockquote>
+              <blockquote className="bg-white border-l-4 border-primary-500 pl-5 py-4 pr-5 rounded-r-xl shadow-sm">
+                <div className="flex items-start gap-3">
+                  <Quote className="h-5 w-5 text-primary-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-slate-700 italic text-sm leading-relaxed">
+                    &ldquo;They initially tried to offer $9,800... The independent vehicle evaluator
+                    pegged it at <strong className="text-primary-600 not-italic">$23,000</strong>.
+                    They cut me a check a week later.&rdquo;
+                  </p>
+                </div>
+              </blockquote>
             </div>
           </div>
 
