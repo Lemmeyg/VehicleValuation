@@ -17,6 +17,7 @@ interface ReportData {
   id: string
   vin: string
   user_id: string
+  mileage?: number
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   autodev_vin_data: any // Auto.dev VIN decode data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,7 +56,9 @@ export async function generateAndUploadPDF(
 
     // Prepare data for PDF template
     const pdfData = {
+      id: reportData.id,
       vin: reportData.vin,
+      mileage: reportData.mileage,
       reportType: reportType as 'BASIC' | 'PREMIUM',
       createdAt: reportData.created_at,
       autodevVinData: reportData.autodev_vin_data, // Auto.dev VIN decode data
@@ -134,7 +137,9 @@ export async function generatePDFBuffer(reportId: string): Promise<Buffer | null
     const reportType = reportData.price_paid === 2900 ? 'BASIC' : 'PREMIUM'
 
     const pdfData = {
+      id: reportData.id,
       vin: reportData.vin,
+      mileage: reportData.mileage,
       reportType: reportType as 'BASIC' | 'PREMIUM',
       createdAt: reportData.created_at,
       autodevVinData: reportData.autodev_vin_data, // Auto.dev VIN decode data
