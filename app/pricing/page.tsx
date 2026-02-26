@@ -11,6 +11,8 @@ import {
   trackReportWorkflow,
   trackPaymentInitiated,
   trackButtonClick,
+  trackCheckoutInitiated,
+  trackCheckoutAbandoned,
 } from '@/lib/analytics/events'
 import { trackRedditViewContent, trackRedditAddToCart } from '@/lib/analytics/reddit-events'
 
@@ -322,6 +324,16 @@ function PricingContent() {
   const handleSelectPlan = async (tier: (typeof PRICING_TIERS)[0]) => {
     if (!report) return
 
+    // Track checkout initiation before any processing
+    trackCheckoutInitiated({
+      reportId: report.id,
+      plan: tier.id.toLowerCase() as 'basic' | 'premium',
+      price: tier.price,
+      isBetaMode:
+        !process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID ||
+        process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID.includes('your-'),
+    })
+
     // Track plan selection
     trackReportWorkflow({
       step: 'plan_selected',
@@ -454,11 +466,25 @@ function PricingContent() {
       } else {
         setError(data.error || 'Failed to create checkout session')
         setProcessingPayment(false)
+        trackCheckoutAbandoned({
+          reportId: report.id,
+          plan: tier.id.toLowerCase() as 'basic' | 'premium',
+          price: tier.price,
+          step: 'api_error',
+          error: data.error || 'No checkout URL returned',
+        })
       }
     } catch (err) {
       console.error('Payment error:', err)
       setError('An error occurred while processing payment')
       setProcessingPayment(false)
+      trackCheckoutAbandoned({
+        reportId: report.id,
+        plan: tier.id.toLowerCase() as 'basic' | 'premium',
+        price: tier.price,
+        step: 'api_error',
+        error: err instanceof Error ? err.message : 'Unknown error',
+      })
     }
   }
 
