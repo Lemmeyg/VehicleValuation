@@ -685,6 +685,30 @@ function PricingContent() {
               ))}
             </div>
           </div>
+
+          {/* Money-Back Guarantee Banner */}
+          <div className="max-w-5xl mx-auto mb-8">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex-shrink-0">
+                <ShieldCheck className="h-10 w-10 text-emerald-600" />
+              </div>
+              <div className="flex-grow">
+                <h3 className="font-bold text-slate-900 text-base mb-1">
+                  Premium Report — Money-Back Guarantee
+                </h3>
+                <p className="text-sm text-slate-600">
+                  If our Premium Report doesn&apos;t help increase your settlement by more than $25,
+                  we&apos;ll refund you. No questions asked.
+                </p>
+              </div>
+              <a
+                href="/guarantee"
+                className="flex-shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 transition-colors"
+              >
+                Full terms →
+              </a>
+            </div>
+          </div>
         </div>
       </main>
 
