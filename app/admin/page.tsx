@@ -6,30 +6,23 @@
 
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import Link from 'next/link'
+import { CreateFreeReportModal } from './components/CreateFreeReportModal'
 
 export default async function AdminDashboardPage() {
   const supabase = await createServerSupabaseClient()
 
   // Fetch analytics data
-  const [
-    reportsResult,
-    paymentsResult,
-    usersResult,
-    completedReportsResult,
-    pendingReportsResult,
-  ] = await Promise.all([
-    supabase.from('reports').select('id', { count: 'exact', head: true }),
-    supabase.from('payments').select('amount', { count: 'exact' }),
-    supabase.rpc('get_user_count'), // Custom function or direct auth query
-    supabase
-      .from('reports')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'completed'),
-    supabase
-      .from('reports')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'pending'),
-  ])
+  const [reportsResult, paymentsResult, usersResult, completedReportsResult, pendingReportsResult] =
+    await Promise.all([
+      supabase.from('reports').select('id', { count: 'exact', head: true }),
+      supabase.from('payments').select('amount', { count: 'exact' }),
+      supabase.rpc('get_user_count'), // Custom function or direct auth query
+      supabase
+        .from('reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'completed'),
+      supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    ])
 
   const totalReports = reportsResult.count || 0
   const totalPayments = paymentsResult.count || 0
@@ -64,11 +57,14 @@ export default async function AdminDashboardPage() {
   return (
     <div>
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          System overview and analytics for Vehicle Valuation SaaS
-        </p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            System overview and analytics for Vehicle Valuation SaaS
+          </p>
+        </div>
+        <CreateFreeReportModal />
       </div>
 
       {/* Stats Grid */}
@@ -196,7 +192,7 @@ export default async function AdminDashboardPage() {
           </div>
           <div className="divide-y divide-gray-200">
             {recentReports && recentReports.length > 0 ? (
-              recentReports.map((report) => (
+              recentReports.map(report => (
                 <Link
                   key={report.id}
                   href={`/admin/reports/${report.id}`}
@@ -228,9 +224,7 @@ export default async function AdminDashboardPage() {
                 </Link>
               ))
             ) : (
-              <div className="px-6 py-8 text-center text-sm text-gray-500">
-                No reports yet
-              </div>
+              <div className="px-6 py-8 text-center text-sm text-gray-500">No reports yet</div>
             )}
           </div>
         </div>
@@ -248,7 +242,7 @@ export default async function AdminDashboardPage() {
           </div>
           <div className="divide-y divide-gray-200">
             {recentPayments && recentPayments.length > 0 ? (
-              recentPayments.map((payment) => (
+              recentPayments.map(payment => (
                 <div key={payment.id} className="px-6 py-4 hover:bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
@@ -276,9 +270,7 @@ export default async function AdminDashboardPage() {
                 </div>
               ))
             ) : (
-              <div className="px-6 py-8 text-center text-sm text-gray-500">
-                No payments yet
-              </div>
+              <div className="px-6 py-8 text-center text-sm text-gray-500">No payments yet</div>
             )}
           </div>
         </div>
