@@ -5,12 +5,16 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { Button } from '@/components/ui/Button'
-import { Check, CheckCircle2 } from 'lucide-react'
+import { Check, CheckCircle2, Quote, ShieldCheck, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
+import ReportPreviewCondensed from '@/components/ReportPreviewCondensed'
 import {
   trackReportWorkflow,
   trackPaymentInitiated,
   trackButtonClick,
+  trackCheckoutInitiated,
+  trackCheckoutAbandoned,
+  trackEvent,
 } from '@/lib/analytics/events'
 import { trackRedditViewContent, trackRedditAddToCart } from '@/lib/analytics/reddit-events'
 
@@ -90,6 +94,7 @@ function PricingContent() {
   const [showBetaModal, setShowBetaModal] = useState(false)
   const [showExistingUserModal, setShowExistingUserModal] = useState(false)
   const [creatingReport, setCreatingReport] = useState(false)
+  const [showReportPreview, setShowReportPreview] = useState(false)
   const [sendingMagicLink, setSendingMagicLink] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [magicLinkError, setMagicLinkError] = useState('')
@@ -322,6 +327,16 @@ function PricingContent() {
   const handleSelectPlan = async (tier: (typeof PRICING_TIERS)[0]) => {
     if (!report) return
 
+    // Track checkout initiation before any processing
+    trackCheckoutInitiated({
+      reportId: report.id,
+      plan: tier.id.toLowerCase() as 'basic' | 'premium',
+      price: tier.price,
+      isBetaMode:
+        !process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID ||
+        process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID.includes('your-'),
+    })
+
     // Track plan selection
     trackReportWorkflow({
       step: 'plan_selected',
@@ -454,11 +469,25 @@ function PricingContent() {
       } else {
         setError(data.error || 'Failed to create checkout session')
         setProcessingPayment(false)
+        trackCheckoutAbandoned({
+          reportId: report.id,
+          plan: tier.id.toLowerCase() as 'basic' | 'premium',
+          price: tier.price,
+          step: 'api_error',
+          error: data.error || 'No checkout URL returned',
+        })
       }
     } catch (err) {
       console.error('Payment error:', err)
       setError('An error occurred while processing payment')
       setProcessingPayment(false)
+      trackCheckoutAbandoned({
+        reportId: report.id,
+        plan: tier.id.toLowerCase() as 'basic' | 'premium',
+        price: tier.price,
+        step: 'api_error',
+        error: err instanceof Error ? err.message : 'Unknown error',
+      })
     }
   }
 
@@ -564,6 +593,34 @@ function PricingContent() {
             </div>
           </div>
 
+          {/* Social Proof Strip */}
+          <div className="mb-8">
+            <p className="text-center text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
+              Real outcomes from real claimants
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <blockquote className="bg-white border-l-4 border-primary-500 pl-5 py-4 pr-5 rounded-r-xl shadow-sm">
+                <div className="flex items-start gap-3">
+                  <Quote className="h-5 w-5 text-primary-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-slate-700 italic text-sm leading-relaxed">
+                    &ldquo;First offer was $23.5K... sent an updated list of comps and ended up
+                    receiving <strong className="text-primary-600 not-italic">$28K</strong>.&rdquo;
+                  </p>
+                </div>
+              </blockquote>
+              <blockquote className="bg-white border-l-4 border-primary-500 pl-5 py-4 pr-5 rounded-r-xl shadow-sm">
+                <div className="flex items-start gap-3">
+                  <Quote className="h-5 w-5 text-primary-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-slate-700 italic text-sm leading-relaxed">
+                    &ldquo;They initially tried to offer $9,800... The independent vehicle evaluator
+                    pegged it at <strong className="text-primary-600 not-italic">$23,000</strong>.
+                    They cut me a check a week later.&rdquo;
+                  </p>
+                </div>
+              </blockquote>
+            </div>
+          </div>
+
           {/* Pricing Tiers Section */}
           <div className="mb-12">
             <div className="text-center mb-6">
@@ -630,6 +687,59 @@ function PricingContent() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Money-Back Guarantee Banner */}
+          <div className="max-w-5xl mx-auto mb-8">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex-shrink-0">
+                <ShieldCheck className="h-10 w-10 text-emerald-600" />
+              </div>
+              <div className="flex-grow">
+                <h3 className="font-bold text-slate-900 text-base mb-1">
+                  Premium Report — Money-Back Guarantee
+                </h3>
+                <p className="text-sm text-slate-600">
+                  If our Premium Report doesn&apos;t help increase your settlement by more than $25,
+                  we&apos;ll refund you. No questions asked.
+                </p>
+              </div>
+              <a
+                href="/guarantee"
+                className="flex-shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 transition-colors"
+              >
+                Full terms →
+              </a>
+            </div>
+          </div>
+
+          {/* Report Preview Toggle */}
+          <div className="max-w-5xl mx-auto mb-8">
+            <button
+              onClick={() => {
+                const next = !showReportPreview
+                setShowReportPreview(next)
+                if (next) {
+                  trackEvent('report_preview_viewed', { reportId: report?.id })
+                }
+              }}
+              className="w-full flex items-center justify-between px-6 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-primary-300 hover:shadow-md transition-all group"
+            >
+              <span className="font-semibold text-slate-800 group-hover:text-primary-700 transition-colors">
+                See what&apos;s inside your report
+              </span>
+              <ChevronDown
+                className={`h-5 w-5 text-slate-500 transition-transform duration-200 ${
+                  showReportPreview ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {showReportPreview && (
+              <div className="mt-4 border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <ReportPreviewCondensed />
+              </div>
+            )}
           </div>
         </div>
       </main>

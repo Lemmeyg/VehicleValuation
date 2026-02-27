@@ -58,12 +58,27 @@ export type AuthEvent = {
 }
 
 export type ReportWorkflowEvent = {
-  step: 'hero_form_started' | 'hero_form_submitted' | 'pricing_viewed' | 'plan_selected' | 'report_created' | 'report_viewed' | 'pdf_downloaded' | 'report_shared'
+  step:
+    | 'hero_form_started'
+    | 'hero_form_submitted'
+    | 'pricing_viewed'
+    | 'plan_selected'
+    | 'report_created'
+    | 'report_viewed'
+    | 'pdf_downloaded'
+    | 'report_shared'
   reportId?: string
   planType?: 'basic' | 'premium'
   vehicleYear?: number
   vehicleMake?: string
   vehicleModel?: string
+}
+
+export type CheckoutEvent = {
+  reportId: string
+  plan: 'basic' | 'premium'
+  price: number
+  isBetaMode?: boolean
 }
 
 // ============================================
@@ -247,7 +262,10 @@ export function trackReportWorkflow(properties: ReportWorkflowEvent) {
 /**
  * Track knowledge base page views
  */
-export function trackKnowledgeBasePageView(properties?: { articleCount?: number; searchQuery?: string }) {
+export function trackKnowledgeBasePageView(properties?: {
+  articleCount?: number
+  searchQuery?: string
+}) {
   if (typeof window !== 'undefined' && posthog.__loaded) {
     posthog.capture('knowledge_base_page_viewed', {
       ...properties,
@@ -320,6 +338,33 @@ export function trackFormSubmission(
   if (typeof window !== 'undefined' && posthog.__loaded) {
     posthog.capture('form_submitted', {
       form: formName,
+      ...properties,
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
+ * Track checkout initiation (user clicks "Select Plan")
+ */
+export function trackCheckoutInitiated(properties: CheckoutEvent) {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('checkout_initiated', {
+      ...properties,
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
+ * Track checkout abandonment
+ * step: 'api_error' when create-checkout API call fails
+ */
+export function trackCheckoutAbandoned(
+  properties: CheckoutEvent & { step: string; error?: string }
+) {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('checkout_abandoned', {
       ...properties,
       timestamp: new Date().toISOString(),
     })
