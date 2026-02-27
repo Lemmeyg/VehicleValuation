@@ -211,6 +211,99 @@ describe('validateListingUrls', () => {
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
+  it('rejects listing when body contains "this listing has expired"', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
+    ])
+    mockFetchOk(
+      'https://dealer.com/inventory/vehicle/12345',
+      '<html><body>This listing has expired.</body></html>'
+    )
+    const result = await validateListingUrls(prediction)
+    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+  })
+
+  it('rejects listing when body contains "vehicle not found"', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
+    ])
+    mockFetchOk(
+      'https://dealer.com/inventory/vehicle/12345',
+      '<html><body>Vehicle not found in our inventory.</body></html>'
+    )
+    const result = await validateListingUrls(prediction)
+    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+  })
+
+  it('rejects listing when body contains "sorry, this page"', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
+    ])
+    mockFetchOk(
+      'https://dealer.com/inventory/vehicle/12345',
+      '<html><body>Sorry, this page is no longer available.</body></html>'
+    )
+    const result = await validateListingUrls(prediction)
+    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+  })
+
+  it('rejects listing when body contains "in the shop"', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
+    ])
+    mockFetchOk(
+      'https://dealer.com/inventory/vehicle/12345',
+      '<html><body>Sorry, this page is in the shop.</body></html>'
+    )
+    const result = await validateListingUrls(prediction)
+    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+  })
+
+  it('rejects listing when body contains "currently unavailable"', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
+    ])
+    mockFetchOk(
+      'https://dealer.com/inventory/vehicle/12345',
+      '<html><body>This vehicle is currently unavailable.</body></html>'
+    )
+    const result = await validateListingUrls(prediction)
+    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+  })
+
+  it('rejects listing when body contains "page not found"', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
+    ])
+    mockFetchOk(
+      'https://dealer.com/inventory/vehicle/12345',
+      '<html><body>Page not found. The listing you requested does not exist.</body></html>'
+    )
+    const result = await validateListingUrls(prediction)
+    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+  })
+
+  it('returns prediction with url_validated: true when listings array is empty', async () => {
+    const prediction: MarketCheckPrediction = {
+      predictedPrice: 20000,
+      confidence: 'high',
+      priceRange: { min: 18000, max: 22000 },
+      msrp: null,
+      totalComparablesFound: 0,
+      comparablesStats: undefined,
+      recentComparables: {
+        num_found: 0,
+        listings: [],
+        stats: undefined,
+      },
+      generatedAt: new Date().toISOString(),
+    } as MarketCheckPrediction
+
+    const result = await validateListingUrls(prediction)
+    expect(result).toBe(prediction)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
   it('rejects listing when URL redirects to a different domain', async () => {
     const prediction = makePrediction([
       { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
