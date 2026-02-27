@@ -289,31 +289,6 @@ export async function fetchMarketCheckData(
       const data = await response.json()
       const responseTime = Date.now() - startTime
 
-      // TEMPORARY DEBUG: Log full API response to understand structure
-      console.log('[MarketCheck] FULL API RESPONSE:', JSON.stringify(data, null, 2))
-
-      // CRITICAL DEBUG: Check what's in recent_comparables
-      if (data.recent_comparables) {
-        console.log('[MarketCheck] recent_comparables STRUCTURE:', {
-          hasRecentComparables: !!data.recent_comparables,
-          num_found: data.recent_comparables.num_found,
-          hasListings: !!data.recent_comparables.listings,
-          listingsIsArray: Array.isArray(data.recent_comparables.listings),
-          listingsLength: data.recent_comparables.listings?.length,
-          listingsKeys: data.recent_comparables.listings
-            ? 'array'
-            : Object.keys(data.recent_comparables),
-          firstListingKeys: data.recent_comparables.listings?.[0]
-            ? Object.keys(data.recent_comparables.listings[0])
-            : 'none',
-        })
-      } else {
-        console.log('[MarketCheck] WARNING: No recent_comparables in API response')
-      }
-
-      // Check if listings might be in a different location
-      console.log('[MarketCheck] API Response Top-Level Keys:', Object.keys(data))
-
       console.log('[MarketCheck] Success', {
         attempt,
         responseTimeMs: responseTime,

@@ -131,7 +131,12 @@ export async function validateListingUrls(
 
   const allListings = prediction.recentComparables.listings
 
-  // Select top 30 by dos_active (same ordering as display)
+  // Select top 30 candidates by dos_active ascending (same ordering as the display layer).
+  // Listings without dos_active get Infinity, sinking them to the bottom of the sort.
+  // This is intentional: the display layer (getLowestDOSActiveListings) also excludes
+  // listings with undefined dos_active, so they would never appear in the report
+  // regardless of their url_validated value. Placing them outside the candidate pool
+  // avoids wasting validation budget on listings that can't be displayed.
   const sortedIndices = allListings
     .map((l, i) => ({ i, dos: l.dos_active ?? Infinity }))
     .sort((a, b) => a.dos - b.dos)
