@@ -48,9 +48,19 @@ export default async function ReportViewPage({ params }: PageProps) {
     )
   }
 
-  // Paid gate: only show report if payment has been processed
+  // Paid gate: only show report if payment has been processed.
+  // Admin free reports have price_paid=0 but have a succeeded payment record.
   if (!report.price_paid || report.price_paid === 0) {
-    redirect(`/reports/${id}`)
+    const { data: payment } = await supabaseAdmin
+      .from('payments')
+      .select('id')
+      .eq('report_id', id)
+      .eq('status', 'succeeded')
+      .maybeSingle()
+
+    if (!payment) {
+      redirect(`/reports/${id}`)
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,14 +68,20 @@ export default async function ReportViewPage({ params }: PageProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const marketCheck = report.marketcheck_valuation as any
 
-  // Get ALL listings from database (no filtering yet)
+  // Get ALL listings from database
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allListings = (marketCheck?.recentComparables?.listings ||
-    marketCheck?.comparables ||
-    []) as any[]
+  const allListings: any[] =
+    marketCheck?.recentComparables?.listings || marketCheck?.comparables || []
 
-  // Filter to 10 vehicles with lowest DOS_Active (fastest-selling)
-  const displayedComparables = getLowestDOSActiveListings(allListings, 10)
+  // Pre-filter to URL-validated listings only, then take 10 with lowest DOS_Active.
+  // Fallback to allListings if none are validated (handles reports created before
+  // this feature was deployed — those listings lack the url_validated field).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const validatedListings = allListings.filter((l: any) => l.url_validated === true)
+  const displayedComparables = getLowestDOSActiveListings(
+    validatedListings.length > 0 ? validatedListings : allListings,
+    10
+  )
 
   // Get statistics from ALL listings
   const listingsStats = getListingsStats(allListings)
@@ -555,10 +571,10 @@ export default async function ReportViewPage({ params }: PageProps) {
             <p>
               This valuation report is intended for informational purposes only and does not
               constitute a professional appraisal, legal advice, or binding offer. Valuations use
-              proprietary algorithms aggregating data from VinAudit, Auto.dev, CarsXE, and
-              MarketCheck. Vehicle market values are subject to rapid change based on local demand,
-              condition variances, and economic fluctuations. Consult with a certified appraiser or
-              insurance adjuster for final settlement figures.
+              proprietary algorithms aggregating data from Auto.dev and MarketCheck. Vehicle market
+              values are subject to rapid change based on local demand, condition variances, and
+              economic fluctuations. Consult with a certified appraiser or insurance adjuster for
+              final settlement figures.
             </p>
             <div className="flex items-center justify-between pt-4">
               <div>© 2024 ELITE VALUATION SERVICES</div>

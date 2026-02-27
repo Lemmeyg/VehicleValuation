@@ -23,6 +23,7 @@ import {
   type MarketCheckPrediction,
 } from '@/lib/api/marketcheck-client'
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
+import { validateListingUrls } from '@/lib/utils/url-validator'
 import { reportCreationLimiter } from '@/lib/rate-limit'
 
 const WEEKLY_LIMIT_HOURS = 168 // 7 days = 168 hours
@@ -112,10 +113,7 @@ export async function POST(request: Request) {
 
     // Validate mileage
     if (!mileage || typeof mileage !== 'number' || mileage < 0 || mileage > 999999) {
-      return NextResponse.json(
-        { error: 'Valid mileage required (0-999,999)' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Valid mileage required (0-999,999)' }, { status: 400 })
     }
 
     // Validate ZIP code
@@ -188,6 +186,8 @@ export async function POST(request: Request) {
 
     // Fetch MarketCheck price prediction
     let marketcheckValuation: MarketCheckPrediction | null = null
+    let urlValidationFailedCount: number | null = null
+    let urlValidationFailedUrls: string[] | null = null
     if (vehicleData) {
       const marketCheckStartTime = Date.now()
 
@@ -211,7 +211,12 @@ export async function POST(request: Request) {
         )
 
         if (marketCheckResult.success) {
-          marketcheckValuation = marketCheckResult.data!
+          const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
+            marketCheckResult.data!
+          )
+          marketcheckValuation = validatedPrediction
+          urlValidationFailedCount = urlStats.failedCount
+          urlValidationFailedUrls = urlStats.failedUrls
 
           await logApiCall(
             report.id,
@@ -304,20 +309,31 @@ export async function POST(request: Request) {
           marketcheck_price_range_max: marketcheckValuation.priceRange?.max || null,
           marketcheck_confidence: marketcheckValuation.confidence,
           marketcheck_total_comparables_found: marketcheckValuation.totalComparablesFound,
-          marketcheck_recent_comparables_found: marketcheckValuation.recentComparables?.num_found || 0,
+          marketcheck_recent_comparables_found:
+            marketcheckValuation.recentComparables?.num_found || 0,
         }),
 
         // Also update valuation_result for backward compatibility
         ...(marketcheckValuation && {
           valuation_result: {
             predictedPrice: marketcheckValuation.predictedPrice,
-            lowValue: marketcheckValuation.priceRange?.min || Math.round(marketcheckValuation.predictedPrice * 0.9),
+            lowValue:
+              marketcheckValuation.priceRange?.min ||
+              Math.round(marketcheckValuation.predictedPrice * 0.9),
             averageValue: marketcheckValuation.predictedPrice,
-            highValue: marketcheckValuation.priceRange?.max || Math.round(marketcheckValuation.predictedPrice * 1.1),
+            highValue:
+              marketcheckValuation.priceRange?.max ||
+              Math.round(marketcheckValuation.predictedPrice * 1.1),
             confidence: marketcheckValuation.confidence,
             dataPoints: marketcheckValuation.totalComparablesFound,
             dataSource: 'marketcheck',
           },
+        }),
+
+        // URL validation stats (set when MarketCheck data was validated)
+        ...(urlValidationFailedCount !== null && {
+          url_validation_failed_count: urlValidationFailedCount,
+          url_validation_failed_urls: urlValidationFailedUrls,
         }),
 
         mileage: mileage,

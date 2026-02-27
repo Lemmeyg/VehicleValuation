@@ -12,6 +12,7 @@ import { supabaseAdmin } from '@/lib/db/supabase'
 import { getVinValidationError, sanitizeVin } from '@/lib/utils/vin-validator'
 import { fetchAutoDevVinDecode, type AutoDevVinDecodeData } from '@/lib/api/autodev-client'
 import { fetchMarketCheckData, type MarketCheckPrediction } from '@/lib/api/marketcheck-client'
+import { validateListingUrls } from '@/lib/utils/url-validator'
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
 
@@ -85,6 +86,8 @@ export async function POST(request: Request) {
 
     // Fetch MarketCheck valuation
     let marketcheckValuation: MarketCheckPrediction | null = null
+    let urlValidationFailedCount: number | null = null
+    let urlValidationFailedUrls: string[] | null = null
     if (vehicleData) {
       const subjectVehicle = {
         make: vehicleData.make,
@@ -101,7 +104,12 @@ export async function POST(request: Request) {
       )
 
       if (mcResult.success) {
-        marketcheckValuation = mcResult.data!
+        const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
+          mcResult.data!
+        )
+        marketcheckValuation = validatedPrediction
+        urlValidationFailedCount = urlStats.failedCount
+        urlValidationFailedUrls = urlStats.failedUrls
       }
 
       await supabaseAdmin.from('api_call_logs').insert({
@@ -159,6 +167,10 @@ export async function POST(request: Request) {
             dataPoints: marketcheckValuation.totalComparablesFound,
             dataSource: 'marketcheck',
           },
+        }),
+        ...(urlValidationFailedCount !== null && {
+          url_validation_failed_count: urlValidationFailedCount,
+          url_validation_failed_urls: urlValidationFailedUrls,
         }),
         mileage,
         zip_code: zipCode,
