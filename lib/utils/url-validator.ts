@@ -95,7 +95,7 @@ async function checkUrl(url: string): Promise<boolean> {
     const finalPath = parsedFinal.pathname
     if (finalPath === '/' || finalPath === '') return false
     const pathSegments = finalPath.split('/').filter(s => s.length > 0)
-    if (pathSegments.length < 2) return false
+    if (pathSegments.length < 3) return false
 
     // Scan first 3KB of body for sold/unavailability keywords (streaming to avoid
     // buffering full page HTML — dealer pages can be 500KB–2MB)

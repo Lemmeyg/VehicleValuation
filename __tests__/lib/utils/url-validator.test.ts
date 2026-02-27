@@ -168,15 +168,30 @@ describe('validateListingUrls', () => {
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
-  it('rejects listing when URL redirects to a single-segment path', async () => {
+  it('rejects listing when URL redirects to a path with fewer than 3 segments (1 segment)', async () => {
     const prediction = makePrediction([
       { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
     ])
 
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
       status: 200,
-      url: 'https://dealer.com/inventory', // only 1 segment, likely listing index
+      url: 'https://dealer.com/inventory', // 1 segment — inventory index
       text: async () => '<html><title>All Inventory</title></html>',
+    })
+
+    const result = await validateListingUrls(prediction)
+    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+  })
+
+  it('rejects listing when URL redirects to a path with fewer than 3 segments (2 segments)', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
+    ])
+
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      status: 200,
+      url: 'https://dealer.com/viewdetails/used/', // 2 segments — no vehicle ID
+      text: async () => '<html><title>Used Vehicles</title></html>',
     })
 
     const result = await validateListingUrls(prediction)
