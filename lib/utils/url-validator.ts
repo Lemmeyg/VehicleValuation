@@ -4,10 +4,13 @@
  * Validates that listing VDP URLs point to live, active vehicle pages.
  * Run server-side during report creation after MarketCheck data is fetched.
  *
- * Strategy: AGGRESSIVE REJECTION
+ * Strategy: AGGRESSIVE REJECTION + SEQUENTIAL BATCHING
  * - Any URL that cannot be positively confirmed as valid is rejected.
  * - Only HTTP 200 responses with unchanged URL paths and no sold-keywords are kept.
  * - Timeouts, 403s, 404s, bot-blocks, and homepage redirects are all rejected.
+ * - Validates in batches of 20 (sorted by dos_active) and stops as soon as
+ *   TARGET_VALID (10) passing listings are found. Subsequent batches are only
+ *   fetched if the previous batch did not supply enough passing URLs.
  *
  * Rationale: MarketCheck returns 40–80+ listings so there is always sufficient
  * pool depth. Quality of displayed listings > quantity.
@@ -30,8 +33,20 @@ const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
 
 const VALIDATION_TIMEOUT_MS = 4000
-const MAX_CANDIDATES = 30
+const BATCH_SIZE = 20
+const TARGET_VALID = 10
 const BODY_SCAN_BYTES = 3072 // 3KB — enough to catch page title and above-fold content
+
+export interface ValidationStats {
+  /** Total number of URLs actually fetched (excludes no-vdp_url listings) */
+  checkedCount: number
+  /** Number of URLs that failed validation */
+  failedCount: number
+  /** The specific URLs that failed */
+  failedUrls: string[]
+  /** How many batches of 20 were needed to reach TARGET_VALID */
+  batchesUsed: number
+}
 
 /**
  * Read only the first BODY_SCAN_BYTES of a response body using streaming.
@@ -112,69 +127,105 @@ async function checkUrl(url: string): Promise<boolean> {
 }
 
 /**
- * Validate listing URLs in a MarketCheckPrediction.
+ * Validate listing URLs in a MarketCheckPrediction using sequential batching.
  *
- * - Sorts all listings by dos_active (ascending) and takes the top 30 as candidates.
- * - Validates all candidates in parallel (wall-clock time ≈ 4s).
+ * - Sorts all listings by dos_active (ascending) and processes them in batches
+ *   of BATCH_SIZE (20). Each batch is validated in parallel.
+ * - Stops as soon as TARGET_VALID (10) listings with passing URLs are found.
+ *   Additional batches are only fetched if the previous batch did not supply enough.
  * - Adds url_validated: boolean to every listing.
- * - Listings outside the top 30 candidate pool get url_validated: false.
- * - Listings with no vdp_url get url_validated: true (data is valid, just no link).
+ *   - Listings that passed URL validation → url_validated: true
+ *   - Listings that failed or were never checked → url_validated: false
+ *   - Listings with no vdp_url → url_validated: true (data is valid, just no link)
  *
- * @returns A new MarketCheckPrediction with url_validated stamped on each listing.
+ * @returns The annotated prediction plus ValidationStats tracking how many
+ *          URLs were checked, how many failed, and which URLs failed.
  */
 export async function validateListingUrls(
   prediction: MarketCheckPrediction
-): Promise<MarketCheckPrediction> {
+): Promise<{ prediction: MarketCheckPrediction; stats: ValidationStats }> {
+  const emptyStats: ValidationStats = {
+    checkedCount: 0,
+    failedCount: 0,
+    failedUrls: [],
+    batchesUsed: 0,
+  }
+
   if (!prediction.recentComparables?.listings?.length) {
-    return prediction
+    return { prediction, stats: emptyStats }
   }
 
   const allListings = prediction.recentComparables.listings
 
-  // Select top 30 candidates by dos_active ascending (same ordering as the display layer).
+  // Sort all listings by dos_active ascending (same ordering as the display layer).
   // Listings without dos_active get Infinity, sinking them to the bottom of the sort.
-  // This is intentional: the display layer (getLowestDOSActiveListings) also excludes
-  // listings with undefined dos_active, so they would never appear in the report
-  // regardless of their url_validated value. Placing them outside the candidate pool
-  // avoids wasting validation budget on listings that can't be displayed.
   const sortedIndices = allListings
     .map((l, i) => ({ i, dos: l.dos_active ?? Infinity }))
     .sort((a, b) => a.dos - b.dos)
-    .slice(0, MAX_CANDIDATES)
     .map(({ i }) => i)
 
-  const candidateIndexSet = new Set(sortedIndices)
+  const validIndexSet = new Set<number>()
+  const stats: ValidationStats = {
+    checkedCount: 0,
+    failedCount: 0,
+    failedUrls: [],
+    batchesUsed: 0,
+  }
 
-  // Validate all candidates in parallel
-  const validationResults = await Promise.allSettled(
-    sortedIndices.map(async idx => {
-      const listing = allListings[idx]
-      // No vdp_url → mark as valid: the listing's price/mileage data is still
-      // legitimate market evidence; the display layer handles the no-link case.
-      const valid = listing.vdp_url ? await checkUrl(listing.vdp_url) : true
-      return { idx, valid }
-    })
-  )
+  // Process batches sequentially; each batch runs its fetches in parallel.
+  // Stop as soon as TARGET_VALID passing listings have been found.
+  for (
+    let offset = 0;
+    offset < sortedIndices.length && validIndexSet.size < TARGET_VALID;
+    offset += BATCH_SIZE
+  ) {
+    const batch = sortedIndices.slice(offset, offset + BATCH_SIZE)
+    stats.batchesUsed++
 
-  // Build index → valid map
-  const validMap = new Map<number, boolean>()
-  for (const result of validationResults) {
-    if (result.status === 'fulfilled') {
-      validMap.set(result.value.idx, result.value.valid)
+    const batchResults = await Promise.allSettled(
+      batch.map(async idx => {
+        const listing = allListings[idx]
+        if (!listing.vdp_url) {
+          // No URL: auto-valid, don't count as a URL check
+          return { idx, valid: true, url: null }
+        }
+        const valid = await checkUrl(listing.vdp_url)
+        return { idx, valid, url: listing.vdp_url }
+      })
+    )
+
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled') {
+        const { idx, valid, url } = result.value
+        if (url !== null) {
+          // Only count listings where we actually fetched a URL
+          stats.checkedCount++
+          if (!valid) {
+            stats.failedCount++
+            stats.failedUrls.push(url)
+          }
+        }
+        if (valid) {
+          validIndexSet.add(idx)
+        }
+      }
     }
   }
 
   // Annotate every listing with url_validated
   const validatedListings = allListings.map((listing, idx) => ({
     ...listing,
-    url_validated: candidateIndexSet.has(idx) ? (validMap.get(idx) ?? false) : false,
+    url_validated: validIndexSet.has(idx),
   }))
 
   return {
-    ...prediction,
-    recentComparables: {
-      ...prediction.recentComparables,
-      listings: validatedListings,
+    prediction: {
+      ...prediction,
+      recentComparables: {
+        ...prediction.recentComparables,
+        listings: validatedListings,
+      },
     },
+    stats,
   }
 }

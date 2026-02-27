@@ -94,9 +94,13 @@ describe('validateListingUrls', () => {
       generatedAt: new Date().toISOString(),
     } as MarketCheckPrediction
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result, stats } = await validateListingUrls(prediction)
     expect(result).toBe(prediction)
     expect(global.fetch).not.toHaveBeenCalled()
+    expect(stats.checkedCount).toBe(0)
+    expect(stats.failedCount).toBe(0)
+    expect(stats.failedUrls).toEqual([])
+    expect(stats.batchesUsed).toBe(0)
   })
 
   it('marks listing as validated when URL returns 200 with vehicle content', async () => {
@@ -106,8 +110,12 @@ describe('validateListingUrls', () => {
 
     mockFetchOk('https://dealer.com/inventory/vehicle/12345')
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result, stats } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(true)
+    expect(stats.checkedCount).toBe(1)
+    expect(stats.failedCount).toBe(0)
+    expect(stats.failedUrls).toEqual([])
+    expect(stats.batchesUsed).toBe(1)
   })
 
   it('marks listing as validated when it has no vdp_url (data still valid)', async () => {
@@ -115,9 +123,11 @@ describe('validateListingUrls', () => {
       { dos_active: 5 }, // no vdp_url
     ])
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result, stats } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(true)
     expect(global.fetch).not.toHaveBeenCalled()
+    expect(stats.checkedCount).toBe(0) // no URL checked
+    expect(stats.failedCount).toBe(0)
   })
 
   it('rejects listing when fetch times out', async () => {
@@ -127,8 +137,10 @@ describe('validateListingUrls', () => {
 
     mockFetchTimeout()
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result, stats } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+    expect(stats.failedCount).toBe(1)
+    expect(stats.failedUrls).toEqual(['https://dealer.com/inventory/vehicle/12345'])
   })
 
   it('rejects listing when URL returns 404', async () => {
@@ -138,8 +150,10 @@ describe('validateListingUrls', () => {
 
     mockFetch404('https://dealer.com/inventory/vehicle/12345')
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result, stats } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+    expect(stats.failedCount).toBe(1)
+    expect(stats.failedUrls).toEqual(['https://dealer.com/inventory/vehicle/12345'])
   })
 
   it('rejects listing when URL returns 403 (bot blocked)', async () => {
@@ -153,8 +167,9 @@ describe('validateListingUrls', () => {
       text: async () => '',
     })
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result, stats } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+    expect(stats.failedCount).toBe(1)
   })
 
   it('rejects listing when URL redirects to dealer homepage', async () => {
@@ -164,7 +179,7 @@ describe('validateListingUrls', () => {
 
     mockFetchHomepageRedirect('https://dealer.com/inventory/vehicle/12345')
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -179,7 +194,7 @@ describe('validateListingUrls', () => {
       text: async () => '<html><title>All Inventory</title></html>',
     })
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -194,7 +209,7 @@ describe('validateListingUrls', () => {
       text: async () => '<html><title>Used Vehicles</title></html>',
     })
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -208,7 +223,7 @@ describe('validateListingUrls', () => {
       '<html><body>Sorry, this vehicle is no longer available.</body></html>'
     )
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -222,7 +237,7 @@ describe('validateListingUrls', () => {
       '<html><body>This vehicle has been sold. Please browse our inventory.</body></html>'
     )
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -234,7 +249,7 @@ describe('validateListingUrls', () => {
       'https://dealer.com/inventory/vehicle/12345',
       '<html><body>This listing has expired.</body></html>'
     )
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -246,7 +261,7 @@ describe('validateListingUrls', () => {
       'https://dealer.com/inventory/vehicle/12345',
       '<html><body>Vehicle not found in our inventory.</body></html>'
     )
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -258,7 +273,7 @@ describe('validateListingUrls', () => {
       'https://dealer.com/inventory/vehicle/12345',
       '<html><body>Sorry, this page is no longer available.</body></html>'
     )
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -270,7 +285,7 @@ describe('validateListingUrls', () => {
       'https://dealer.com/inventory/vehicle/12345',
       '<html><body>Sorry, this page is in the shop.</body></html>'
     )
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -282,7 +297,7 @@ describe('validateListingUrls', () => {
       'https://dealer.com/inventory/vehicle/12345',
       '<html><body>This vehicle is currently unavailable.</body></html>'
     )
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -294,7 +309,7 @@ describe('validateListingUrls', () => {
       'https://dealer.com/inventory/vehicle/12345',
       '<html><body>Page not found. The listing you requested does not exist.</body></html>'
     )
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
@@ -314,7 +329,7 @@ describe('validateListingUrls', () => {
       generatedAt: new Date().toISOString(),
     } as MarketCheckPrediction
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result).toBe(prediction)
     expect(global.fetch).not.toHaveBeenCalled()
   })
@@ -330,11 +345,11 @@ describe('validateListingUrls', () => {
       text: async () => '<html><title>Other site</title></html>',
     })
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
-  it('validates multiple listings in parallel and annotates each correctly', async () => {
+  it('validates multiple listings in parallel within a batch and annotates each correctly', async () => {
     const prediction = makePrediction([
       { vdp_url: 'https://dealer.com/inventory/vehicle/111', dos_active: 3 },
       { vdp_url: 'https://dealer.com/inventory/vehicle/222', dos_active: 7 },
@@ -348,38 +363,150 @@ describe('validateListingUrls', () => {
     // Listing 2: valid
     mockFetchOk('https://dealer.com/inventory/vehicle/333')
 
-    const result = await validateListingUrls(prediction)
+    const { prediction: result, stats } = await validateListingUrls(prediction)
     const listings = result.recentComparables!.listings
     expect(listings[0].url_validated).toBe(true)
     expect(listings[1].url_validated).toBe(false)
     expect(listings[2].url_validated).toBe(true)
+    expect(stats.checkedCount).toBe(3)
+    expect(stats.failedCount).toBe(1)
+    expect(stats.failedUrls).toEqual(['https://dealer.com/inventory/vehicle/222'])
+    expect(stats.batchesUsed).toBe(1)
   })
 
-  it('only validates top 30 candidates by dos_active; remaining listings get url_validated: false', async () => {
-    // Create 32 listings; indices 0-29 are candidates (lowest dos_active)
-    const listings = Array.from({ length: 32 }, (_, i) => ({
+  it('stops after first batch when TARGET_VALID (10) listings pass', async () => {
+    // 25 listings total; first 10 all pass — should only fetch batch 1 (20 URLs)
+    // and stop without fetching the remaining 5
+    const listings = Array.from({ length: 25 }, (_, i) => ({
       vdp_url: `https://dealer.com/inventory/vehicle/${i}`,
-      dos_active: i, // index = dos_active value; 0-29 are top 30
+      dos_active: i,
     }))
-
     const prediction = makePrediction(listings)
 
-    // Mock 30 valid responses (top 30 candidates)
-    for (let i = 0; i < 30; i++) {
+    // All 20 in batch 1 return OK (10 valid is reached within this batch)
+    for (let i = 0; i < 20; i++) {
       mockFetchOk(`https://dealer.com/inventory/vehicle/${i}`)
     }
 
-    const result = await validateListingUrls(prediction)
-    const resultListings = result.recentComparables!.listings
+    const { prediction: result, stats } = await validateListingUrls(prediction)
 
-    // Top 30 should be validated true
-    for (let i = 0; i < 30; i++) {
+    // fetch called exactly 20 times (batch 1 only)
+    expect(global.fetch).toHaveBeenCalledTimes(20)
+    expect(stats.batchesUsed).toBe(1)
+
+    // First 20 listings should be validated (≥10 passed, batch stopped)
+    const resultListings = result.recentComparables!.listings
+    for (let i = 0; i < 20; i++) {
       expect(resultListings[i].url_validated).toBe(true)
     }
-    // Listings 30 and 31 were not candidates - should be false
-    expect(resultListings[30].url_validated).toBe(false)
-    expect(resultListings[31].url_validated).toBe(false)
-    // fetch should have been called exactly 30 times
-    expect(global.fetch).toHaveBeenCalledTimes(30)
+    // Listings 20-24 never checked → false
+    for (let i = 20; i < 25; i++) {
+      expect(resultListings[i].url_validated).toBe(false)
+    }
+  })
+
+  it('fetches a second batch when first batch yields fewer than 10 valid', async () => {
+    // 40 listings; batch 1 (0-19) has only 3 valid, batch 2 (20-39) has 10 valid
+    const listings = Array.from({ length: 40 }, (_, i) => ({
+      vdp_url: `https://dealer.com/inventory/vehicle/${i}`,
+      dos_active: i,
+    }))
+    const prediction = makePrediction(listings)
+
+    // Batch 1 (indices 0-19): only indices 0, 1, 2 pass (3 valid)
+    for (let i = 0; i < 20; i++) {
+      if (i < 3) {
+        mockFetchOk(`https://dealer.com/inventory/vehicle/${i}`)
+      } else {
+        mockFetch404(`https://dealer.com/inventory/vehicle/${i}`)
+      }
+    }
+    // Batch 2 (indices 20-39): all pass
+    for (let i = 20; i < 40; i++) {
+      mockFetchOk(`https://dealer.com/inventory/vehicle/${i}`)
+    }
+
+    const { prediction: result, stats } = await validateListingUrls(prediction)
+
+    // fetch called 40 times (both batches)
+    expect(global.fetch).toHaveBeenCalledTimes(40)
+    expect(stats.batchesUsed).toBe(2)
+    expect(stats.failedCount).toBe(17) // 17 failed in batch 1
+
+    // Batch 1 pass/fail
+    const resultListings = result.recentComparables!.listings
+    for (let i = 0; i < 3; i++) {
+      expect(resultListings[i].url_validated).toBe(true)
+    }
+    for (let i = 3; i < 20; i++) {
+      expect(resultListings[i].url_validated).toBe(false)
+    }
+    // Batch 2: all validated true
+    for (let i = 20; i < 40; i++) {
+      expect(resultListings[i].url_validated).toBe(true)
+    }
+  })
+
+  it('stops mid-pool when TARGET_VALID reached; unchecked listings get url_validated: false', async () => {
+    // 50 listings. Batch 1 (0-19): 5 pass. Batch 2 (20-39): 5 pass → total 10, stop.
+    // Listings 40-49 never touched.
+    const listings = Array.from({ length: 50 }, (_, i) => ({
+      vdp_url: `https://dealer.com/inventory/vehicle/${i}`,
+      dos_active: i,
+    }))
+    const prediction = makePrediction(listings)
+
+    // Batch 1: first 5 pass, rest fail
+    for (let i = 0; i < 20; i++) {
+      if (i < 5) mockFetchOk(`https://dealer.com/inventory/vehicle/${i}`)
+      else mockFetch404(`https://dealer.com/inventory/vehicle/${i}`)
+    }
+    // Batch 2: first 5 pass, rest fail
+    for (let i = 20; i < 40; i++) {
+      if (i < 25) mockFetchOk(`https://dealer.com/inventory/vehicle/${i}`)
+      else mockFetch404(`https://dealer.com/inventory/vehicle/${i}`)
+    }
+
+    const { prediction: result, stats } = await validateListingUrls(prediction)
+
+    expect(global.fetch).toHaveBeenCalledTimes(40) // batches 1 and 2 only
+    expect(stats.batchesUsed).toBe(2)
+
+    const resultListings = result.recentComparables!.listings
+    // Passed in batch 1
+    for (let i = 0; i < 5; i++) expect(resultListings[i].url_validated).toBe(true)
+    // Failed in batch 1
+    for (let i = 5; i < 20; i++) expect(resultListings[i].url_validated).toBe(false)
+    // Passed in batch 2
+    for (let i = 20; i < 25; i++) expect(resultListings[i].url_validated).toBe(true)
+    // Failed in batch 2
+    for (let i = 25; i < 40; i++) expect(resultListings[i].url_validated).toBe(false)
+    // Never checked
+    for (let i = 40; i < 50; i++) expect(resultListings[i].url_validated).toBe(false)
+  })
+
+  it('exhausts entire pool when TARGET_VALID is never reached', async () => {
+    // 25 listings; all fail — should check all 25 across 2 batches (20 + 5)
+    const listings = Array.from({ length: 25 }, (_, i) => ({
+      vdp_url: `https://dealer.com/inventory/vehicle/${i}`,
+      dos_active: i,
+    }))
+    const prediction = makePrediction(listings)
+
+    for (let i = 0; i < 25; i++) {
+      mockFetch404(`https://dealer.com/inventory/vehicle/${i}`)
+    }
+
+    const { prediction: result, stats } = await validateListingUrls(prediction)
+
+    expect(global.fetch).toHaveBeenCalledTimes(25)
+    expect(stats.batchesUsed).toBe(2)
+    expect(stats.failedCount).toBe(25)
+    expect(stats.checkedCount).toBe(25)
+
+    const resultListings = result.recentComparables!.listings
+    for (let i = 0; i < 25; i++) {
+      expect(resultListings[i].url_validated).toBe(false)
+    }
   })
 })

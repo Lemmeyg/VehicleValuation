@@ -186,6 +186,8 @@ export async function POST(request: Request) {
 
     // Fetch MarketCheck price prediction
     let marketcheckValuation: MarketCheckPrediction | null = null
+    let urlValidationFailedCount: number | null = null
+    let urlValidationFailedUrls: string[] | null = null
     if (vehicleData) {
       const marketCheckStartTime = Date.now()
 
@@ -209,7 +211,12 @@ export async function POST(request: Request) {
         )
 
         if (marketCheckResult.success) {
-          marketcheckValuation = await validateListingUrls(marketCheckResult.data!)
+          const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
+            marketCheckResult.data!
+          )
+          marketcheckValuation = validatedPrediction
+          urlValidationFailedCount = urlStats.failedCount
+          urlValidationFailedUrls = urlStats.failedUrls
 
           await logApiCall(
             report.id,
@@ -321,6 +328,12 @@ export async function POST(request: Request) {
             dataPoints: marketcheckValuation.totalComparablesFound,
             dataSource: 'marketcheck',
           },
+        }),
+
+        // URL validation stats (set when MarketCheck data was validated)
+        ...(urlValidationFailedCount !== null && {
+          url_validation_failed_count: urlValidationFailedCount,
+          url_validation_failed_urls: urlValidationFailedUrls,
         }),
 
         mileage: mileage,
