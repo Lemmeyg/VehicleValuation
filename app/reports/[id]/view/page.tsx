@@ -48,9 +48,19 @@ export default async function ReportViewPage({ params }: PageProps) {
     )
   }
 
-  // Paid gate: only show report if payment has been processed
+  // Paid gate: only show report if payment has been processed.
+  // Admin free reports have price_paid=0 but have a succeeded payment record.
   if (!report.price_paid || report.price_paid === 0) {
-    redirect(`/reports/${id}`)
+    const { data: payment } = await supabaseAdmin
+      .from('payments')
+      .select('id')
+      .eq('report_id', id)
+      .eq('status', 'succeeded')
+      .maybeSingle()
+
+    if (!payment) {
+      redirect(`/reports/${id}`)
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
