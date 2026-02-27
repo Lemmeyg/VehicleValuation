@@ -34,6 +34,39 @@ const MAX_CANDIDATES = 30
 const BODY_SCAN_BYTES = 3072 // 3KB — enough to catch page title and above-fold content
 
 /**
+ * Read only the first BODY_SCAN_BYTES of a response body using streaming.
+ * Falls back to response.text() in environments where response.body is unavailable
+ * (e.g. Jest mocks), which is safe because those mocks return tiny strings.
+ */
+async function readBodySnippet(response: Response): Promise<string> {
+  if (!response.body) {
+    // Test environment: mock responses lack a ReadableStream body
+    const text = await response.text()
+    return text.slice(0, BODY_SCAN_BYTES).toLowerCase()
+  }
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalRead = 0
+  try {
+    while (totalRead < BODY_SCAN_BYTES) {
+      const { done, value } = await reader.read()
+      if (done || !value) break
+      chunks.push(value)
+      totalRead += value.byteLength
+    }
+  } finally {
+    await reader.cancel()
+  }
+  const buffer = new Uint8Array(totalRead)
+  let offset = 0
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return new TextDecoder().decode(buffer).slice(0, BODY_SCAN_BYTES).toLowerCase()
+}
+
+/**
  * Check a single URL. Returns true only if the URL is positively confirmed valid.
  */
 async function checkUrl(url: string): Promise<boolean> {
@@ -54,19 +87,19 @@ async function checkUrl(url: string): Promise<boolean> {
     if (response.status !== 200) return false
 
     // Compare original hostname to final hostname (cross-domain redirect)
-    const originalHostname = new URL(url).hostname
-    const finalHostname = new URL(response.url).hostname
-    if (originalHostname !== finalHostname) return false
+    const parsedOriginal = new URL(url)
+    const parsedFinal = new URL(response.url)
+    if (parsedOriginal.hostname !== parsedFinal.hostname) return false
 
     // Check final path for homepage redirect
-    const finalPath = new URL(response.url).pathname
+    const finalPath = parsedFinal.pathname
     if (finalPath === '/' || finalPath === '') return false
     const pathSegments = finalPath.split('/').filter(s => s.length > 0)
     if (pathSegments.length < 2) return false
 
-    // Scan first 3KB of body for sold/unavailability keywords
-    const body = await response.text()
-    const snippet = body.slice(0, BODY_SCAN_BYTES).toLowerCase()
+    // Scan first 3KB of body for sold/unavailability keywords (streaming to avoid
+    // buffering full page HTML — dealer pages can be 500KB–2MB)
+    const snippet = await readBodySnippet(response)
     if (SOLD_KEYWORDS.some(kw => snippet.includes(kw))) return false
 
     return true
@@ -111,6 +144,8 @@ export async function validateListingUrls(
   const validationResults = await Promise.allSettled(
     sortedIndices.map(async idx => {
       const listing = allListings[idx]
+      // No vdp_url → mark as valid: the listing's price/mileage data is still
+      // legitimate market evidence; the display layer handles the no-link case.
       const valid = listing.vdp_url ? await checkUrl(listing.vdp_url) : true
       return { idx, valid }
     })
