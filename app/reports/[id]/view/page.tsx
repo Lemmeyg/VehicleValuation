@@ -58,14 +58,20 @@ export default async function ReportViewPage({ params }: PageProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const marketCheck = report.marketcheck_valuation as any
 
-  // Get ALL listings from database (no filtering yet)
+  // Get ALL listings from database
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allListings = (marketCheck?.recentComparables?.listings ||
-    marketCheck?.comparables ||
-    []) as any[]
+  const allListings: any[] =
+    marketCheck?.recentComparables?.listings || marketCheck?.comparables || []
 
-  // Filter to 10 vehicles with lowest DOS_Active (fastest-selling)
-  const displayedComparables = getLowestDOSActiveListings(allListings, 10)
+  // Pre-filter to URL-validated listings only, then take 10 with lowest DOS_Active.
+  // Fallback to allListings if none are validated (handles reports created before
+  // this feature was deployed — those listings lack the url_validated field).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const validatedListings = allListings.filter((l: any) => l.url_validated === true)
+  const displayedComparables = getLowestDOSActiveListings(
+    validatedListings.length > 0 ? validatedListings : allListings,
+    10
+  )
 
   // Get statistics from ALL listings
   const listingsStats = getListingsStats(allListings)
