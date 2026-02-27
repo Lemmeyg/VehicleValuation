@@ -111,6 +111,7 @@ export interface MarketCheckComparable {
   // Media and metadata
   photo_url?: string
   vdp_url?: string // Vehicle Details Page URL
+  url_validated?: boolean // Set by validateListingUrls() during report creation
   listing_date?: string
   mc_website_id?: number
   source: string
