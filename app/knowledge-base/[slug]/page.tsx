@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { ArticlePageTracker } from '@/components/ArticlePageTracker'
+import { ArticleCTA } from '@/components/ArticleCTA'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -77,6 +78,7 @@ export default async function ArticlePage({ params }: Props) {
             className="prose prose-lg max-w-none"
             dangerouslySetInnerHTML={{ __html: article.htmlContent! }}
           />
+          <ArticleCTA articleSlug={article.slug} />
         </article>
       </main>
       <Footer />
