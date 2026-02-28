@@ -2,6 +2,17 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   /* config options here */
+  async redirects() {
+    return [
+      {
+        // Consolidate SEO authority onto www — non-www → www permanent redirect
+        source: '/:path*',
+        has: [{ type: 'host', value: 'totallosstoolkit.com' }],
+        destination: 'https://www.totallosstoolkit.com/:path*',
+        permanent: true,
+      },
+    ]
+  },
   async headers() {
     return [
       {

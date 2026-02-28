@@ -10,6 +10,10 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST
     const posthogEnabled = process.env.NEXT_PUBLIC_POSTHOG_ENABLED === 'true'
 
+    // Skip on Vercel preview deployments — prevents preview traffic polluting analytics.
+    // Requires NEXT_PUBLIC_VERCEL_ENV=$VERCEL_ENV in Vercel project env settings.
+    if (process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview') return
+
     // Only initialize if PostHog is enabled and we have the required credentials
     if (posthogEnabled && posthogKey && posthogHost) {
       // Check if PostHog is already initialized
