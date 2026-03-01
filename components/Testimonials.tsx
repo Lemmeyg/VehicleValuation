@@ -4,14 +4,20 @@
  * Value Propositions & CTA Section
  *
  * Displays key benefits of independent vehicle appraisals
- * and includes a form for users to request their valuation report.
+ * and includes a form identical to the Hero form (VIN + Mileage + ZIP).
  */
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, ArrowRight, HelpCircle } from 'lucide-react'
 import { Button } from './ui/Button'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
+import {
+  trackVehicleSearch,
+  trackFormSubmission,
+  trackReportWorkflow,
+} from '@/lib/analytics/events'
+import { trackRedditLead } from '@/lib/analytics/reddit-events'
 
 interface ValueProp {
   id: number
@@ -23,8 +29,7 @@ const VALUE_PROPOSITIONS: ValueProp[] = [
   {
     id: 1,
     title: 'Achieve 34% Higher Settlements',
-    description:
-      'Based on 2023-2025 Claim Data.',
+    description: 'Based on 2023-2025 Claim Data.',
   },
   {
     id: 2,
@@ -40,8 +45,7 @@ const VALUE_PROPOSITIONS: ValueProp[] = [
   {
     id: 4,
     title: 'Gain Leverage Pre-Litigation',
-    description:
-      'Insurers Often Adjust Offers Upon Seeing Independent Evidence.',
+    description: 'Insurers Often Adjust Offers Upon Seeing Independent Evidence.',
   },
   {
     id: 5,
@@ -72,31 +76,20 @@ const VALUE_PROPOSITIONS: ValueProp[] = [
 export default function Testimonials() {
   const router = useRouter()
 
-  // Form state
-  const [email, setEmail] = useState('')
   const [vin, setVin] = useState('')
   const [mileage, setMileage] = useState('')
   const [zipCode, setZipCode] = useState('')
-
-  // UI state
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showVinTooltip, setShowVinTooltip] = useState(false)
 
-  // Validation functions
-  const validateEmail = (email: string): string | null => {
-    if (!email) return 'Email address is required'
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) return 'Please enter a valid email address'
-    const disposableDomains = [
-      'tempmail.com',
-      'guerrillamail.com',
-      '10minutemail.com',
-      'throwaway.email',
-    ]
-    const domain = email.split('@')[1]?.toLowerCase()
-    if (disposableDomains.includes(domain)) return 'Please use a permanent email address'
-    return null
+  const hasTrackedFormStart = useRef(false)
+
+  const trackFormStart = () => {
+    if (!hasTrackedFormStart.current) {
+      hasTrackedFormStart.current = true
+      trackReportWorkflow({ step: 'bottom_form_started' })
+    }
   }
 
   const validateVin = (vin: string): string | null => {
@@ -121,13 +114,8 @@ export default function Testimonials() {
     return null
   }
 
-  // Handle field changes
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value)
-    if (errors.email) setErrors(prev => ({ ...prev, email: '' }))
-  }
-
   const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
     if (value.length <= 17) {
       setVin(value)
@@ -136,25 +124,23 @@ export default function Testimonials() {
   }
 
   const handleMileageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.replace(/\D/g, '')
     setMileage(value)
     if (errors.mileage) setErrors(prev => ({ ...prev, mileage: '' }))
   }
 
   const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.replace(/\D/g, '').slice(0, 5)
     setZipCode(value)
     if (errors.zipCode) setErrors(prev => ({ ...prev, zipCode: '' }))
   }
 
-  // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const newErrors: Record<string, string> = {}
-
-    const emailError = validateEmail(email)
-    if (emailError) newErrors.email = emailError
 
     const vinError = validateVin(vin)
     if (vinError) newErrors.vin = vinError
@@ -167,56 +153,38 @@ export default function Testimonials() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      trackFormSubmission('bottom_vehicle_form', {
+        success: false,
+        error: 'validation_failed',
+        fields: Object.keys(newErrors),
+      })
       return
     }
 
     setLoading(true)
 
-    try {
-      const checkEmailResponse = await fetch('/api/reports/check-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
+    trackFormSubmission('bottom_vehicle_form', {
+      success: true,
+      fields: ['vin', 'mileage', 'zipCode'],
+    })
 
-      const checkEmailData = await checkEmailResponse.json()
+    trackVehicleSearch({
+      vin: sanitizeVin(vin),
+      searchMethod: 'vin',
+    })
 
-      if (checkEmailData.hasReports) {
-        const formData = {
-          email,
-          vin: sanitizeVin(vin),
-          mileage: parseInt(mileage),
-          zipCode,
-        }
-        sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
-        sessionStorage.setItem('existing_user_message', 'true')
+    trackReportWorkflow({ step: 'bottom_form_submitted' })
 
-        const returnUrl = `/pricing?email=${encodeURIComponent(email)}&vin=${encodeURIComponent(sanitizeVin(vin))}&mileage=${mileage}&zipCode=${zipCode}`
-        router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}&existingUser=true`)
-        return
-      }
+    trackRedditLead()
 
-      const formData = {
-        email,
-        vin: sanitizeVin(vin),
-        mileage: parseInt(mileage),
-        zipCode,
-      }
-      sessionStorage.setItem('hero_form_data', JSON.stringify(formData))
-
-      const params = new URLSearchParams({
-        email,
-        vin: sanitizeVin(vin),
-        mileage: mileage,
-        zipCode: zipCode,
-      })
-
-      router.push(`/pricing?${params.toString()}`)
-    } catch (error) {
-      console.error('[ValueProps] Form submission error:', error)
-      setErrors({ submit: 'An unexpected error occurred. Please try again.' })
-      setLoading(false)
+    const formData = {
+      vin: sanitizeVin(vin),
+      mileage: parseInt(mileage),
+      zipCode,
     }
+    localStorage.setItem('hero_form_data', JSON.stringify(formData))
+
+    router.push('/pricing')
   }
 
   return (
@@ -256,38 +224,20 @@ export default function Testimonials() {
               <p className="text-slate-600 mb-6">Start with your vehicle information</p>
 
               <form onSubmit={handleSubmit}>
-                {/* Email Field */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="cta-email"
-                    className="block text-sm font-semibold text-slate-700 mb-2"
-                  >
-                    Your Email Address
-                  </label>
-                  <input
-                    type="email"
-                    id="cta-email"
-                    value={email}
-                    onChange={handleEmailChange}
-                    placeholder="you@example.com"
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
-                      errors.email ? 'border-red-400' : 'border-slate-200'
-                    }`}
-                  />
-                  {errors.email && <p className="text-sm text-red-600 mt-1">{errors.email}</p>}
-                </div>
-
                 {/* VIN Field */}
                 <div className="mb-4 relative">
                   <div className="flex items-center justify-between mb-2">
                     <label htmlFor="cta-vin" className="block text-sm font-semibold text-slate-700">
-                      Vehicle Identification Number (VIN)
+                      VIN
                     </label>
                     <button
                       type="button"
                       onMouseEnter={() => setShowVinTooltip(true)}
                       onMouseLeave={() => setShowVinTooltip(false)}
+                      onFocus={() => setShowVinTooltip(true)}
+                      onBlur={() => setShowVinTooltip(false)}
                       className="text-slate-500 hover:text-slate-700"
+                      aria-label="VIN help"
                     >
                       <HelpCircle className="h-4 w-4" />
                     </button>
@@ -299,9 +249,10 @@ export default function Testimonials() {
                     onChange={handleVinChange}
                     maxLength={17}
                     placeholder="1HGCM82633A123456"
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm ${
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm text-slate-900 ${
                       errors.vin ? 'border-red-400' : 'border-slate-200'
                     }`}
+                    aria-required="true"
                   />
                   <p className="text-xs text-slate-500 mt-1">
                     17 characters, no spaces. {vin.length}/17
@@ -337,9 +288,10 @@ export default function Testimonials() {
                     min="0"
                     max="999999"
                     placeholder="e.g., 42000"
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-slate-900 ${
                       errors.mileage ? 'border-red-400' : 'border-slate-200'
                     }`}
+                    aria-required="true"
                   />
                   {errors.mileage && <p className="text-sm text-red-600 mt-1">{errors.mileage}</p>}
                 </div>
@@ -359,9 +311,10 @@ export default function Testimonials() {
                     onChange={handleZipCodeChange}
                     maxLength={5}
                     placeholder="e.g., 90210"
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm ${
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm text-slate-900 ${
                       errors.zipCode ? 'border-red-400' : 'border-slate-200'
                     }`}
+                    aria-required="true"
                   />
                   <p className="text-xs text-slate-500 mt-1">{zipCode.length}/5</p>
                   {errors.zipCode && <p className="text-sm text-red-600 mt-1">{errors.zipCode}</p>}
@@ -379,17 +332,13 @@ export default function Testimonials() {
                   type="submit"
                   size="lg"
                   className="w-full group"
-                  disabled={
-                    loading || !email || vin.length !== 17 || !mileage || zipCode.length !== 5
-                  }
+                  disabled={loading || vin.length !== 17 || !mileage || zipCode.length !== 5}
                 >
                   {loading ? 'Processing...' : 'Get My Independent Valuation'}
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
 
-                <p className="text-center text-xs text-slate-500 mt-4">
-                  Takes 60 seconds
-                </p>
+                <p className="text-center text-xs text-slate-500 mt-4">Takes 60 seconds</p>
               </form>
             </div>
           </div>
