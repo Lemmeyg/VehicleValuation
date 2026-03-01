@@ -15,6 +15,12 @@ import Testimonials from '@/components/Testimonials'
 import Footer from '@/components/Footer'
 import PasswordResetRedirect from '@/components/PasswordResetRedirect'
 
+export const metadata = {
+  alternates: {
+    canonical: 'https://www.totallosstoolkit.com',
+  },
+}
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50">
