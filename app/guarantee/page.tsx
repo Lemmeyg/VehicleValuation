@@ -1,5 +1,7 @@
+import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { Shield, CheckCircle2, ArrowRight } from 'lucide-react'
 import type { Metadata } from 'next'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
@@ -48,6 +50,61 @@ export default function MoneyBackGuaranteePage() {
                   <strong>Version:</strong> 1.0
                 </p>
               </div>
+            </div>
+
+            {/* Guarantee Hero Banner */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 mb-8 flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <Shield className="h-10 w-10 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-emerald-900 mb-1">
+                  90-Day Money-Back Guarantee
+                </h2>
+                <p className="text-emerald-800 leading-relaxed">
+                  If your settlement doesn&apos;t increase by more than the report cost, we&apos;ll
+                  refund you — no questions asked.
+                </p>
+              </div>
+            </div>
+
+            {/* At a Glance Summary Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
+              <h3 className="text-lg font-bold text-slate-900 mb-4">At a Glance</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-700">
+                    <strong>Refund if</strong> your settlement increase is less than or equal to the
+                    report cost
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-700">
+                    <strong>How to claim</strong> — submit via Contact Us with subject
+                    &quot;Money-Back Guarantee Claim&quot; within 90 days of purchase
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-700">
+                    <strong>Timeline</strong> — decision within 14 business days · refund issued in
+                    5–7 business days
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            {/* CTA Button */}
+            <div className="text-center mb-8">
+              <Link
+                href="/#hero-form"
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
+              >
+                Get Your Report — Risk Free
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
 
             <div className="prose prose-slate max-w-none">
