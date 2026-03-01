@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og'
-import { getArticleBySlugStatic } from '@/lib/knowledge-base-db'
+import { getArticleMetaBySlug } from '@/lib/knowledge-base-db'
 
 export const alt = 'Article Image'
 export const size = {
@@ -10,7 +10,7 @@ export const contentType = 'image/png'
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const article = await getArticleBySlugStatic(slug)
+  const article = await getArticleMetaBySlug(slug)
 
   const title = article?.title || 'Knowledge Base Article'
   const category = article?.category || 'Guide'

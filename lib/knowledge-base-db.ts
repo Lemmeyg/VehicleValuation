@@ -109,6 +109,32 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
 }
 
 /**
+ * Get article metadata only (no HTML conversion) — safe for Edge Runtime.
+ * Use this in opengraph-image routes which only need title/category.
+ */
+export async function getArticleMetaBySlug(
+  slug: string
+): Promise<Pick<Article, 'slug' | 'title' | 'category' | 'description'> | null> {
+  const { data: article, error } = await supabase
+    .from('articles')
+    .select('slug, title, category, description')
+    .eq('slug', slug)
+    .eq('published', true)
+    .single()
+
+  if (error || !article) {
+    return null
+  }
+
+  return {
+    slug: article.slug,
+    title: article.title,
+    category: article.category,
+    description: article.description,
+  }
+}
+
+/**
  * Search articles by keyword
  */
 export async function searchArticles(query: string): Promise<Article[]> {
@@ -124,7 +150,7 @@ export async function searchArticles(query: string): Promise<Article[]> {
   }
 
   // Transform results to Article interface
-  return results.map((result: any) => ({
+  return results.map((result: Record<string, unknown>) => ({
     slug: result.slug,
     title: result.title,
     description: result.description,
