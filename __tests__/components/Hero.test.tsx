@@ -21,7 +21,12 @@ jest.mock('@/lib/analytics/reddit-events', () => ({
 }))
 
 // Mock child components
-jest.mock('@/components/ReportPreviewCondensed', () => () => <div data-testid="report-preview" />)
+jest.mock('@/components/ReportPreviewCondensed', () => {
+  function MockReportPreviewCondensed() {
+    return <div data-testid="report-preview" />
+  }
+  return MockReportPreviewCondensed
+})
 
 describe('Hero', () => {
   it('does not show "no credit card required" text', () => {
