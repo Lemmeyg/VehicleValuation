@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
-import { getArticleMetaBySlug } from '@/lib/knowledge-base-db'
 
+export const runtime = 'edge'
 export const alt = 'Article Image'
 export const size = {
   width: 1200,
@@ -10,10 +10,28 @@ export const contentType = 'image/png'
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const article = await getArticleMetaBySlug(slug)
 
-  const title = article?.title || 'Knowledge Base Article'
-  const category = article?.category || 'Guide'
+  // Use raw fetch instead of Supabase JS client — keeps edge bundle under 1 MB
+  let title = 'Knowledge Base Article'
+  let category = 'Guide'
+  try {
+    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/articles?slug=eq.${slug}&published=eq.true&select=title,category&limit=1`
+    const res = await fetch(url, {
+      headers: {
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+      },
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data[0]) {
+        title = data[0].title || title
+        category = data[0].category || category
+      }
+    }
+  } catch {
+    // Fall back to defaults
+  }
 
   return new ImageResponse(
     <div
