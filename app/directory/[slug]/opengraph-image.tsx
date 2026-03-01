@@ -1,7 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { getSupplierBySlugStatic } from '@/lib/suppliers-db'
 
-export const runtime = 'edge'
 export const alt = 'Provider Profile'
 export const size = {
   width: 1200,

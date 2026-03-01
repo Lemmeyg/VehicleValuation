@@ -1,7 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { getArticleBySlugStatic } from '@/lib/knowledge-base-db'
 
-export const runtime = 'edge'
 export const alt = 'Article Image'
 export const size = {
   width: 1200,
