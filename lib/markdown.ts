@@ -6,6 +6,7 @@ import rehypeHighlight from 'rehype-highlight'
 import rehypeSlug from 'rehype-slug'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import rehypeStringify from 'rehype-stringify'
+import { preprocessMarkdown } from './markdown-preprocess'
 
 /**
  * Process special link formats in markdown:
@@ -27,8 +28,8 @@ function processSpecialLinks(markdown: string): string {
 }
 
 export async function markdownToHtml(markdown: string): Promise<string> {
-  // Process special link formats first
-  const processedMarkdown = processSpecialLinks(markdown)
+  // Strip frontmatter and KB creator artifacts, then process special links
+  const processedMarkdown = processSpecialLinks(preprocessMarkdown(markdown))
 
   const result = await unified()
     .use(remarkParse) // Parse markdown

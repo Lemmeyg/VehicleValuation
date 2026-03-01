@@ -408,7 +408,7 @@ export default function Hero() {
             {/* Submit Button Row */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <p className="text-sm text-slate-600">
-                Takes 60 seconds • No credit card required • Instant results
+                Takes 60 seconds • Instant results
               </p>
               <Button
                 type="submit"
