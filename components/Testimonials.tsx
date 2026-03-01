@@ -388,7 +388,7 @@ export default function Testimonials() {
                 </Button>
 
                 <p className="text-center text-xs text-slate-500 mt-4">
-                  Takes 60 seconds • No credit card required
+                  Takes 60 seconds
                 </p>
               </form>
             </div>
