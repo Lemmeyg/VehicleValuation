@@ -17,6 +17,7 @@ import {
   trackEvent,
 } from '@/lib/analytics/events'
 import { trackRedditViewContent, trackRedditAddToCart } from '@/lib/analytics/reddit-events'
+import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 
 const PRICING_TIERS = [
   {
@@ -195,7 +196,16 @@ function PricingContent() {
         vehicleMake: reportData.vehicle_data?.make,
         vehicleModel: reportData.vehicle_data?.model,
       })
-      trackReportWorkflow({ step: 'pricing_viewed', reportId: reportData.id })
+      const kbAttr = getKBAttribution()
+      trackReportWorkflow({
+        step: 'pricing_viewed',
+        reportId: reportData.id,
+        ...(kbAttr && {
+          kb_source_slug: kbAttr.slug,
+          kb_source_title: kbAttr.title,
+          kb_source_visited_at: kbAttr.visited_at,
+        }),
+      })
       trackRedditViewContent()
 
       setLoading(false)
@@ -216,7 +226,16 @@ function PricingContent() {
       if (response.ok) {
         setReport(data.report)
         // Track pricing page view for existing report
-        trackReportWorkflow({ step: 'pricing_viewed', reportId: id })
+        const kbAttr = getKBAttribution()
+        trackReportWorkflow({
+          step: 'pricing_viewed',
+          reportId: id,
+          ...(kbAttr && {
+            kb_source_slug: kbAttr.slug,
+            kb_source_title: kbAttr.title,
+            kb_source_visited_at: kbAttr.visited_at,
+          }),
+        })
         trackRedditViewContent()
       } else {
         setError(data.error || 'Failed to load report')
@@ -328,6 +347,7 @@ function PricingContent() {
     if (!report) return
 
     // Track checkout initiation before any processing
+    const kbAttrCheckout = getKBAttribution()
     trackCheckoutInitiated({
       reportId: report.id,
       plan: tier.id.toLowerCase() as 'basic' | 'premium',
@@ -335,6 +355,11 @@ function PricingContent() {
       isBetaMode:
         !process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID ||
         process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID.includes('your-'),
+      ...(kbAttrCheckout && {
+        kb_source_slug: kbAttrCheckout.slug,
+        kb_source_title: kbAttrCheckout.title,
+        kb_source_visited_at: kbAttrCheckout.visited_at,
+      }),
     })
 
     // Track plan selection
@@ -442,12 +467,18 @@ function PricingContent() {
     setProcessingPayment(true)
 
     // Track payment initiation
+    const kbAttrPayment = getKBAttribution()
     trackPaymentInitiated({
       plan: tier.id.toLowerCase() as 'basic' | 'premium',
       amount: tier.price,
       currency: 'USD',
       paymentProcessor: 'lemonsqueezy',
       variantId: tier.variantId,
+      ...(kbAttrPayment && {
+        kb_source_slug: kbAttrPayment.slug,
+        kb_source_title: kbAttrPayment.title,
+        kb_source_visited_at: kbAttrPayment.visited_at,
+      }),
     })
 
     try {
