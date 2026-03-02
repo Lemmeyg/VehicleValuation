@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { trackArticleView } from '@/lib/analytics/events'
+import { setKBAttribution } from '@/lib/analytics/kb-attribution'
 
 interface ArticlePageTrackerProps {
   slug: string
@@ -17,6 +18,7 @@ export function ArticlePageTracker({ slug, title, category }: ArticlePageTracker
       articleCategory: category,
       source: 'direct',
     })
+    setKBAttribution(slug, title)
   }, [slug, title, category])
 
   return null
