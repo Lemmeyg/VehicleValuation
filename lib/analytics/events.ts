@@ -74,6 +74,9 @@ export type ReportWorkflowEvent = {
   vehicleYear?: number
   vehicleMake?: string
   vehicleModel?: string
+  kb_source_slug?: string
+  kb_source_title?: string
+  kb_source_visited_at?: string
 }
 
 export type CheckoutEvent = {
@@ -81,6 +84,9 @@ export type CheckoutEvent = {
   plan: 'basic' | 'premium'
   price: number
   isBetaMode?: boolean
+  kb_source_slug?: string
+  kb_source_title?: string
+  kb_source_visited_at?: string
 }
 
 // ============================================

@@ -18,6 +18,7 @@ import {
   trackReportWorkflow,
 } from '@/lib/analytics/events'
 import { trackRedditLead } from '@/lib/analytics/reddit-events'
+import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 
 interface ValueProp {
   id: number
@@ -173,7 +174,15 @@ export default function Testimonials() {
       searchMethod: 'vin',
     })
 
-    trackReportWorkflow({ step: 'bottom_form_submitted' })
+    const kbAttr = getKBAttribution()
+    trackReportWorkflow({
+      step: 'bottom_form_submitted',
+      ...(kbAttr && {
+        kb_source_slug: kbAttr.slug,
+        kb_source_title: kbAttr.title,
+        kb_source_visited_at: kbAttr.visited_at,
+      }),
+    })
 
     trackRedditLead()
 

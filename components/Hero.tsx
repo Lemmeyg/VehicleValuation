@@ -12,6 +12,7 @@ import {
   trackFormSubmission,
   trackReportWorkflow,
 } from '@/lib/analytics/events'
+import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import { trackRedditLead } from '@/lib/analytics/reddit-events'
 
 export default function Hero() {
@@ -135,8 +136,16 @@ export default function Hero() {
       searchMethod: 'vin',
     })
 
-    // Track report workflow step
-    trackReportWorkflow({ step: 'hero_form_submitted' })
+    // Track report workflow step, enriched with KB last-touch attribution if present
+    const kbAttr = getKBAttribution()
+    trackReportWorkflow({
+      step: 'hero_form_submitted',
+      ...(kbAttr && {
+        kb_source_slug: kbAttr.slug,
+        kb_source_title: kbAttr.title,
+        kb_source_visited_at: kbAttr.visited_at,
+      }),
+    })
 
     // Reddit Pixel: track as Lead conversion
     trackRedditLead()
@@ -407,9 +416,7 @@ export default function Hero() {
 
             {/* Submit Button Row */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <p className="text-sm text-slate-600">
-                Takes 60 seconds • Instant results
-              </p>
+              <p className="text-sm text-slate-600">Takes 60 seconds • Instant results</p>
               <Button
                 type="submit"
                 size="lg"
