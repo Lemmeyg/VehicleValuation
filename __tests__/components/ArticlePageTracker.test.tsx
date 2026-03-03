@@ -89,7 +89,7 @@ describe('ArticlePageTracker', () => {
     })
 
     const scrollCalls = mockTrackEvent.mock.calls.filter(
-      ([event]) => event === 'kb_article_scrolled'
+      ([event]: [string]) => event === 'kb_article_scrolled'
     )
     expect(scrollCalls).toHaveLength(1)
   })
