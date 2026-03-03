@@ -10,6 +10,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
+import { trackEvent } from '@/lib/analytics/events'
+import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 
 export default function NewReportPage() {
   const router = useRouter()
@@ -81,6 +83,16 @@ export default function NewReportPage() {
         }
         return
       }
+
+      // Track VIN form submission with KB attribution if present
+      const kbAttr = getKBAttribution()
+      trackEvent('kb_vin_form_submitted', {
+        ...(kbAttr && {
+          kb_source_slug: kbAttr.slug,
+          kb_source_title: kbAttr.title,
+          kb_source_visited_at: kbAttr.visited_at,
+        }),
+      })
 
       // Success! Redirect to pricing page to select report tier
       router.push(`/pricing?reportId=${data.report.id}`)
@@ -166,7 +178,10 @@ export default function NewReportPage() {
 
               {/* Mileage Input */}
               <div>
-                <label htmlFor="mileage" className="block text-sm font-semibold text-slate-700 mb-2">
+                <label
+                  htmlFor="mileage"
+                  className="block text-sm font-semibold text-slate-700 mb-2"
+                >
                   Current Mileage
                 </label>
                 <div className="mt-1">
@@ -191,7 +206,10 @@ export default function NewReportPage() {
 
               {/* ZIP Code Input */}
               <div>
-                <label htmlFor="zipCode" className="block text-sm font-semibold text-slate-700 mb-2">
+                <label
+                  htmlFor="zipCode"
+                  className="block text-sm font-semibold text-slate-700 mb-2"
+                >
                   ZIP Code
                 </label>
                 <div className="mt-1">
@@ -200,9 +218,7 @@ export default function NewReportPage() {
                     id="zipCode"
                     name="zipCode"
                     value={zipCode}
-                    onChange={e =>
-                      setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))
-                    }
+                    onChange={e => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
                     maxLength={5}
                     placeholder="e.g., 90210"
                     className="appearance-none block w-full px-4 py-3 border-2 border-slate-200 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base font-mono transition-all"
