@@ -5,8 +5,42 @@
  */
 
 import React from 'react'
-import { Document, Page, Text, View, StyleSheet, Link } from '@react-pdf/renderer'
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  Link,
+  Image,
+  Svg,
+  Rect,
+  Line,
+  Circle,
+  Path,
+} from '@react-pdf/renderer'
 import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
+import {
+  createPriceDistribution,
+  findClosestBin,
+  getBinColor,
+  getScatterColor,
+  getMileageExtent,
+  getPriceExtent,
+  generateTicks,
+} from '@/lib/utils/chart-data'
+
+// @react-pdf/renderer's Text component works as SVG text inside <Svg> context,
+// but TypeScript types don't expose SVG attributes on the layout Text type.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const SvgText = Text as React.ComponentType<any>
+
+// Shared chart canvas dimensions (in PDF points)
+const CHART_W = 230
+const CHART_H = 160
+const CM = { top: 18, right: 8, bottom: 32, left: 28 } // chart margins
+const PLOT_W = CHART_W - CM.left - CM.right // 194
+const PLOT_H = CHART_H - CM.top - CM.bottom // 110
 
 const styles = StyleSheet.create({
   page: {
@@ -261,9 +295,20 @@ const styles = StyleSheet.create({
     borderBottom: '1 solid #f1f5f9',
     alignItems: 'flex-start',
   },
-  colVehicle: { width: '38%', paddingRight: 6 },
-  colMileage: { width: '14%', paddingRight: 4 },
-  colPrice: { width: '15%', paddingRight: 4 },
+  colPhoto: { width: '16%', paddingRight: 4 },
+  vehiclePhoto: { width: 55, height: 38, borderRadius: 2 },
+  vehiclePhotoPlaceholder: {
+    width: 55,
+    height: 38,
+    borderRadius: 2,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vehiclePhotoPlaceholderText: { fontSize: 6, color: '#94a3b8' },
+  colVehicle: { width: '25%', paddingRight: 6 },
+  colMileage: { width: '12%', paddingRight: 4 },
+  colPrice: { width: '14%', paddingRight: 4 },
   colDays: { width: '13%', paddingRight: 4 },
   colDealer: { width: '20%' },
   tableHeaderText: {
@@ -356,6 +401,48 @@ const styles = StyleSheet.create({
     lineHeight: 1.4,
   },
 
+  // ── CHARTS ───────────────────────────────────────────────────
+  chartsRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  chartHalf: {
+    flex: 1,
+    marginRight: 4,
+  },
+  chartHalfLast: {
+    marginRight: 0,
+  },
+  chartTitle: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  chartLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+    marginBottom: 2,
+  },
+  legendDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3,
+    marginRight: 3,
+  },
+  legendText: {
+    fontSize: 6,
+    color: '#64748b',
+  },
+
   // ── DISCLAIMER ───────────────────────────────────────────────
   disclaimerText: {
     fontSize: 7,
@@ -375,6 +462,320 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
   },
 })
+
+function PriceDistributionChart({
+  listings,
+  estimatedValue,
+  lowRange,
+  highRange,
+}: {
+  listings: Array<{ price: number }>
+  estimatedValue: number
+  lowRange: number
+  highRange: number
+}) {
+  const bins = createPriceDistribution(listings, lowRange, highRange)
+
+  if (bins.length === 0) {
+    return (
+      <Svg width={CHART_W} height={CHART_H}>
+        <SvgText x={CHART_W / 2} y={CHART_H / 2} textAnchor="middle" fontSize={8} fill="#94a3b8">
+          No data
+        </SvgText>
+      </Svg>
+    )
+  }
+
+  const maxCount = Math.max(...bins.map(b => b.count), 1)
+  const barW = PLOT_W / bins.length
+  const closestRange = findClosestBin(bins, estimatedValue)
+  const closestIdx = bins.findIndex(b => b.range === closestRange)
+  const yTicks = generateTicks(0, maxCount, 3)
+
+  return (
+    <Svg width={CHART_W} height={CHART_H}>
+      {/* Horizontal grid lines */}
+      {yTicks.map((tick, i) => {
+        const y = CM.top + PLOT_H - (tick / maxCount) * PLOT_H
+        return (
+          <Line
+            key={`grid-${i}`}
+            x1={CM.left}
+            y1={y}
+            x2={CM.left + PLOT_W}
+            y2={y}
+            stroke="#e2e8f0"
+            strokeWidth={0.5}
+            strokeDasharray="3,3"
+          />
+        )
+      })}
+
+      {/* Bars */}
+      {bins.map((bin, i) => {
+        const barH = Math.max((bin.count / maxCount) * PLOT_H, 0.5)
+        const x = CM.left + i * barW + 1
+        const y = CM.top + PLOT_H - barH
+        const color = getBinColor(bin.midpoint, estimatedValue, lowRange, highRange)
+        return <Rect key={`bar-${i}`} x={x} y={y} width={barW - 2} height={barH} fill={color} />
+      })}
+
+      {/* "Your Vehicle" reference line */}
+      {closestIdx >= 0 && (
+        <>
+          <Line
+            x1={CM.left + closestIdx * barW + barW / 2}
+            y1={CM.top}
+            x2={CM.left + closestIdx * barW + barW / 2}
+            y2={CM.top + PLOT_H}
+            stroke="#10b981"
+            strokeWidth={1.5}
+            strokeDasharray="4,3"
+          />
+          <SvgText
+            x={CM.left + closestIdx * barW + barW / 2}
+            y={CM.top - 4}
+            textAnchor="middle"
+            fontSize={6}
+            fill="#10b981"
+          >
+            Your Vehicle
+          </SvgText>
+        </>
+      )}
+
+      {/* X axis line */}
+      <Line
+        x1={CM.left}
+        y1={CM.top + PLOT_H}
+        x2={CM.left + PLOT_W}
+        y2={CM.top + PLOT_H}
+        stroke="#94a3b8"
+        strokeWidth={0.5}
+      />
+
+      {/* X axis labels — every other bin to avoid crowding */}
+      {bins.map((bin, i) => {
+        if (i % 2 !== 0) return null
+        return (
+          <SvgText
+            key={`xlabel-${i}`}
+            x={CM.left + i * barW + barW / 2}
+            y={CM.top + PLOT_H + 9}
+            textAnchor="middle"
+            fontSize={5}
+            fill="#64748b"
+          >
+            {bin.range}
+          </SvgText>
+        )
+      })}
+
+      {/* Y axis line */}
+      <Line
+        x1={CM.left}
+        y1={CM.top}
+        x2={CM.left}
+        y2={CM.top + PLOT_H}
+        stroke="#94a3b8"
+        strokeWidth={0.5}
+      />
+
+      {/* Y axis tick labels */}
+      {yTicks.map((tick, i) => {
+        const y = CM.top + PLOT_H - (tick / maxCount) * PLOT_H
+        return (
+          <SvgText
+            key={`ylabel-${i}`}
+            x={CM.left - 3}
+            y={y + 2}
+            textAnchor="end"
+            fontSize={6}
+            fill="#64748b"
+          >
+            {tick}
+          </SvgText>
+        )
+      })}
+
+      {/* X axis label */}
+      <SvgText
+        x={CM.left + PLOT_W / 2}
+        y={CHART_H - 4}
+        textAnchor="middle"
+        fontSize={6}
+        fill="#475569"
+      >
+        Price Range
+      </SvgText>
+    </Svg>
+  )
+}
+
+function PriceVsMileageChart({
+  listings,
+  displayedComparables,
+  estimatedValue,
+  lowRange,
+  highRange,
+  subjectMileage,
+}: {
+  listings: Array<{ price: number; miles?: number; mileage?: number }>
+  displayedComparables: Array<{ price: number; miles?: number; mileage?: number }>
+  estimatedValue: number
+  lowRange: number
+  highRange: number
+  subjectMileage: number
+}) {
+  const toMiles = (l: { miles?: number; mileage?: number }) => l.miles || l.mileage || 0
+
+  const displayedSet = new Set(displayedComparables.map(c => `${c.price}-${toMiles(c)}`))
+
+  const scatterData = listings.map(l => ({
+    mileage: toMiles(l),
+    price: l.price,
+    isDisplayed: displayedSet.has(`${l.price}-${toMiles(l)}`),
+  }))
+
+  const subjectPoint = { mileage: subjectMileage, price: estimatedValue }
+  const allPoints = [...scatterData, subjectPoint]
+
+  const [mileMin, mileMax] = getMileageExtent(allPoints)
+  const [priceMin, priceMax] = getPriceExtent(allPoints)
+
+  const avgMileage =
+    scatterData.length > 0
+      ? scatterData.reduce((sum, d) => sum + d.mileage, 0) / scatterData.length
+      : subjectMileage
+
+  const toX = (m: number) => CM.left + ((m - mileMin) / Math.max(mileMax - mileMin, 1)) * PLOT_W
+  const toY = (p: number) =>
+    CM.top + PLOT_H - ((p - priceMin) / Math.max(priceMax - priceMin, 1)) * PLOT_H
+
+  const mileageTicks = generateTicks(mileMin, mileMax, 5)
+  const priceTicks = generateTicks(priceMin, priceMax, 4)
+  const avgX = toX(avgMileage)
+
+  return (
+    <Svg width={CHART_W} height={CHART_H}>
+      {/* Horizontal grid lines */}
+      {priceTicks.map((tick, i) => {
+        const y = toY(tick)
+        return (
+          <Line
+            key={`pgrid-${i}`}
+            x1={CM.left}
+            y1={y}
+            x2={CM.left + PLOT_W}
+            y2={y}
+            stroke="#e2e8f0"
+            strokeWidth={0.5}
+            strokeDasharray="3,3"
+          />
+        )
+      })}
+
+      {/* Average mileage reference line */}
+      <Line
+        x1={avgX}
+        y1={CM.top}
+        x2={avgX}
+        y2={CM.top + PLOT_H}
+        stroke="#10b981"
+        strokeWidth={1.5}
+        strokeDasharray="4,3"
+      />
+      <SvgText x={avgX} y={CM.top - 4} textAnchor="middle" fontSize={6} fill="#10b981">
+        Avg {(avgMileage / 1000).toFixed(0)}k mi
+      </SvgText>
+
+      {/* Scatter dots — comparables */}
+      {scatterData.map((d, i) => {
+        const color = getScatterColor(d.price, estimatedValue, lowRange, highRange, d.isDisplayed)
+        return (
+          <Circle
+            key={`dot-${i}`}
+            cx={toX(d.mileage)}
+            cy={toY(d.price)}
+            r={3}
+            fill={color}
+            opacity={0.85}
+          />
+        )
+      })}
+
+      {/* Subject vehicle — amber diamond */}
+      {(() => {
+        const cx = toX(subjectPoint.mileage)
+        const cy = toY(subjectPoint.price)
+        const s = 5
+        return (
+          <Path
+            d={`M ${cx} ${cy - s} L ${cx + s} ${cy} L ${cx} ${cy + s} L ${cx - s} ${cy} Z`}
+            fill="#fbbf24"
+          />
+        )
+      })()}
+
+      {/* Axes */}
+      <Line
+        x1={CM.left}
+        y1={CM.top}
+        x2={CM.left}
+        y2={CM.top + PLOT_H}
+        stroke="#94a3b8"
+        strokeWidth={0.5}
+      />
+      <Line
+        x1={CM.left}
+        y1={CM.top + PLOT_H}
+        x2={CM.left + PLOT_W}
+        y2={CM.top + PLOT_H}
+        stroke="#94a3b8"
+        strokeWidth={0.5}
+      />
+
+      {/* X axis tick labels */}
+      {mileageTicks.map((tick, i) => (
+        <SvgText
+          key={`xtick-${i}`}
+          x={toX(tick)}
+          y={CM.top + PLOT_H + 9}
+          textAnchor="middle"
+          fontSize={5}
+          fill="#64748b"
+        >
+          {(tick / 1000).toFixed(0)}k
+        </SvgText>
+      ))}
+
+      {/* Y axis tick labels */}
+      {priceTicks.map((tick, i) => (
+        <SvgText
+          key={`ytick-${i}`}
+          x={CM.left - 3}
+          y={toY(tick) + 2}
+          textAnchor="end"
+          fontSize={6}
+          fill="#64748b"
+        >
+          ${(tick / 1000).toFixed(0)}k
+        </SvgText>
+      ))}
+
+      {/* X axis label */}
+      <SvgText
+        x={CM.left + PLOT_W / 2}
+        y={CHART_H - 4}
+        textAnchor="middle"
+        fontSize={6}
+        fill="#475569"
+      >
+        Mileage
+      </SvgText>
+    </Svg>
+  )
+}
 
 // Auto.dev VIN Decode Data
 interface AutoDevVinData {
@@ -611,37 +1012,88 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
           </Text>
 
           {allListings.length > 0 && (
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>TOTAL ANALYZED</Text>
-                <Text style={styles.statValue}>{allListings.length}</Text>
+            <>
+              {/* Stats row */}
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statLabel}>TOTAL ANALYZED</Text>
+                  <Text style={styles.statValue}>{allListings.length}</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statLabel}>AVG PRICE</Text>
+                  <Text style={styles.statValue}>{formatCurrency(Math.round(stats.avgPrice))}</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statLabel}>LOWEST</Text>
+                  <Text style={styles.statValue}>{formatCurrency(stats.minPrice)}</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statLabel}>HIGHEST</Text>
+                  <Text style={styles.statValue}>{formatCurrency(stats.maxPrice)}</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statLabel}>FRANCHISE</Text>
+                  <Text style={styles.statValue}>{stats.franchiseCount}</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statLabel}>INDEPENDENT</Text>
+                  <Text style={styles.statValue}>{stats.independentCount}</Text>
+                </View>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>AVG PRICE</Text>
-                <Text style={styles.statValue}>{formatCurrency(Math.round(stats.avgPrice))}</Text>
+
+              {/* SVG Charts side by side */}
+              <View style={styles.chartsRow}>
+                <View style={styles.chartHalf}>
+                  <Text style={styles.chartTitle}>Price Distribution</Text>
+                  <PriceDistributionChart
+                    listings={allListings}
+                    estimatedValue={estimatedValue}
+                    lowRange={lowRange}
+                    highRange={highRange}
+                  />
+                </View>
+                <View style={[styles.chartHalf, styles.chartHalfLast]}>
+                  <Text style={styles.chartTitle}>Price vs. Mileage</Text>
+                  <PriceVsMileageChart
+                    listings={allListings}
+                    displayedComparables={displayedComparables}
+                    estimatedValue={estimatedValue}
+                    lowRange={lowRange}
+                    highRange={highRange}
+                    subjectMileage={data.mileage || 0}
+                  />
+                </View>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>LOWEST</Text>
-                <Text style={styles.statValue}>{formatCurrency(stats.minPrice)}</Text>
+
+              {/* Shared chart legend */}
+              <View style={styles.chartLegend}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#94a3b8' }]} />
+                  <Text style={styles.legendText}>Below Market</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
+                  <Text style={styles.legendText}>Market Range</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#3b82f6' }]} />
+                  <Text style={styles.legendText}>Above Market</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#fbbf24' }]} />
+                  <Text style={styles.legendText}>Your Vehicle</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#f97316' }]} />
+                  <Text style={styles.legendText}>In Comparables</Text>
+                </View>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>HIGHEST</Text>
-                <Text style={styles.statValue}>{formatCurrency(stats.maxPrice)}</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>FRANCHISE</Text>
-                <Text style={styles.statValue}>{stats.franchiseCount}</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>INDEPENDENT</Text>
-                <Text style={styles.statValue}>{stats.independentCount}</Text>
-              </View>
-            </View>
+            </>
           )}
 
-          <Text style={styles.chartsNote}>
-            Interactive price distribution charts are available in the online report view
-          </Text>
+          {allListings.length === 0 && (
+            <Text style={styles.chartsNote}>No comparable listings available for analysis</Text>
+          )}
 
           <View style={styles.valueBoxesRow}>
             <View style={styles.valueBoxLow}>
@@ -679,6 +1131,9 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
 
             {/* Table Header */}
             <View style={styles.tableHeader}>
+              <View style={styles.colPhoto}>
+                <Text style={styles.tableHeaderText}>PHOTO</Text>
+              </View>
               <View style={styles.colVehicle}>
                 <Text style={styles.tableHeaderText}>VEHICLE DETAILS</Text>
               </View>
@@ -703,6 +1158,15 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
               const compDays = comp.dos_active ?? comp.dom_180 ?? comp.dom
               return (
                 <View key={idx} style={styles.tableRow} wrap={false}>
+                  <View style={styles.colPhoto}>
+                    {comp.photo_url ? (
+                      <Image src={comp.photo_url as string} style={styles.vehiclePhoto} />
+                    ) : (
+                      <View style={styles.vehiclePhotoPlaceholder}>
+                        <Text style={styles.vehiclePhotoPlaceholderText}>No Photo</Text>
+                      </View>
+                    )}
+                  </View>
                   <View style={styles.colVehicle}>
                     <Text style={styles.vehicleNameText}>
                       {comp.year} {comp.make} {comp.model}
