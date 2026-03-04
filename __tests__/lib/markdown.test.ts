@@ -78,3 +78,90 @@ No frontmatter here, just regular markdown.`
     expect(result).toContain('No frontmatter here')
   })
 })
+
+import { transformHeroFormLinks } from '../../lib/markdown-transform'
+
+describe('transformHeroFormLinks', () => {
+  const HERO_URL = 'https://totallosstoolkit.com/#hero-form'
+
+  it('replaces first standalone /#hero-form paragraph with callout box', () => {
+    const html = `<p>Some content before.</p>
+<p><a href="${HERO_URL}">Check your vehicle value</a></p>
+<p>Some content after.</p>`
+
+    const result = transformHeroFormLinks(html)
+
+    expect(result).toContain('class="hero-form-callout"')
+    expect(result).toContain('hero-form-callout__btn')
+    expect(result).toContain('Check your vehicle value')
+    expect(result).not.toMatch(/<p><a href="[^"]*#hero-form"/)
+    expect(result).toContain('<p>Some content before.</p>')
+    expect(result).toContain('<p>Some content after.</p>')
+  })
+
+  it('replaces second standalone /#hero-form paragraph with callout box', () => {
+    const html = `<p><a href="${HERO_URL}">First link</a></p>
+<p>Middle paragraph.</p>
+<p><a href="${HERO_URL}">Second link</a></p>`
+
+    const result = transformHeroFormLinks(html)
+    const calloutCount = (result.match(/class="hero-form-callout"/g) || []).length
+
+    expect(calloutCount).toBe(2)
+    expect(result).toContain('First link')
+    expect(result).toContain('Second link')
+  })
+
+  it('turns 3rd standalone /#hero-form paragraph into inline styled link', () => {
+    const html = `<p><a href="${HERO_URL}">First</a></p>
+<p><a href="${HERO_URL}">Second</a></p>
+<p><a href="${HERO_URL}">Third</a></p>`
+
+    const result = transformHeroFormLinks(html)
+    const calloutCount = (result.match(/class="hero-form-callout"/g) || []).length
+
+    expect(calloutCount).toBe(2)
+    expect(result).toContain('hero-form-cta-inline')
+    expect(result).toContain('Third')
+  })
+
+  it('adds hero-form-cta-inline class to inline (non-standalone) /#hero-form links', () => {
+    const html = `<p>To check your value, <a href="${HERO_URL}">use our tool</a> now.</p>`
+
+    const result = transformHeroFormLinks(html)
+
+    expect(result).not.toContain('class="hero-form-callout"')
+    expect(result).toContain('hero-form-cta-inline')
+    expect(result).toContain('use our tool')
+    // Surrounding text preserved
+    expect(result).toContain('To check your value,')
+    expect(result).toContain('now.')
+  })
+
+  it('does not modify articles with no /#hero-form links', () => {
+    const html = `<p>Some content.</p>
+<p><a href="https://totallosstoolkit.com/directory">Find an expert</a></p>`
+
+    const result = transformHeroFormLinks(html)
+
+    expect(result).toBe(html)
+  })
+
+  it('does not modify non-hero-form anchor tags', () => {
+    const html = `<p><a href="https://totallosstoolkit.com/knowledge-base/some-article">Read more</a></p>`
+
+    const result = transformHeroFormLinks(html)
+
+    expect(result).toBe(html)
+  })
+
+  it('callout box contains fixed heading and body text', () => {
+    const html = `<p><a href="${HERO_URL}">Get valuation</a></p>`
+
+    const result = transformHeroFormLinks(html)
+
+    expect(result).toContain('hero-form-callout__title')
+    expect(result).toContain('hero-form-callout__body')
+    expect(result).toContain('Check Your Vehicle')
+  })
+})
