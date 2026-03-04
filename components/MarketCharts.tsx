@@ -14,6 +14,14 @@ import {
   ReferenceLine,
   Label,
 } from 'recharts'
+import {
+  createPriceDistribution,
+  findClosestBin,
+  getBinColor,
+  getScatterColor,
+  getMileageExtent,
+  getPriceExtent,
+} from '@/lib/utils/chart-data'
 
 interface MarketChartsProps {
   listings: Array<{
@@ -43,7 +51,14 @@ interface MarketChartsProps {
   }
 }
 
-export function MarketCharts({ listings, displayedComparables, estimatedValue, lowRange, highRange, subjectVehicle }: MarketChartsProps) {
+export function MarketCharts({
+  listings,
+  displayedComparables,
+  estimatedValue,
+  lowRange,
+  highRange,
+  subjectVehicle,
+}: MarketChartsProps) {
   // Prepare data for price distribution histogram
   const priceDistribution = createPriceDistribution(listings, lowRange, highRange)
 
@@ -86,9 +101,7 @@ export function MarketCharts({ listings, displayedComparables, estimatedValue, l
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* Price Distribution Histogram */}
       <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">
-          Price Distribution
-        </h3>
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Price Distribution</h3>
         <p className="text-sm text-slate-600 mb-4">
           Distribution of {listings.length} comparable vehicle prices
         </p>
@@ -164,9 +177,7 @@ export function MarketCharts({ listings, displayedComparables, estimatedValue, l
 
       {/* Price vs Mileage Scatter Plot */}
       <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">
-          Price vs. Mileage Analysis
-        </h3>
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Price vs. Mileage Analysis</h3>
         <p className="text-sm text-slate-600 mb-4">
           Relationship between mileage and pricing for comparable vehicles
         </p>
@@ -178,7 +189,7 @@ export function MarketCharts({ listings, displayedComparables, estimatedValue, l
               dataKey="mileage"
               domain={mileageExtent}
               tick={{ fontSize: 12, fill: '#64748b' }}
-              tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+              tickFormatter={value => `${(value / 1000).toFixed(0)}k`}
               label={{
                 value: 'Mileage (miles)',
                 position: 'insideBottom',
@@ -191,7 +202,7 @@ export function MarketCharts({ listings, displayedComparables, estimatedValue, l
               dataKey="price"
               domain={priceExtent}
               tick={{ fontSize: 12, fill: '#64748b' }}
-              tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+              tickFormatter={value => `$${(value / 1000).toFixed(0)}k`}
               label={{
                 value: 'Price',
                 angle: -90,
@@ -239,16 +250,18 @@ export function MarketCharts({ listings, displayedComparables, estimatedValue, l
               {scatterData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill={getScatterColor(entry.price, estimatedValue, lowRange, highRange, entry.isDisplayed)}
+                  fill={getScatterColor(
+                    entry.price,
+                    estimatedValue,
+                    lowRange,
+                    highRange,
+                    entry.isDisplayed
+                  )}
                 />
               ))}
             </Scatter>
             {/* Subject vehicle - larger yellow dot */}
-            <Scatter
-              data={[subjectVehicleData]}
-              fill="#fbbf24"
-              shape="diamond"
-            />
+            <Scatter data={[subjectVehicleData]} fill="#fbbf24" shape="diamond" />
           </ScatterChart>
         </ResponsiveContainer>
         <div className="mt-4 flex items-center justify-center gap-4 text-xs flex-wrap">
@@ -276,123 +289,4 @@ export function MarketCharts({ listings, displayedComparables, estimatedValue, l
       </div>
     </div>
   )
-}
-
-// Helper function to create price distribution bins
-function createPriceDistribution(
-  listings: Array<{ price: number }>,
-  lowRange: number,
-  highRange: number
-) {
-  if (listings.length === 0) {
-    return []
-  }
-
-  // Calculate bin width (divide range into 10 bins)
-  const minPrice = Math.min(...listings.map(l => l.price), lowRange)
-  const maxPrice = Math.max(...listings.map(l => l.price), highRange)
-  const range = maxPrice - minPrice
-  const binWidth = range / 10
-  const bins: { range: string; count: number; midpoint: number }[] = []
-
-  // Create bins
-  for (let i = 0; i < 10; i++) {
-    const binStart = minPrice + i * binWidth
-    const binEnd = minPrice + (i + 1) * binWidth
-    const count = listings.filter(l => l.price >= binStart && l.price < binEnd).length
-
-    // Format range label
-    const rangeLabel = `$${(binStart / 1000).toFixed(0)}-${(binEnd / 1000).toFixed(0)}k`
-
-    bins.push({
-      range: rangeLabel,
-      count,
-      midpoint: (binStart + binEnd) / 2,
-    })
-  }
-
-  return bins
-}
-
-// Helper function to find the closest bin for a value
-function findClosestBin(
-  bins: Array<{ range: string; midpoint: number }>,
-  value: number
-): string {
-  if (bins.length === 0) return ''
-
-  let closestBin = bins[0]
-  let minDiff = Math.abs(bins[0].midpoint - value)
-
-  for (const bin of bins) {
-    const diff = Math.abs(bin.midpoint - value)
-    if (diff < minDiff) {
-      minDiff = diff
-      closestBin = bin
-    }
-  }
-
-  return closestBin.range
-}
-
-// Helper function to determine bin color based on market range
-function getBinColor(
-  binMidpoint: number,
-  estimatedValue: number,
-  lowRange: number,
-  highRange: number
-): string {
-  if (binMidpoint >= lowRange && binMidpoint <= highRange) {
-    return '#10b981' // Emerald - within market range
-  } else if (binMidpoint < lowRange) {
-    return '#94a3b8' // Slate - below market
-  } else {
-    return '#3b82f6' // Blue - above market
-  }
-}
-
-// Helper function to determine scatter point color
-function getScatterColor(
-  price: number,
-  estimatedValue: number,
-  lowRange: number,
-  highRange: number,
-  isDisplayed: boolean
-): string {
-  // Displayed comparables get a distinct orange color
-  if (isDisplayed) {
-    return '#f97316' // Orange - displayed in Market Comparables
-  }
-
-  if (price >= lowRange && price <= highRange) {
-    return '#10b981' // Emerald - within market range
-  } else if (price < lowRange) {
-    return '#94a3b8' // Slate - below market
-  } else {
-    return '#3b82f6' // Blue - above market
-  }
-}
-
-// Helper function to calculate mileage extent with padding
-function getMileageExtent(data: Array<{ mileage: number }>): [number, number] {
-  if (data.length === 0) return [0, 100000]
-
-  const mileages = data.map(d => d.mileage)
-  const min = Math.min(...mileages)
-  const max = Math.max(...mileages)
-  const padding = (max - min) * 0.1 // 10% padding
-
-  return [Math.max(0, min - padding), max + padding]
-}
-
-// Helper function to calculate price extent with padding
-function getPriceExtent(data: Array<{ price: number }>): [number, number] {
-  if (data.length === 0) return [0, 50000]
-
-  const prices = data.map(d => d.price)
-  const min = Math.min(...prices)
-  const max = Math.max(...prices)
-  const padding = (max - min) * 0.1 // 10% padding
-
-  return [Math.max(0, min - padding), max + padding]
 }
