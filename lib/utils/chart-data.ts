@@ -117,7 +117,7 @@ export function getPriceExtent(data: Array<{ price: number }>): [number, number]
  * Generates `count` evenly-spaced tick values between min and max (inclusive).
  */
 export function generateTicks(min: number, max: number, count: number): number[] {
-  if (max === min) return [min]
+  if (count <= 1 || max === min) return [min]
   const step = (max - min) / (count - 1)
   return Array.from({ length: count }, (_, i) => Math.round(min + i * step))
 }
