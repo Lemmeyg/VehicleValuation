@@ -261,6 +261,66 @@ body {
   margin-bottom: 3em;
 }
 
+/* Hero-form CTA callout box (rendered from standalone /#hero-form links in KB articles) */
+.prose .hero-form-callout {
+  background-color: #059669;
+  border-radius: 1rem;
+  padding: 2rem;
+  text-align: center;
+  margin: 2em 0;
+}
+
+.prose .hero-form-callout__title {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.2em;
+  margin: 0;
+}
+
+.prose .hero-form-callout__body {
+  color: #d1fae5;
+  font-size: 0.95em;
+  margin: 0.5em 0 0 0;
+}
+
+.prose .hero-form-callout__btn {
+  display: inline-block;
+  margin-top: 1.25rem;
+  background-color: #ffffff;
+  color: #047857;
+  font-weight: 600;
+  font-size: 0.95em;
+  padding: 0.625rem 1.5rem;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.prose .hero-form-callout__btn:hover {
+  background-color: #ecfdf5;
+  color: #047857;
+  text-decoration: none;
+}
+
+.prose .hero-form-callout__btn:focus-visible {
+  outline: 2px solid #047857;
+  outline-offset: 3px;
+}
+
+/* Inline hero-form CTA link — subtle but distinct from regular prose links */
+.prose a.hero-form-cta-inline {
+  color: #047857;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: #059669;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.prose a.hero-form-cta-inline:hover {
+  color: #065f46;
+}
+
 /* Larger prose variant */
 .prose-lg {
   font-size: 1.125rem;

@@ -7,6 +7,10 @@ import rehypeSlug from 'rehype-slug'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import rehypeStringify from 'rehype-stringify'
 import { preprocessMarkdown } from './markdown-preprocess'
+import { transformHeroFormLinks } from './markdown-transform'
+
+// Re-export so consumers can import from 'lib/markdown' directly
+export { transformHeroFormLinks }
 
 /**
  * Process special link formats in markdown:
@@ -41,5 +45,5 @@ export async function markdownToHtml(markdown: string): Promise<string> {
     .use(rehypeStringify) // Stringify to HTML
     .process(processedMarkdown)
 
-  return result.toString()
+  return transformHeroFormLinks(result.toString())
 }
