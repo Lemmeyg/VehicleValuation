@@ -44,6 +44,8 @@ export function transformHeroFormLinks(html: string): string {
   result = result.replace(
     /<a href="([^"]*#hero-form)"([^>]*)>([^<]*)<\/a>/gi,
     (_match, _href, existingAttrs, anchorText) => {
+      // existingAttrs is the raw attribute string from rehype-stringify (e.g. ' class="hero-form-callout__btn"')
+      // — predictably formatted, so substring matching is reliable for skip detection
       // Skip already-processed links (callout btn or inline CTA)
       if (
         existingAttrs.includes('hero-form-callout__btn') ||
