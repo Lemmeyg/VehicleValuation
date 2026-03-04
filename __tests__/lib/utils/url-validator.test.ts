@@ -117,6 +117,7 @@ describe('validateListingUrls', () => {
     expect(stats.checkedCount).toBe(1)
     expect(stats.failedCount).toBe(0)
     expect(stats.failedUrls).toEqual([])
+    expect(stats.validatedUrls).toEqual(['https://dealer.com/inventory/vehicle/12345'])
     expect(stats.batchesUsed).toBe(1)
   })
 
@@ -293,6 +294,10 @@ describe('validateListingUrls', () => {
     expect(stats.checkedCount).toBe(3)
     expect(stats.failedCount).toBe(1)
     expect(stats.failedUrls).toEqual(['https://dealer.com/inventory/vehicle/222'])
+    expect(stats.validatedUrls).toEqual([
+      'https://dealer.com/inventory/vehicle/111',
+      'https://dealer.com/inventory/vehicle/333',
+    ])
     expect(stats.batchesUsed).toBe(1)
   })
 

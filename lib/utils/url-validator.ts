@@ -33,6 +33,8 @@ export interface ValidationStats {
   failedCount: number
   /** The specific URLs that failed */
   failedUrls: string[]
+  /** The specific URLs that passed validation */
+  validatedUrls: string[]
   /** How many batches of 20 were needed to reach TARGET_VALID */
   batchesUsed: number
 }
@@ -107,6 +109,7 @@ export async function validateListingUrls(
     checkedCount: 0,
     failedCount: 0,
     failedUrls: [],
+    validatedUrls: [],
     batchesUsed: 0,
   }
 
@@ -128,6 +131,7 @@ export async function validateListingUrls(
     checkedCount: 0,
     failedCount: 0,
     failedUrls: [],
+    validatedUrls: [],
     batchesUsed: 0,
   }
 
@@ -159,7 +163,9 @@ export async function validateListingUrls(
         if (url !== null) {
           // Only count listings where we actually fetched a URL
           stats.checkedCount++
-          if (!valid) {
+          if (valid) {
+            stats.validatedUrls.push(url)
+          } else {
             stats.failedCount++
             stats.failedUrls.push(url)
           }
