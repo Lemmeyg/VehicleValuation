@@ -188,6 +188,7 @@ export async function POST(request: Request) {
     let marketcheckValuation: MarketCheckPrediction | null = null
     let urlValidationFailedCount: number | null = null
     let urlValidationFailedUrls: string[] | null = null
+    let urlValidatedListingUrls: string[] | null = null
     if (vehicleData) {
       const marketCheckStartTime = Date.now()
 
@@ -217,6 +218,7 @@ export async function POST(request: Request) {
           marketcheckValuation = validatedPrediction
           urlValidationFailedCount = urlStats.failedCount
           urlValidationFailedUrls = urlStats.failedUrls
+          urlValidatedListingUrls = urlStats.validatedUrls
 
           await logApiCall(
             report.id,
@@ -334,6 +336,7 @@ export async function POST(request: Request) {
         ...(urlValidationFailedCount !== null && {
           url_validation_failed_count: urlValidationFailedCount,
           url_validation_failed_urls: urlValidationFailedUrls,
+          validated_listing_urls: urlValidatedListingUrls,
         }),
 
         mileage: mileage,

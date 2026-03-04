@@ -43,15 +43,19 @@ function makePrediction(
   } as MarketCheckPrediction
 }
 
-// Helper to mock a successful fetch response
-function mockFetchOk(
-  finalUrl: string,
-  body = '<html><title>2020 Honda Civic for sale</title></html>'
-) {
+// Helper to mock a successful HEAD response
+function mockFetchOk(finalUrl: string) {
   ;(global.fetch as jest.Mock).mockResolvedValueOnce({
     status: 200,
     url: finalUrl,
-    text: async () => body,
+  })
+}
+
+// Helper to mock a 405 (Method Not Allowed) response — HEAD not supported but URL exists
+function mockFetch405(finalUrl: string) {
+  ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+    status: 405,
+    url: finalUrl,
   })
 }
 
@@ -60,7 +64,6 @@ function mockFetch404(finalUrl: string) {
   ;(global.fetch as jest.Mock).mockResolvedValueOnce({
     status: 404,
     url: finalUrl,
-    text: async () => '',
   })
 }
 
@@ -77,7 +80,6 @@ function mockFetchHomepageRedirect(originalUrl: string) {
   ;(global.fetch as jest.Mock).mockResolvedValueOnce({
     status: 200,
     url: `${domain}/`, // final URL is homepage
-    text: async () => '<html><title>Dealer Home</title></html>',
   })
 }
 
@@ -103,7 +105,7 @@ describe('validateListingUrls', () => {
     expect(stats.batchesUsed).toBe(0)
   })
 
-  it('marks listing as validated when URL returns 200 with vehicle content', async () => {
+  it('marks listing as validated when HEAD request returns 200', async () => {
     const prediction = makePrediction([
       { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
     ])
@@ -115,7 +117,46 @@ describe('validateListingUrls', () => {
     expect(stats.checkedCount).toBe(1)
     expect(stats.failedCount).toBe(0)
     expect(stats.failedUrls).toEqual([])
+    expect(stats.validatedUrls).toEqual(['https://dealer.com/inventory/vehicle/12345'])
     expect(stats.batchesUsed).toBe(1)
+  })
+
+  it('uses HEAD requests to reduce bot-detection on dealer sites', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/12345', dos_active: 5 },
+    ])
+
+    mockFetchOk('https://dealer.com/inventory/12345')
+
+    await validateListingUrls(prediction)
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://dealer.com/inventory/12345',
+      expect.objectContaining({ method: 'HEAD' })
+    )
+  })
+
+  it('accepts listing when server returns 405 (HEAD not supported but URL exists)', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/12345', dos_active: 5 },
+    ])
+
+    mockFetch405('https://dealer.com/inventory/12345')
+
+    const { prediction: result, stats } = await validateListingUrls(prediction)
+    expect(result.recentComparables!.listings[0].url_validated).toBe(true)
+    expect(stats.failedCount).toBe(0)
+  })
+
+  it('accepts listing when URL resolves to a 2-segment path (common VDP format)', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/12345', dos_active: 5 },
+    ])
+
+    mockFetchOk('https://dealer.com/inventory/12345')
+
+    const { prediction: result } = await validateListingUrls(prediction)
+    expect(result.recentComparables!.listings[0].url_validated).toBe(true)
   })
 
   it('marks listing as validated when it has no vdp_url (data still valid)', async () => {
@@ -164,7 +205,6 @@ describe('validateListingUrls', () => {
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
       status: 403,
       url: 'https://dealer.com/inventory/vehicle/12345',
-      text: async () => '',
     })
 
     const { prediction: result, stats } = await validateListingUrls(prediction)
@@ -183,132 +223,16 @@ describe('validateListingUrls', () => {
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
 
-  it('rejects listing when URL redirects to a path with fewer than 3 segments (1 segment)', async () => {
+  it('rejects listing when URL redirects to a path with 1 segment (inventory index)', async () => {
     const prediction = makePrediction([
       { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
     ])
 
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
       status: 200,
-      url: 'https://dealer.com/inventory', // 1 segment — inventory index
-      text: async () => '<html><title>All Inventory</title></html>',
+      url: 'https://dealer.com/inventory', // 1 segment — inventory index page
     })
 
-    const { prediction: result } = await validateListingUrls(prediction)
-    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
-  })
-
-  it('rejects listing when URL redirects to a path with fewer than 3 segments (2 segments)', async () => {
-    const prediction = makePrediction([
-      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
-    ])
-
-    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
-      status: 200,
-      url: 'https://dealer.com/viewdetails/used/', // 2 segments — no vehicle ID
-      text: async () => '<html><title>Used Vehicles</title></html>',
-    })
-
-    const { prediction: result } = await validateListingUrls(prediction)
-    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
-  })
-
-  it('rejects listing when body contains "no longer available"', async () => {
-    const prediction = makePrediction([
-      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
-    ])
-
-    mockFetchOk(
-      'https://dealer.com/inventory/vehicle/12345',
-      '<html><body>Sorry, this vehicle is no longer available.</body></html>'
-    )
-
-    const { prediction: result } = await validateListingUrls(prediction)
-    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
-  })
-
-  it('rejects listing when body contains "vehicle has been sold"', async () => {
-    const prediction = makePrediction([
-      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
-    ])
-
-    mockFetchOk(
-      'https://dealer.com/inventory/vehicle/12345',
-      '<html><body>This vehicle has been sold. Please browse our inventory.</body></html>'
-    )
-
-    const { prediction: result } = await validateListingUrls(prediction)
-    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
-  })
-
-  it('rejects listing when body contains "this listing has expired"', async () => {
-    const prediction = makePrediction([
-      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
-    ])
-    mockFetchOk(
-      'https://dealer.com/inventory/vehicle/12345',
-      '<html><body>This listing has expired.</body></html>'
-    )
-    const { prediction: result } = await validateListingUrls(prediction)
-    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
-  })
-
-  it('rejects listing when body contains "vehicle not found"', async () => {
-    const prediction = makePrediction([
-      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
-    ])
-    mockFetchOk(
-      'https://dealer.com/inventory/vehicle/12345',
-      '<html><body>Vehicle not found in our inventory.</body></html>'
-    )
-    const { prediction: result } = await validateListingUrls(prediction)
-    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
-  })
-
-  it('rejects listing when body contains "sorry, this page"', async () => {
-    const prediction = makePrediction([
-      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
-    ])
-    mockFetchOk(
-      'https://dealer.com/inventory/vehicle/12345',
-      '<html><body>Sorry, this page is no longer available.</body></html>'
-    )
-    const { prediction: result } = await validateListingUrls(prediction)
-    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
-  })
-
-  it('rejects listing when body contains "in the shop"', async () => {
-    const prediction = makePrediction([
-      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
-    ])
-    mockFetchOk(
-      'https://dealer.com/inventory/vehicle/12345',
-      '<html><body>Sorry, this page is in the shop.</body></html>'
-    )
-    const { prediction: result } = await validateListingUrls(prediction)
-    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
-  })
-
-  it('rejects listing when body contains "currently unavailable"', async () => {
-    const prediction = makePrediction([
-      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
-    ])
-    mockFetchOk(
-      'https://dealer.com/inventory/vehicle/12345',
-      '<html><body>This vehicle is currently unavailable.</body></html>'
-    )
-    const { prediction: result } = await validateListingUrls(prediction)
-    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
-  })
-
-  it('rejects listing when body contains "page not found"', async () => {
-    const prediction = makePrediction([
-      { vdp_url: 'https://dealer.com/inventory/vehicle/12345', dos_active: 5 },
-    ])
-    mockFetchOk(
-      'https://dealer.com/inventory/vehicle/12345',
-      '<html><body>Page not found. The listing you requested does not exist.</body></html>'
-    )
     const { prediction: result } = await validateListingUrls(prediction)
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
   })
@@ -342,7 +266,6 @@ describe('validateListingUrls', () => {
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
       status: 200,
       url: 'https://completelydifferentsite.com/home', // different domain
-      text: async () => '<html><title>Other site</title></html>',
     })
 
     const { prediction: result } = await validateListingUrls(prediction)
@@ -371,6 +294,10 @@ describe('validateListingUrls', () => {
     expect(stats.checkedCount).toBe(3)
     expect(stats.failedCount).toBe(1)
     expect(stats.failedUrls).toEqual(['https://dealer.com/inventory/vehicle/222'])
+    expect(stats.validatedUrls).toEqual([
+      'https://dealer.com/inventory/vehicle/111',
+      'https://dealer.com/inventory/vehicle/333',
+    ])
     expect(stats.batchesUsed).toBe(1)
   })
 

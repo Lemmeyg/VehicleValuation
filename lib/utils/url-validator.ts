@@ -4,30 +4,20 @@
  * Validates that listing VDP URLs point to live, active vehicle pages.
  * Run server-side during report creation after MarketCheck data is fetched.
  *
- * Strategy: AGGRESSIVE REJECTION + SEQUENTIAL BATCHING
- * - Any URL that cannot be positively confirmed as valid is rejected.
- * - Only HTTP 200 responses with unchanged URL paths and no sold-keywords are kept.
- * - Timeouts, 403s, 404s, bot-blocks, and homepage redirects are all rejected.
+ * Strategy: HEAD REQUESTS + REDIRECT DETECTION
+ * - Uses HEAD requests instead of GET to avoid triggering bot-protection on dealer
+ *   websites (Cloudflare, Imperva, etc. are less aggressive against HEAD).
+ * - Accepts HTTP 200 and 405 (Method Not Allowed — the server responded to our
+ *   specific URL, which means the page exists even if HEAD isn't supported).
+ * - Rejects timeouts, 404s, 403s, cross-domain redirects, and homepage/index redirects.
+ * - Requires at least 2 path segments on the final URL to reject homepages ("/") and
+ *   single-segment index pages ("/inventory") while accepting common 2-segment VDP
+ *   formats like "/inventory/12345" or "/used-vehicles/vin123456".
  * - Validates in batches of 20 (sorted by dos_active) and stops as soon as
- *   TARGET_VALID (10) passing listings are found. Subsequent batches are only
- *   fetched if the previous batch did not supply enough passing URLs.
- *
- * Rationale: MarketCheck returns 40–80+ listings so there is always sufficient
- * pool depth. Quality of displayed listings > quantity.
+ *   TARGET_VALID (10) passing listings are found.
  */
 
 import type { MarketCheckPrediction } from '@/lib/api/marketcheck-client'
-
-const SOLD_KEYWORDS = [
-  'no longer available',
-  'vehicle has been sold',
-  'this listing has expired',
-  'vehicle not found',
-  'sorry, this page',
-  'in the shop',
-  'currently unavailable',
-  'page not found',
-]
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
@@ -35,7 +25,6 @@ const USER_AGENT =
 const VALIDATION_TIMEOUT_MS = 4000
 const BATCH_SIZE = 20
 const TARGET_VALID = 10
-const BODY_SCAN_BYTES = 3072 // 3KB — enough to catch page title and above-fold content
 
 export interface ValidationStats {
   /** Total number of URLs actually fetched (excludes no-vdp_url listings) */
@@ -44,45 +33,19 @@ export interface ValidationStats {
   failedCount: number
   /** The specific URLs that failed */
   failedUrls: string[]
+  /** The specific URLs that passed validation */
+  validatedUrls: string[]
   /** How many batches of 20 were needed to reach TARGET_VALID */
   batchesUsed: number
 }
 
 /**
- * Read only the first BODY_SCAN_BYTES of a response body using streaming.
- * Falls back to response.text() in environments where response.body is unavailable
- * (e.g. Jest mocks), which is safe because those mocks return tiny strings.
- */
-async function readBodySnippet(response: Response): Promise<string> {
-  if (!response.body) {
-    // Test environment: mock responses lack a ReadableStream body
-    const text = await response.text()
-    return text.slice(0, BODY_SCAN_BYTES).toLowerCase()
-  }
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let totalRead = 0
-  try {
-    while (totalRead < BODY_SCAN_BYTES) {
-      const { done, value } = await reader.read()
-      if (done || !value) break
-      chunks.push(value)
-      totalRead += value.byteLength
-    }
-  } finally {
-    await reader.cancel()
-  }
-  const buffer = new Uint8Array(totalRead)
-  let offset = 0
-  for (const chunk of chunks) {
-    buffer.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-  return new TextDecoder().decode(buffer).slice(0, BODY_SCAN_BYTES).toLowerCase()
-}
-
-/**
- * Check a single URL. Returns true only if the URL is positively confirmed valid.
+ * Check a single URL using a HEAD request.
+ * Returns true only if the URL is positively confirmed valid.
+ *
+ * Uses HEAD (not GET) to reduce bot-detection triggers on dealer sites.
+ * Accepts 200 and 405 — a 405 means HEAD isn't supported but the server
+ * responded to our specific URL, confirming the page exists.
  */
 async function checkUrl(url: string): Promise<boolean> {
   const controller = new AbortController()
@@ -90,6 +53,7 @@ async function checkUrl(url: string): Promise<boolean> {
 
   try {
     const response = await fetch(url, {
+      method: 'HEAD',
       signal: controller.signal,
       redirect: 'follow',
       headers: {
@@ -98,24 +62,21 @@ async function checkUrl(url: string): Promise<boolean> {
       },
     })
 
-    // Must be HTTP 200
-    if (response.status !== 200) return false
+    // Accept 200 (OK) or 405 (HEAD not supported but URL exists)
+    if (response.status !== 200 && response.status !== 405) return false
 
     // Compare original hostname to final hostname (cross-domain redirect)
     const parsedOriginal = new URL(url)
     const parsedFinal = new URL(response.url)
     if (parsedOriginal.hostname !== parsedFinal.hostname) return false
 
-    // Check final path for homepage redirect
+    // Check final path: reject homepages ("/") and single-segment index pages
+    // ("/inventory"). Require at least 2 segments to cover common VDP formats
+    // like "/inventory/12345" or "/used-vehicles/vin123456".
     const finalPath = parsedFinal.pathname
     if (finalPath === '/' || finalPath === '') return false
     const pathSegments = finalPath.split('/').filter(s => s.length > 0)
-    if (pathSegments.length < 3) return false
-
-    // Scan first 3KB of body for sold/unavailability keywords (streaming to avoid
-    // buffering full page HTML — dealer pages can be 500KB–2MB)
-    const snippet = await readBodySnippet(response)
-    if (SOLD_KEYWORDS.some(kw => snippet.includes(kw))) return false
+    if (pathSegments.length < 2) return false
 
     return true
   } catch {
@@ -148,6 +109,7 @@ export async function validateListingUrls(
     checkedCount: 0,
     failedCount: 0,
     failedUrls: [],
+    validatedUrls: [],
     batchesUsed: 0,
   }
 
@@ -169,6 +131,7 @@ export async function validateListingUrls(
     checkedCount: 0,
     failedCount: 0,
     failedUrls: [],
+    validatedUrls: [],
     batchesUsed: 0,
   }
 
@@ -200,7 +163,9 @@ export async function validateListingUrls(
         if (url !== null) {
           // Only count listings where we actually fetched a URL
           stats.checkedCount++
-          if (!valid) {
+          if (valid) {
+            stats.validatedUrls.push(url)
+          } else {
             stats.failedCount++
             stats.failedUrls.push(url)
           }
