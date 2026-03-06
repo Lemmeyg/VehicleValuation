@@ -1,9 +1,12 @@
-import { getArticleBySlugStatic, getAllArticleSlugs } from '@/lib/knowledge-base-db'
+import { getArticleBySlugStatic, getAllArticles, getAllArticleSlugs } from '@/lib/knowledge-base-db'
+import { getRelatedArticles } from '@/lib/utils/related-articles'
 import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { ArticlePageTracker } from '@/components/ArticlePageTracker'
 import { ArticleCTA } from '@/components/ArticleCTA'
+import { RelatedArticlesSidebar } from '@/components/RelatedArticlesSidebar'
+import { RelatedArticlesMobile } from '@/components/RelatedArticlesMobile'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -46,40 +49,59 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params
-  const article = await getArticleBySlugStatic(slug)
+
+  const [article, allArticles] = await Promise.all([getArticleBySlugStatic(slug), getAllArticles()])
 
   if (!article) {
     notFound()
   }
+
+  const relatedArticles = getRelatedArticles(slug, allArticles)
 
   return (
     <div className="min-h-screen bg-white">
       <ArticlePageTracker slug={article.slug} title={article.title} category={article.category} />
       <Navbar />
       <main className="pt-24 pb-16">
-        <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <header className="mb-8">
-            <div className="mb-4">
-              <span className="inline-block px-3 py-1 text-sm font-semibold text-primary-600 bg-primary-50 rounded-full">
-                {article.category}
-              </span>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">{article.title}</h1>
-            <div className="flex items-center text-sm text-slate-600 space-x-4">
-              <span>{article.author}</span>
-              <span>•</span>
-              <time>{new Date(article.datePublished).toLocaleDateString()}</time>
-              <span>•</span>
-              <span>{article.readingTime}</span>
-            </div>
-          </header>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-12">
+            {/* Main article column */}
+            <article>
+              <header className="mb-8">
+                <div className="mb-4">
+                  <span className="inline-block px-3 py-1 text-sm font-semibold text-primary-600 bg-primary-50 rounded-full">
+                    {article.category}
+                  </span>
+                </div>
+                <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
+                  {article.title}
+                </h1>
+                <div className="flex items-center text-sm text-slate-600 space-x-4">
+                  <span>{article.author}</span>
+                  <span>•</span>
+                  <time>{new Date(article.datePublished).toLocaleDateString()}</time>
+                  <span>•</span>
+                  <span>{article.readingTime}</span>
+                </div>
+              </header>
 
-          <div
-            className="prose prose-lg max-w-none"
-            dangerouslySetInnerHTML={{ __html: article.htmlContent! }}
-          />
-          <ArticleCTA articleSlug={article.slug} />
-        </article>
+              <div
+                className="prose prose-lg max-w-none"
+                dangerouslySetInnerHTML={{ __html: article.htmlContent! }}
+              />
+
+              <ArticleCTA articleSlug={article.slug} />
+
+              {/* Mobile related articles — hidden on desktop */}
+              <RelatedArticlesMobile relatedArticles={relatedArticles} currentSlug={slug} />
+            </article>
+
+            {/* Sidebar — desktop only */}
+            <aside className="hidden lg:block">
+              <RelatedArticlesSidebar relatedArticles={relatedArticles} currentSlug={slug} />
+            </aside>
+          </div>
+        </div>
       </main>
       <Footer />
     </div>
