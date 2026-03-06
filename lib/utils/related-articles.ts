@@ -5,7 +5,7 @@ import type { Article } from '@/lib/knowledge-base-db'
  *
  * Scoring:
  *   +6  same category
- *   +3  per shared tag
+ *   +2  per shared tag
  *
  * Ties broken by datePublished descending (newest first).
  * Falls back to most recently published zero-score articles to fill remaining slots.
@@ -24,7 +24,7 @@ export function getRelatedArticles(
     let score = 0
     if (article.category === current.category) score += 6
     const sharedTags = article.tags.filter(tag => current.tags.includes(tag))
-    score += sharedTags.length * 3
+    score += sharedTags.length * 2
     return { article, score }
   })
 

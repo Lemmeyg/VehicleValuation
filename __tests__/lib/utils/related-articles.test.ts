@@ -59,8 +59,14 @@ describe('getRelatedArticles', () => {
 
   it('ranks a different-category article above same-category when it has more shared tags', () => {
     // diff-cat gets 2*4=8 pts; same-cat gets 6+0=6 pts
+    const currentWith4Tags = makeArticle({
+      slug: 'current-article',
+      category: 'Insurance Claims',
+      tags: ['total loss', 'insurance dispute', 'valuation', 'settlement'],
+      datePublished: '2025-06-01',
+    })
     const all = [
-      current,
+      currentWith4Tags,
       makeArticle({ slug: 'same-cat', category: 'Insurance Claims', tags: [] }),
       makeArticle({
         slug: 'diff-cat',
