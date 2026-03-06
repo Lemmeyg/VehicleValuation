@@ -40,7 +40,7 @@ export function getRelatedArticles(
 
   if (positive.length < limit) {
     const fallback = scored
-      .filter(s => s.score === 0)
+      .filter(s => s.score <= 0)
       .slice(0, limit - positive.length)
       .map(s => s.article)
     return [...positive, ...fallback]

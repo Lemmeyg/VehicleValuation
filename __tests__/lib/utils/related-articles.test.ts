@@ -126,4 +126,15 @@ describe('getRelatedArticles', () => {
     const all = [makeArticle({ slug: 'some-article' })]
     expect(getRelatedArticles('does-not-exist', all)).toEqual([])
   })
+
+  it('respects a custom limit parameter', () => {
+    const all = [
+      current,
+      makeArticle({ slug: 'a', category: 'Insurance Claims', tags: ['total loss'] }),
+      makeArticle({ slug: 'b', category: 'Insurance Claims', tags: ['valuation'] }),
+      makeArticle({ slug: 'c', category: 'Insurance Claims', tags: ['insurance dispute'] }),
+    ]
+    expect(getRelatedArticles('current-article', all, 2).length).toBe(2)
+    expect(getRelatedArticles('current-article', all, 1).length).toBe(1)
+  })
 })
