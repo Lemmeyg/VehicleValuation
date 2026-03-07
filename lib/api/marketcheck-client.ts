@@ -159,6 +159,145 @@ export interface MarketCheckResponse {
   data?: MarketCheckPrediction
   error?: string
   statusCode?: number
+  fallbackUsed?: boolean // true when search fallback was used instead of VIN prediction
+}
+
+/**
+ * Fallback: fetch comparables via search endpoint when VIN decode fails.
+ * Called internally — not exported.
+ */
+async function fetchMarketCheckSearchFallback(
+  apiKey: string,
+  year: number,
+  make: string,
+  model: string,
+  vin: string,
+  miles: number,
+  zip: string
+): Promise<MarketCheckResponse> {
+  const url = new URL('https://api.marketcheck.com/v2/search/car/active')
+  url.searchParams.append('api_key', apiKey)
+  url.searchParams.append('year', year.toString())
+  url.searchParams.append('make', make)
+  url.searchParams.append('model', model)
+  url.searchParams.append('rows', '50')
+  url.searchParams.append('start', '0')
+
+  console.log('[MarketCheck Fallback] Trying search endpoint', { year, make, model, vin })
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'VehicleValuationSaaS/1.0' },
+      signal: AbortSignal.timeout(30000),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[MarketCheck Fallback] Search failed', {
+        status: response.status,
+        body: errorText,
+      })
+      return {
+        success: false,
+        error: `MarketCheck search fallback failed: ${response.status} ${response.statusText}`,
+        statusCode: response.status,
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: { num_found: number; listings: any[] } = await response.json()
+    const listings = data.listings || []
+
+    console.log('[MarketCheck Fallback] Search succeeded', {
+      num_found: data.num_found,
+      returned: listings.length,
+    })
+
+    if (listings.length === 0) {
+      return {
+        success: false,
+        error: 'MarketCheck search fallback returned no listings',
+        statusCode: 404,
+      }
+    }
+
+    // Map search listings to MarketCheckComparable shape
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const comparables: MarketCheckComparable[] = listings
+      .map((l: any) => ({
+        id: l.id,
+        vin: l.vin,
+        year: l.build?.year ?? l.year ?? year,
+        make: l.build?.make ?? l.make ?? make,
+        model: l.build?.model ?? l.model ?? model,
+        trim: l.build?.trim ?? l.trim,
+        miles: l.miles ?? 0,
+        price: l.price ?? 0,
+        dom: l.dom,
+        dom_180: l.dom_180,
+        dom_active: l.dom_active,
+        dos_active: l.dos_active,
+        dealer_type: (l.seller_type === 'franchise' ? 'franchise' : 'independent') as
+          | 'franchise'
+          | 'independent',
+        dealer_id: l.seller_id,
+        dealer_name: l.dealer?.name,
+        location:
+          l.dealer_address || l.dealer
+            ? {
+                city: l.dealer_address?.city ?? l.dealer?.city,
+                state: l.dealer_address?.state ?? l.dealer?.state,
+                zip: l.dealer_address?.zip ?? l.dealer?.zip,
+                distance_miles: undefined,
+              }
+            : undefined,
+        latitude: l.latitude,
+        longitude: l.longitude,
+        photo_url: l.media?.photo_links?.[0],
+        vdp_url: l.vdp_url,
+        listing_date: l.first_seen_at_date ?? l.first_seen_at,
+        mc_website_id: l.mc_website_id,
+        source: 'marketcheck',
+      }))
+      .sort((a, b) => b.price - a.price)
+
+    // Synthesise predicted price as mean of listing prices
+    const prices = comparables.map(l => l.price).filter(p => p > 0)
+    const predictedPrice =
+      prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : 0
+
+    // Synthesise price range from 10th/90th percentile
+    const sorted = [...prices].sort((a, b) => a - b)
+    const p10 = sorted[Math.floor(sorted.length * 0.1)] ?? sorted[0] ?? 0
+    const p90 = sorted[Math.floor(sorted.length * 0.9)] ?? sorted[sorted.length - 1] ?? 0
+
+    // Confidence based on listing count
+    const confidence: 'low' | 'medium' | 'high' =
+      comparables.length >= 20 ? 'high' : comparables.length >= 5 ? 'medium' : 'low'
+
+    const prediction: MarketCheckPrediction = {
+      predictedPrice,
+      priceRange: { min: p10, max: p90 },
+      confidence,
+      dataSource: 'marketcheck',
+      requestParams: { vin, miles, zip, dealer_type: 'franchise' },
+      totalComparablesFound: data.num_found,
+      comparablesStats: undefined,
+      recentComparables: {
+        num_found: comparables.length,
+        listings: comparables,
+        stats: undefined,
+      },
+      generatedAt: new Date().toISOString(),
+    }
+
+    return { success: true, data: prediction, fallbackUsed: true }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[MarketCheck Fallback] Exception:', msg)
+    return { success: false, error: msg, statusCode: 500 }
+  }
 }
 
 /**
@@ -181,7 +320,8 @@ export async function fetchMarketCheckData(
   zipCode: string,
   isCertified: boolean = false,
   retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG,
-  _subjectVehicle?: {
+  subjectVehicle?: {
+    year?: number
     make?: string
     model?: string
     trim?: string
@@ -272,6 +412,28 @@ export async function fetchMarketCheckData(
         const isRetryable = response.status >= 500 || response.status === 429
 
         if (!isRetryable || attempt === retryConfig.maxAttempts) {
+          // Check if this is a VIN decode failure — try search fallback
+          const isVinDecodeFailure =
+            response.status === 400 && errorText.includes('Failed to decode VIN')
+
+          if (
+            isVinDecodeFailure &&
+            subjectVehicle?.year &&
+            subjectVehicle?.make &&
+            subjectVehicle?.model
+          ) {
+            console.log('[MarketCheck] VIN decode failed — attempting search fallback')
+            return fetchMarketCheckSearchFallback(
+              apiKey,
+              subjectVehicle.year,
+              subjectVehicle.make,
+              subjectVehicle.model,
+              vin,
+              miles,
+              zipCode
+            )
+          }
+
           return {
             success: false,
             error: `MarketCheck API error: ${response.status} ${response.statusText}`,
