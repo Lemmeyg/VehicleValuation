@@ -186,6 +186,7 @@ export async function POST(request: Request) {
 
     // Fetch MarketCheck price prediction
     let marketcheckValuation: MarketCheckPrediction | null = null
+    let marketcheckFallbackUsed = false
     let urlValidationFailedCount: number | null = null
     let urlValidationFailedUrls: string[] | null = null
     let urlValidatedListingUrls: string[] | null = null
@@ -196,6 +197,7 @@ export async function POST(request: Request) {
         // Extract subject vehicle data for filtering comparables by model/trim
         const subjectVehicle = vehicleData
           ? {
+              year: vehicleData.vehicle.year,
               make: vehicleData.make,
               model: vehicleData.model,
               trim: vehicleData.trim,
@@ -216,6 +218,7 @@ export async function POST(request: Request) {
             marketCheckResult.data!
           )
           marketcheckValuation = validatedPrediction
+          marketcheckFallbackUsed = marketCheckResult.fallbackUsed === true
           urlValidationFailedCount = urlStats.failedCount
           urlValidationFailedUrls = urlStats.failedUrls
           urlValidatedListingUrls = urlStats.validatedUrls
@@ -314,6 +317,8 @@ export async function POST(request: Request) {
           marketcheck_recent_comparables_found:
             marketcheckValuation.recentComparables?.num_found || 0,
         }),
+
+        marketcheck_fallback_used: marketcheckFallbackUsed,
 
         // Also update valuation_result for backward compatibility
         ...(marketcheckValuation && {
