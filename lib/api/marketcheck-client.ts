@@ -159,6 +159,7 @@ export interface MarketCheckResponse {
   data?: MarketCheckPrediction
   error?: string
   statusCode?: number
+  fallbackUsed?: boolean // true when search fallback was used instead of VIN prediction
 }
 
 /**
@@ -181,7 +182,8 @@ export async function fetchMarketCheckData(
   zipCode: string,
   isCertified: boolean = false,
   retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG,
-  _subjectVehicle?: {
+  subjectVehicle?: {
+    year?: number
     make?: string
     model?: string
     trim?: string
