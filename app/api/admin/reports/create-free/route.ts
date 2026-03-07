@@ -86,11 +86,13 @@ export async function POST(request: Request) {
 
     // Fetch MarketCheck valuation
     let marketcheckValuation: MarketCheckPrediction | null = null
+    let marketcheckFallbackUsed = false
     let urlValidationFailedCount: number | null = null
     let urlValidationFailedUrls: string[] | null = null
     let urlValidatedListingUrls: string[] | null = null
     if (vehicleData) {
       const subjectVehicle = {
+        year: vehicleData.vehicle.year,
         make: vehicleData.make,
         model: vehicleData.model,
         trim: vehicleData.trim,
@@ -109,6 +111,7 @@ export async function POST(request: Request) {
           mcResult.data!
         )
         marketcheckValuation = validatedPrediction
+        marketcheckFallbackUsed = mcResult.fallbackUsed === true
         urlValidationFailedCount = urlStats.failedCount
         urlValidationFailedUrls = urlStats.failedUrls
         urlValidatedListingUrls = urlStats.validatedUrls
@@ -175,6 +178,7 @@ export async function POST(request: Request) {
           url_validation_failed_urls: urlValidationFailedUrls,
           validated_listing_urls: urlValidatedListingUrls,
         }),
+        marketcheck_fallback_used: marketcheckFallbackUsed,
         mileage,
         zip_code: zipCode,
         dealer_type: dealerType,
