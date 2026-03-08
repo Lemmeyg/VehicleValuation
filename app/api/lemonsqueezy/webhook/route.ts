@@ -83,6 +83,20 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
       resolvedUserId = await resolveUserFromEmail(customerEmail, reportId, appUrl)
     }
 
+    // Write customer name to user profile
+    const customerName = event.data.attributes.user_name
+    if (resolvedUserId && customerName && customerName.trim().length > 0) {
+      const { error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .upsert({ id: resolvedUserId, full_name: customerName.trim() }, { onConflict: 'id' })
+      if (profileError) {
+        console.error('[Webhook] Failed to update user profile name:', profileError)
+        // Non-fatal — continue processing
+      } else {
+        console.log('[Webhook] Updated user profile name for', resolvedUserId)
+      }
+    }
+
     // Only process paid orders
     if (status !== 'paid') {
       console.log(`Order ${orderId} status is ${status}, skipping`)
