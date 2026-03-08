@@ -4,6 +4,7 @@ import { Toaster } from 'sonner'
 import { PostHogProvider } from './providers/posthog-provider'
 import { PostHogPageView } from './providers/posthog-pageview'
 import { Suspense } from 'react'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const geistSans = Geist({
@@ -37,6 +38,7 @@ export default function RootLayout({
           {children}
           <Toaster position="top-right" richColors closeButton />
         </PostHogProvider>
+        <Analytics />
       </body>
     </html>
   )

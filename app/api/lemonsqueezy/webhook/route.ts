@@ -83,6 +83,20 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
       resolvedUserId = await resolveUserFromEmail(customerEmail, reportId, appUrl)
     }
 
+    // Write customer name to user profile
+    const customerName = event.data.attributes.user_name
+    if (resolvedUserId && customerName && customerName.trim().length > 0) {
+      const { error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .upsert({ id: resolvedUserId, full_name: customerName.trim() }, { onConflict: 'id' })
+      if (profileError) {
+        console.error('[Webhook] Failed to update user profile name:', profileError)
+        // Non-fatal — continue processing
+      } else {
+        console.log('[Webhook] Updated user profile name for', resolvedUserId)
+      }
+    }
+
     // Only process paid orders
     if (status !== 'paid') {
       console.log(`Order ${orderId} status is ${status}, skipping`)
@@ -312,6 +326,27 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
     }
 
     console.log(`[Webhook] Report ${reportId} updated with payment info and API data`)
+
+    // Check if VIN decode failed both at creation and in this webhook
+    const hasVehicleData = autodevVinData || report.vehicle_data?.year
+    if (!hasVehicleData) {
+      console.warn(
+        `[Webhook] VIN decode failed for report ${reportId} — flagging for manual review`
+      )
+      const { error: flagError } = await supabase
+        .from('reports')
+        .update({ status: 'vin_decode_failed' })
+        .eq('id', reportId)
+      if (flagError) {
+        console.error(
+          `[Webhook] Failed to flag report ${reportId} as vin_decode_failed:`,
+          flagError
+        )
+        // Still return — PDF skip is intentional regardless of flag success
+      }
+      console.log(`[Webhook] Report ${reportId} set to vin_decode_failed, skipping PDF`)
+      return
+    }
 
     // Generate PDF asynchronously
     // Note: In production, consider using a queue for this

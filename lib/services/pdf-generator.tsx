@@ -69,7 +69,8 @@ export async function generateAndUploadPDF(
     const pdfBuffer = await renderToBuffer(<VehicleReportPDF data={pdfData} />)
 
     // Generate filename
-    const filename = `report-${reportId}-${Date.now()}.pdf`
+    const sanitizedVin = reportData.vin.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    const filename = `total-loss-report-${sanitizedVin}.pdf`
     const filepath = `reports/${reportData.user_id}/${filename}`
 
     // Upload to Supabase Storage
@@ -77,7 +78,7 @@ export async function generateAndUploadPDF(
       .from('vehicle-reports')
       .upload(filepath, pdfBuffer, {
         contentType: 'application/pdf',
-        upsert: false,
+        upsert: true,
       })
 
     if (uploadError) {
