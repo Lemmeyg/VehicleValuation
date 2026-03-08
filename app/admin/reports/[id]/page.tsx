@@ -7,7 +7,7 @@
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import ReassignReportForm from '@/components/admin/ReassignReportForm'
+import { ReassignReportForm } from '../../components/ReassignReportForm'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -24,9 +24,14 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
     notFound()
   }
 
-  const vehicleData = report.vehicle_data as Record<string, unknown>
-  const accidentDetails = report.accident_details as Record<string, unknown>
-  const valuation = report.valuation_result as Record<string, unknown>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vehicleData = report.vehicle_data as any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const accidentDetails = report.accident_details as any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const valuation = report.valuation_result as any
+  const reportId = typeof report.id === 'string' ? report.id : String(report.id)
+  const reportUserId = typeof report.user_id === 'string' ? report.user_id : null
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -171,7 +176,7 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
         </div>
       </div>
 
-      <ReassignReportForm reportId={report.id} currentUserId={report.user_id} />
+      <ReassignReportForm reportId={reportId} currentUserId={reportUserId} />
 
       {/* Vehicle Information */}
       {vehicleData && Object.keys(vehicleData).length > 0 && (
@@ -246,8 +251,9 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
               <p className="text-sm text-gray-600">No accidents reported</p>
             ) : (
               <div className="space-y-4">
-                {(accidentDetails.accidents as Record<string, unknown>[]).map(
-                  (accident, index: number) => (
+                {accidentDetails.accidents.map(
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (accident: any, index: number) => (
                     <div key={index} className="border-l-4 border-red-400 pl-4 py-2">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-gray-900">Accident {index + 1}</p>
