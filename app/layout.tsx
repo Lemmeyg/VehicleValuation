@@ -18,9 +18,18 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'TotalLossToolKit.com - Independent Market Valuations',
+  metadataBase: new URL('https://www.totallosstoolkit.com'),
+  title: 'Total Loss Toolkit — Independent Vehicle Valuation Reports',
   description:
-    'Get independent, data-backed vehicle valuations. Professional reports for total loss claims, diminished value, and insurance negotiations.',
+    'Get independent, data-backed vehicle valuations for total loss claims. Professional reports with real market comparables to help you negotiate a fair insurance settlement.',
+  openGraph: {
+    title: 'Total Loss Toolkit — Independent Vehicle Valuation Reports',
+    description:
+      'Get independent, data-backed vehicle valuations for total loss claims. Professional reports with real market comparables to help you negotiate a fair insurance settlement.',
+    images: ['/opengraph-image'],
+    url: 'https://www.totallosstoolkit.com',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({
