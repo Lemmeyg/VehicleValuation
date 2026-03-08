@@ -1095,7 +1095,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
             <Text style={styles.chartsNote}>No comparable listings available for analysis</Text>
           )}
 
-          <View style={styles.valueBoxesRow}>
+          <View style={styles.valueBoxesRow} wrap={false}>
             <View style={styles.valueBoxLow}>
               <Text style={styles.valueBoxLabel}>LOW RANGE</Text>
               <Text style={styles.valueBoxAmount}>{formatCurrency(lowRange)}</Text>
@@ -1206,7 +1206,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
         )}
 
         {/* ── ADDITIONAL VALUATION CONSIDERATIONS ─────────── */}
-        <View style={styles.sectionBoxAlt}>
+        <View style={styles.sectionBoxAlt} break={true}>
           <Text style={styles.considTitle}>ADDITIONAL VALUATION CONSIDERATIONS</Text>
           <Text style={styles.considIntro}>
             Note: The following undocumented factors can significantly impact your vehicle&apos;s
