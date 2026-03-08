@@ -7,6 +7,7 @@
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { ReassignReportForm } from '../../components/ReassignReportForm'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -17,19 +18,20 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
   const supabase = await createServerSupabaseClient()
 
   // Fetch report
-  const { data: report, error } = await supabase
-    .from('reports')
-    .select('*')
-    .eq('id', id)
-    .single()
+  const { data: report, error } = await supabase.from('reports').select('*').eq('id', id).single()
 
   if (error || !report) {
     notFound()
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const vehicleData = report.vehicle_data as any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const accidentDetails = report.accident_details as any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const valuation = report.valuation_result as any
+  const reportId = typeof report.id === 'string' ? report.id : String(report.id)
+  const reportUserId = typeof report.user_id === 'string' ? report.user_id : null
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -55,10 +57,7 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <div className="flex items-center space-x-2 mb-2">
-            <Link
-              href="/admin/reports"
-              className="text-sm text-blue-600 hover:text-blue-500"
-            >
+            <Link href="/admin/reports" className="text-sm text-blue-600 hover:text-blue-500">
               ← Back to Reports
             </Link>
           </div>
@@ -111,7 +110,11 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
             {report.price_paid ? formatCurrency(report.price_paid) : 'Not Paid'}
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            {report.price_paid === 2900 ? 'Basic Report' : report.price_paid === 4900 ? 'Premium Report' : ''}
+            {report.price_paid === 2900
+              ? 'Basic Report'
+              : report.price_paid === 4900
+                ? 'Premium Report'
+                : ''}
           </p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
@@ -172,6 +175,8 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
           </dl>
         </div>
       </div>
+
+      <ReassignReportForm reportId={reportId} currentUserId={reportUserId} />
 
       {/* Vehicle Information */}
       {vehicleData && Object.keys(vehicleData).length > 0 && (
@@ -246,32 +251,35 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
               <p className="text-sm text-gray-600">No accidents reported</p>
             ) : (
               <div className="space-y-4">
-                {accidentDetails.accidents.map((accident: any, index: number) => (
-                  <div key={index} className="border-l-4 border-red-400 pl-4 py-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-gray-900">Accident {index + 1}</p>
-                      {accident.severity && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          {accident.severity}
-                        </span>
+                {accidentDetails.accidents.map(
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (accident: any, index: number) => (
+                    <div key={index} className="border-l-4 border-red-400 pl-4 py-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-gray-900">Accident {index + 1}</p>
+                        {accident.severity && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            {accident.severity}
+                          </span>
+                        )}
+                      </div>
+                      {accident.accidentDate && (
+                        <p className="text-sm text-gray-600">Date: {accident.accidentDate}</p>
+                      )}
+                      {accident.location && (
+                        <p className="text-sm text-gray-600">Location: {accident.location}</p>
+                      )}
+                      {accident.damageDescription && (
+                        <p className="mt-2 text-sm text-gray-900">{accident.damageDescription}</p>
+                      )}
+                      {accident.estimatedCost && (
+                        <p className="text-sm text-gray-600">
+                          Estimated Cost: ${accident.estimatedCost.toLocaleString()}
+                        </p>
                       )}
                     </div>
-                    {accident.accidentDate && (
-                      <p className="text-sm text-gray-600">Date: {accident.accidentDate}</p>
-                    )}
-                    {accident.location && (
-                      <p className="text-sm text-gray-600">Location: {accident.location}</p>
-                    )}
-                    {accident.damageDescription && (
-                      <p className="mt-2 text-sm text-gray-900">{accident.damageDescription}</p>
-                    )}
-                    {accident.estimatedCost && (
-                      <p className="text-sm text-gray-600">
-                        Estimated Cost: ${accident.estimatedCost.toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  )
+                )}
               </div>
             )}
           </div>
