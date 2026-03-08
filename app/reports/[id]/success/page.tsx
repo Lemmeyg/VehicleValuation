@@ -139,93 +139,95 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
             </div>
 
             {/* What's Next */}
-            <div className="bg-blue-50 rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-semibold text-blue-900 mb-3">What Happens Next?</h2>
-              <ul className="space-y-2 text-blue-800">
-                <li className="flex items-start">
-                  <svg
-                    className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>
-                    Click &ldquo;View Full Report&rdquo; to see your complete valuation analysis
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <svg
-                    className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>View dual price predictions from CarsXE and MarketCheck</span>
-                </li>
-                <li className="flex items-start">
-                  <svg
-                    className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>See 10 comparable vehicles with detailed pricing and location data</span>
-                </li>
-                <li className="flex items-start">
-                  <svg
-                    className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>Download your professional PDF report (if available)</span>
-                </li>
-                <li className="flex items-start">
-                  <svg
-                    className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>Access your report anytime from your dashboard</span>
-                </li>
-              </ul>
-            </div>
+            {report.status !== 'vin_decode_failed' && (
+              <div className="bg-blue-50 rounded-lg p-6 mb-6">
+                <h2 className="text-lg font-semibold text-blue-900 mb-3">What Happens Next?</h2>
+                <ul className="space-y-2 text-blue-800">
+                  <li className="flex items-start">
+                    <svg
+                      className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>
+                      Click &ldquo;View Full Report&rdquo; to see your complete valuation analysis
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <svg
+                      className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>View dual price predictions from CarsXE and MarketCheck</span>
+                  </li>
+                  <li className="flex items-start">
+                    <svg
+                      className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>See 10 comparable vehicles with detailed pricing and location data</span>
+                  </li>
+                  <li className="flex items-start">
+                    <svg
+                      className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>Download your professional PDF report (if available)</span>
+                  </li>
+                  <li className="flex items-start">
+                    <svg
+                      className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>Access your report anytime from your dashboard</span>
+                  </li>
+                </ul>
+              </div>
+            )}
 
             {/* Money-Back Guarantee */}
             <div className="bg-green-50 rounded-lg p-6 mb-6">

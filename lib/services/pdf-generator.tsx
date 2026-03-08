@@ -78,7 +78,7 @@ export async function generateAndUploadPDF(
       .from('vehicle-reports')
       .upload(filepath, pdfBuffer, {
         contentType: 'application/pdf',
-        upsert: false,
+        upsert: true,
       })
 
     if (uploadError) {
