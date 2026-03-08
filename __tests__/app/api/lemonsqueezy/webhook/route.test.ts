@@ -281,4 +281,90 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
       { onConflict: 'id' }
     )
   })
+
+  it('should set status vin_decode_failed and skip PDF when VIN decode fails and report has no vehicle data', async () => {
+    const reportId = 'report-vin-fail'
+    const userId = 'user-456'
+
+    jest.spyOn(client, 'verifyWebhookSignature').mockReturnValue(true)
+    jest.spyOn(autodev, 'fetchAutoDevVinDecode').mockResolvedValue({
+      success: false,
+      error: 'VIN not found',
+    })
+    jest.spyOn(marketcheck, 'fetchMarketCheckData').mockResolvedValue({
+      success: false,
+      error: 'no data',
+    })
+
+    const mockGeneratePDF = jest.spyOn(pdfGenerator, 'generateAndUploadPDF').mockResolvedValue({
+      success: true,
+      pdfUrl: 'https://example.com/report.pdf',
+    })
+
+    // Report has no vehicle data (VIN decode failed at creation too — no year field)
+    const mockSingle = jest.fn().mockResolvedValue({
+      data: {
+        vin: 'BADVIN00000000000',
+        mileage: 50000,
+        zip_code: '90210',
+        marketcheck_valuation: null,
+        vehicle_data: { vin: 'BADVIN00000000000', mileage: 50000 }, // no year field
+      },
+      error: null,
+    })
+
+    const mockUpdate = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({ error: null }),
+    })
+
+    mockAdmin.from = jest.fn((_table: string) => ({
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({ single: mockSingle }),
+      }),
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    })) as any
+
+    const body = JSON.stringify({
+      meta: {
+        event_name: 'order_created',
+        custom_data: { reportId, userId, reportType: 'BASIC' },
+        webhook_id: 'wh-2',
+        test_mode: false,
+      },
+      data: {
+        type: 'orders',
+        id: 'order-2',
+        attributes: {
+          user_name: 'Test User',
+          user_email: 'test@example.com',
+          status: 'paid',
+          total: 2500,
+          order_number: 1002,
+        },
+      },
+    })
+
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      body,
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'app.example.com',
+        'x-forwarded-proto': 'https',
+      },
+    })
+
+    await POST(request)
+
+    // PDF should NOT have been generated
+    expect(mockGeneratePDF).not.toHaveBeenCalled()
+
+    // Report status should have been set to vin_decode_failed
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'vin_decode_failed' })
+    )
+  })
 })

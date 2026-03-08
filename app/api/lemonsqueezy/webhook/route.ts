@@ -327,6 +327,27 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
 
     console.log(`[Webhook] Report ${reportId} updated with payment info and API data`)
 
+    // Check if VIN decode failed both at creation and in this webhook
+    const hasVehicleData = autodevVinData || report.vehicle_data?.year
+    if (!hasVehicleData) {
+      console.warn(
+        `[Webhook] VIN decode failed for report ${reportId} — flagging for manual review`
+      )
+      const { error: flagError } = await supabase
+        .from('reports')
+        .update({ status: 'vin_decode_failed' })
+        .eq('id', reportId)
+      if (flagError) {
+        console.error(
+          `[Webhook] Failed to flag report ${reportId} as vin_decode_failed:`,
+          flagError
+        )
+        // Still return — PDF skip is intentional regardless of flag success
+      }
+      console.log(`[Webhook] Report ${reportId} set to vin_decode_failed, skipping PDF`)
+      return
+    }
+
     // Generate PDF asynchronously
     // Note: In production, consider using a queue for this
     generateAndUploadPDF({ reportId }).catch(error => {

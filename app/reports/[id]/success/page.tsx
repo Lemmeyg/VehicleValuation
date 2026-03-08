@@ -239,21 +239,40 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
               </p>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href={`/reports/${reportId}`}
-                className="inline-flex justify-center items-center px-8 py-4 border border-transparent text-lg font-semibold rounded-lg text-white bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all shadow-lg"
-              >
-                View Full Report
-              </Link>
-              <Link
-                href="/dashboard"
-                className="inline-flex justify-center items-center px-8 py-4 border-2 border-slate-300 text-lg font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none transition-all"
-              >
-                Go to Dashboard
-              </Link>
-            </div>
+            {/* VIN Decode Failed — amber 48-hour notice */}
+            {report.status === 'vin_decode_failed' ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6">
+                <h2 className="text-lg font-semibold text-amber-900 mb-2">Report In Progress</h2>
+                <p className="text-amber-900 text-sm">
+                  Additional information sources are required to ensure comprehensive reporting for
+                  your vehicle. Expect your completed report via email within 48 hours.
+                </p>
+                <div className="mt-4 flex justify-center">
+                  <Link
+                    href="/dashboard"
+                    className="inline-flex justify-center items-center px-8 py-4 border-2 border-slate-300 text-lg font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none transition-all"
+                  >
+                    Go to Dashboard
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              /* Action Buttons */
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link
+                  href={`/reports/${reportId}`}
+                  className="inline-flex justify-center items-center px-8 py-4 border border-transparent text-lg font-semibold rounded-lg text-white bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all shadow-lg"
+                >
+                  View Full Report
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex justify-center items-center px-8 py-4 border-2 border-slate-300 text-lg font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none transition-all"
+                >
+                  Go to Dashboard
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 
