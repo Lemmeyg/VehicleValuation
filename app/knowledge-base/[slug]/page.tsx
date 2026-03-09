@@ -28,6 +28,9 @@ export async function generateMetadata({ params }: Props) {
   return {
     title: `${article.title} | TotalLossToolKit.com`,
     description: article.description,
+    alternates: {
+      canonical: `${siteUrl}/knowledge-base/${slug}`,
+    },
     openGraph: {
       title: article.title,
       description: article.description,
