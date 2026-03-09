@@ -19,27 +19,32 @@ import {
 import { trackRedditViewContent, trackRedditAddToCart } from '@/lib/analytics/reddit-events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 
+const CORE_FEATURES = [
+  'Real market data from 450M+ vehicle listings',
+  'Valuations accurate to within 5% of actual sale price',
+  'High/low range with actual vehicle valuation',
+  '10 verified live listings for comparison',
+  'Covers 25+ model years with equipment-level precision',
+]
+
 const PRICING_TIERS = [
   {
     id: 'BASIC',
     name: 'Basic Report',
     price: 19,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID!,
-    features: [
-      'Vehicle fair price valuation with low and high prices',
-      'Full market insights with all comparables mapped against your vehicle',
-      '10 Live listings with Links to dealer websites',
-      'Comparisons with Trim, Mileage, Price',
-      'PDF download',
-      'Comprehensive list of other factors contributing to higher vehicle values',
-    ],
+    features: CORE_FEATURES,
   },
   {
     id: 'PREMIUM',
     name: 'Premium Report',
     price: 25,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID!,
-    features: ['Same as Basic report', 'Two free updates of the report', 'Money Back guarantee'],
+    features: [
+      ...CORE_FEATURES,
+      'Two free report refreshes with updated listings',
+      "Money-back guarantee if we don't beat your insurer's offer",
+    ],
     recommended: true,
   },
 ]
@@ -648,10 +653,10 @@ function PricingContent() {
                 return (
                   <div
                     key={tier.id}
-                    className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all ${
+                    className={`relative rounded-2xl shadow-lg border-2 transition-all ${
                       tier.recommended
-                        ? 'border-primary-500'
-                        : 'border-slate-200 hover:border-primary-300'
+                        ? 'bg-gradient-to-br from-primary-50 to-emerald-50 border-primary-500 shadow-primary-100'
+                        : 'bg-white border-slate-200 hover:border-primary-300'
                     }`}
                   >
                     {tier.recommended && (
@@ -709,6 +714,12 @@ function PricingContent() {
                           </li>
                         ))}
                       </ul>
+                      {tier.recommended && (
+                        <div className="mt-4 flex items-center gap-2 bg-emerald-600 text-white rounded-xl px-4 py-2.5">
+                          <ShieldCheck className="h-5 w-5 flex-shrink-0" />
+                          <span className="text-sm font-semibold">Money-Back Guarantee</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
