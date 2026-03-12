@@ -5,10 +5,10 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        // Consolidate SEO authority onto www — non-www → www permanent redirect
-        source: '/:path*',
-        has: [{ type: 'host', value: 'totallosstoolkit.com' }],
-        destination: 'https://www.totallosstoolkit.com/:path*',
+        // Redirect deleted article to KB index — non-www version hits Vercel 308 then this 301
+        source:
+          '/knowledge-base/how-to-challenge-insurance-company-vehicle-valuation-complete-guide',
+        destination: '/knowledge-base',
         permanent: true,
       },
     ]

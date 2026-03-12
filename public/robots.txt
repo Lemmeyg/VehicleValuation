@@ -15,6 +15,13 @@ Disallow: /dashboard/
 Disallow: /reset-password
 Disallow: /auth/
 
+# Block redirect shim pages (they redirect to /auth, not real content)
+Disallow: /login
+Disallow: /signup
+
+# Block transactional report pages (user-specific, not indexable)
+Disallow: /reports/
+
 # Block Next.js internals
 Disallow: /_next/static/chunks/
 Disallow: /_next/static/development/
