@@ -1,34 +1,38 @@
 /**
  * Tests for next.config.ts redirects
  *
- * Verifies that non-www requests are permanently redirected to www
- * to consolidate SEO authority onto a single canonical domain.
+ * Verifies targeted redirects for removed pages.
+ * Note: non-www → www redirect is handled by Vercel at domain level, not here.
  */
 
 import nextConfig from '../next.config'
 
-describe('next.config redirects — canonical domain', () => {
+describe('next.config redirects', () => {
   it('exports a redirects function', () => {
     expect(typeof nextConfig.redirects).toBe('function')
   })
 
-  it('permanently redirects non-www to www', async () => {
+  it('redirects deleted KB article to /knowledge-base with 301', async () => {
     const redirects = await nextConfig.redirects!()
 
-    const wwwRedirect = redirects.find(
-      r => r.destination === 'https://www.totallosstoolkit.com/:path*' && r.permanent === true
+    const articleRedirect = redirects.find(
+      r =>
+        r.source ===
+        '/knowledge-base/how-to-challenge-insurance-company-vehicle-valuation-complete-guide'
     )
 
-    expect(wwwRedirect).toBeDefined()
+    expect(articleRedirect).toBeDefined()
+    expect(articleRedirect?.destination).toBe('/knowledge-base')
+    expect(articleRedirect?.permanent).toBe(true)
   })
 
-  it('redirect applies only to the non-www host', async () => {
+  it('does not contain a non-www to www redirect (Vercel handles this)', async () => {
     const redirects = await nextConfig.redirects!()
 
-    const wwwRedirect = redirects.find(
+    const nonWwwRedirect = redirects.find(
       r => r.destination === 'https://www.totallosstoolkit.com/:path*'
     )
 
-    expect(wwwRedirect?.has).toContainEqual({ type: 'host', value: 'totallosstoolkit.com' })
+    expect(nonWwwRedirect).toBeUndefined()
   })
 })
