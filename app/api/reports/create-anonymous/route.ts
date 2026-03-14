@@ -19,18 +19,6 @@ interface CreateAnonymousReportRequest {
   zipCode: string
 }
 
-interface VehicleData {
-  year: string | null
-  make: string | null
-  model: string | null
-  trim: string | null
-  body_style: string | null
-  engine: string | null
-  transmission: string | null
-  drive_type: string | null
-  fuel_type: string | null
-}
-
 export async function POST(request: Request) {
   try {
     const body: CreateAnonymousReportRequest = await request.json()
@@ -139,39 +127,9 @@ export async function POST(request: Request) {
       )
     }
 
-    // Step 1: Decode VIN using VinAudit API
-    let vehicleData: VehicleData | null = null
-    try {
-      const vinAuditResponse = await fetch(
-        `https://vindecoder.p.rapidapi.com/decode_vin?vin=${sanitizedVin}`,
-        {
-          headers: {
-            'X-RapidAPI-Key': process.env.VINAUDIT_API_KEY!,
-            'X-RapidAPI-Host': 'vindecoder.p.rapidapi.com',
-          },
-        }
-      )
-
-      if (vinAuditResponse.ok) {
-        const vinData = await vinAuditResponse.json()
-        vehicleData = {
-          year: vinData.specification?.year || null,
-          make: vinData.specification?.make || null,
-          model: vinData.specification?.model || null,
-          trim: vinData.specification?.trim || null,
-          body_style: vinData.specification?.body || null,
-          engine: vinData.specification?.engine || null,
-          transmission: vinData.specification?.transmission || null,
-          drive_type: vinData.specification?.drive_type || null,
-          fuel_type: vinData.specification?.fuel_type || null,
-        }
-      }
-    } catch (error) {
-      console.error('VIN decode error:', error)
-      // Continue even if VIN decode fails - we'll get vehicle data later
-    }
-
-    // Step 2: Create report in database (link to authenticated user if available)
+    // Create report in database (link to authenticated user if available)
+    // Vehicle data (VIN decode) is populated later by the LemonSqueezy webhook
+    // using auto.dev, which is more reliable than the deprecated VinAudit endpoint.
     const { data: report, error: insertError } = await supabase
       .from('reports')
       .insert({
@@ -179,9 +137,9 @@ export async function POST(request: Request) {
         mileage: mileageNum,
         zip_code: zipCode,
         email: normalizedEmail, // Store normalized email for later account linking
-        dealer_type: 'private', // Default value
-        status: 'pending', // Reports start as pending
-        vehicle_data: vehicleData,
+        dealer_type: 'private', // Default value — updated by webhook after VIN decode
+        status: 'pending', // Reports start as pending until payment received
+        vehicle_data: null, // Populated by webhook after payment
         user_id: authenticatedUserId, // Link to user if authenticated, otherwise null
       })
       .select()
@@ -206,25 +164,7 @@ export async function POST(request: Request) {
       linkedToUser: !!authenticatedUserId,
     })
 
-    // Step 3: Fetch MarketCheck valuation (async - don't wait)
-    // This will be processed in the background
-    if (vehicleData?.year && vehicleData?.make && vehicleData?.model) {
-      // Trigger MarketCheck API call (fire and forget)
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/marketcheck/valuation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reportId: report.id,
-          year: vehicleData.year,
-          make: vehicleData.make,
-          model: vehicleData.model,
-          mileage: mileageNum,
-          zipCode: zipCode,
-        }),
-      }).catch(err => console.error('MarketCheck background fetch error:', err))
-    }
-
-    // Step 4: Return report data
+    // Return report data
     return NextResponse.json({
       success: true,
       report: {
