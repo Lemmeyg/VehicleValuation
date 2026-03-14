@@ -8,6 +8,12 @@ import * as client from '@/lib/lemonsqueezy/client'
 import * as marketcheck from '@/lib/api/marketcheck-client'
 import * as autodev from '@/lib/api/autodev-client'
 import * as pdfGenerator from '@/lib/services/pdf-generator'
+import { logApiCall } from '@/lib/api/api-call-logger'
+
+jest.mock('@/lib/api/api-call-logger', () => ({
+  logApiCall: jest.fn().mockResolvedValue(undefined),
+}))
+const mockLogApiCall = logApiCall as jest.MockedFunction<typeof logApiCall>
 
 jest.mock('@/lib/db/supabase', () => ({
   supabaseAdmin: {
@@ -89,6 +95,7 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
       update: jest.fn().mockReturnValue({
         eq: jest.fn().mockResolvedValue({ error: null }),
       }),
+      upsert: jest.fn().mockResolvedValue({ error: null }),
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockAdmin.from = mockFrom as any
@@ -96,12 +103,18 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     // Mock MarketCheck and AutoDev
     ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
       success: true,
-      data: { predictedPrice: 25000, confidence: 'high', totalComparablesFound: 10 },
+      data: {
+        predictedPrice: 25000,
+        confidence: 'high',
+        totalComparablesFound: 10,
+        recentComparables: { num_found: 5 },
+      },
     })
     ;(autodev.fetchAutoDevVinDecode as jest.Mock).mockResolvedValue({
       success: true,
-      data: { make: 'Honda', model: 'Accord', vehicle: { year: 2021 } },
+      data: { make: 'Honda', model: 'Accord', vehicle: { year: 2021 }, vinValid: true },
     })
+    mockLogApiCall.mockResolvedValue(undefined)
     ;(pdfGenerator.generateAndUploadPDF as jest.Mock).mockResolvedValue(undefined)
 
     // Mock user creation (new user)
@@ -136,6 +149,21 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
         options: expect.objectContaining({
           emailRedirectTo:
             'https://www.totallosstoolkit.com/auth/callback?next=/reports/report-abc/view',
+        }),
+      })
+    )
+
+    expect(mockLogApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'autodev',
+        responseData: expect.objectContaining({ vinValid: expect.any(Boolean) }),
+      })
+    )
+    expect(mockLogApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'marketcheck',
+        responseData: expect.objectContaining({
+          recent_comparables_found: expect.any(Number),
         }),
       })
     )
