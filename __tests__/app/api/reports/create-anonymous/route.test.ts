@@ -23,7 +23,6 @@ const mockSelect = jest.fn()
 const mockEq = jest.fn()
 const mockOrder = jest.fn()
 const mockLimit = jest.fn()
-const mockMaybeSingle = jest.fn()
 const mockSingle = jest.fn()
 
 const mockAutoDevData = {
@@ -47,7 +46,6 @@ const mockAutoDevData = {
 beforeEach(() => {
   jest.clearAllMocks()
 
-  mockMaybeSingle.mockResolvedValue({ data: null, error: null }) // no duplicate
   mockSingle.mockResolvedValue({
     data: {
       id: 'new-report-id',
@@ -71,7 +69,7 @@ beforeEach(() => {
     order: mockOrder,
   })
   mockOrder.mockReturnValue({ limit: mockLimit })
-  mockLimit.mockReturnValue({ maybeSingle: mockMaybeSingle })
+  mockLimit.mockResolvedValue({ data: [], error: null })
   ;(supabaseAdmin as any).from = jest.fn((table: string) => {
     if (table === 'reports') return { select: mockSelect, insert: mockInsert, update: mockUpdate }
     return { insert: jest.fn().mockResolvedValue({ data: null, error: null }) }
