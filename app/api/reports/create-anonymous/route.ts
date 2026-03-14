@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin, createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
+import { fetchAutoDevVinDecode, type AutoDevVinDecodeData } from '@/lib/api/autodev-client'
+import { logApiCall } from '@/lib/api/api-call-logger'
 
 /**
  * Create Anonymous Report Endpoint
@@ -17,18 +19,6 @@ interface CreateAnonymousReportRequest {
   vin: string
   mileage: number
   zipCode: string
-}
-
-interface VehicleData {
-  year: string | null
-  make: string | null
-  model: string | null
-  trim: string | null
-  body_style: string | null
-  engine: string | null
-  transmission: string | null
-  drive_type: string | null
-  fuel_type: string | null
 }
 
 export async function POST(request: Request) {
@@ -139,60 +129,28 @@ export async function POST(request: Request) {
       )
     }
 
-    // Step 1: Decode VIN using VinAudit API
-    let vehicleData: VehicleData | null = null
-    try {
-      const vinAuditResponse = await fetch(
-        `https://vindecoder.p.rapidapi.com/decode_vin?vin=${sanitizedVin}`,
-        {
-          headers: {
-            'X-RapidAPI-Key': process.env.VINAUDIT_API_KEY!,
-            'X-RapidAPI-Host': 'vindecoder.p.rapidapi.com',
-          },
-        }
-      )
-
-      if (vinAuditResponse.ok) {
-        const vinData = await vinAuditResponse.json()
-        vehicleData = {
-          year: vinData.specification?.year || null,
-          make: vinData.specification?.make || null,
-          model: vinData.specification?.model || null,
-          trim: vinData.specification?.trim || null,
-          body_style: vinData.specification?.body || null,
-          engine: vinData.specification?.engine || null,
-          transmission: vinData.specification?.transmission || null,
-          drive_type: vinData.specification?.drive_type || null,
-          fuel_type: vinData.specification?.fuel_type || null,
-        }
-      }
-    } catch (error) {
-      console.error('VIN decode error:', error)
-      // Continue even if VIN decode fails - we'll get vehicle data later
-    }
-
-    // Step 2: Create report in database (link to authenticated user if available)
+    // Step 1: Create report in database with null vehicle_data
     const { data: report, error: insertError } = await supabase
       .from('reports')
       .insert({
         vin: sanitizedVin,
         mileage: mileageNum,
         zip_code: zipCode,
-        email: normalizedEmail, // Store normalized email for later account linking
-        dealer_type: 'private', // Default value
-        status: 'pending', // Reports start as pending
-        vehicle_data: vehicleData,
-        user_id: authenticatedUserId, // Link to user if authenticated, otherwise null
+        email: normalizedEmail,
+        dealer_type: 'private',
+        status: 'pending',
+        vehicle_data: null,
+        user_id: authenticatedUserId,
       })
       .select()
       .single()
 
-    if (insertError) {
+    if (insertError || !report) {
       console.error('[create-anonymous] Database insert error:', insertError)
       return NextResponse.json(
         {
           error: 'Failed to create report. Please try again.',
-          details: process.env.NODE_ENV === 'development' ? insertError.message : undefined,
+          details: process.env.NODE_ENV === 'development' ? insertError?.message : undefined,
         },
         { status: 500 }
       )
@@ -206,25 +164,65 @@ export async function POST(request: Request) {
       linkedToUser: !!authenticatedUserId,
     })
 
-    // Step 3: Fetch MarketCheck valuation (async - don't wait)
-    // This will be processed in the background
-    if (vehicleData?.year && vehicleData?.make && vehicleData?.model) {
-      // Trigger MarketCheck API call (fire and forget)
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/marketcheck/valuation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reportId: report.id,
-          year: vehicleData.year,
+    // Step 2: Decode VIN using Auto.dev
+    const vinStartTime = Date.now()
+    const vinDecodeResult = await fetchAutoDevVinDecode(sanitizedVin)
+    const vinResponseTime = Date.now() - vinStartTime
+
+    let vehicleData: AutoDevVinDecodeData | null = null
+
+    if (vinDecodeResult.success && vinDecodeResult.data) {
+      vehicleData = vinDecodeResult.data
+
+      await logApiCall({
+        reportId: report.id,
+        provider: 'autodev',
+        endpoint: '/vin/{vin}',
+        success: true,
+        responseTimeMs: vinResponseTime,
+        cost: 0.0,
+        requestData: { vin: sanitizedVin },
+        responseData: {
           make: vehicleData.make,
           model: vehicleData.model,
-          mileage: mileageNum,
-          zipCode: zipCode,
-        }),
-      }).catch(err => console.error('MarketCheck background fetch error:', err))
+          year: vehicleData.vehicle.year,
+          vinValid: vehicleData.vinValid,
+        },
+      })
+    } else {
+      await logApiCall({
+        reportId: report.id,
+        provider: 'autodev',
+        endpoint: '/vin/{vin}',
+        success: false,
+        responseTimeMs: vinResponseTime,
+        cost: 0.0,
+        requestData: { vin: sanitizedVin },
+        errorMessage: vinDecodeResult.error,
+      })
     }
 
-    // Step 4: Return report data
+    // Step 3: Update report with vehicle data (camelCase keys, matching create/route.ts)
+    if (vehicleData) {
+      await supabase
+        .from('reports')
+        .update({
+          vehicle_data: {
+            year: vehicleData.vehicle.year.toString(),
+            make: vehicleData.make,
+            model: vehicleData.model,
+            trim: vehicleData.trim,
+            bodyType: vehicleData.body,
+            engine: vehicleData.engine,
+            transmission: vehicleData.transmission,
+            driveType: vehicleData.drive,
+            fuelType: vehicleData.type,
+          },
+        })
+        .eq('id', report.id)
+    }
+
+    // Step 4: Return response (vehicle data from memory, not DB re-fetch)
     return NextResponse.json({
       success: true,
       report: {
@@ -234,8 +232,20 @@ export async function POST(request: Request) {
         zip_code: report.zip_code,
         email: report.email,
         status: report.status,
-        vehicle_data: report.vehicle_data,
-        marketcheck_valuation: report.marketcheck_valuation || null,
+        vehicle_data: vehicleData
+          ? {
+              year: vehicleData.vehicle.year.toString(),
+              make: vehicleData.make,
+              model: vehicleData.model,
+              trim: vehicleData.trim,
+              bodyType: vehicleData.body,
+              engine: vehicleData.engine,
+              transmission: vehicleData.transmission,
+              driveType: vehicleData.drive,
+              fuelType: vehicleData.type,
+            }
+          : null,
+        marketcheck_valuation: null,
         created_at: report.created_at,
       },
     })
