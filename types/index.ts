@@ -31,7 +31,7 @@ export interface ComparableVehicle {
   location: string
   listingUrl?: string
   notes: string // Explanation of price differences
-  source: 'autodev' | 'carsxe' | 'vinaudit'
+  source: 'autodev' | 'carsxe'
 }
 
 export interface ValuationResult {

@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/db/supabase'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
 import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
 import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
+import { logApiCall } from '@/lib/api/api-call-logger'
 import type { LemonSqueezyWebhookEvent } from '@/lib/lemonsqueezy/types'
 
 export async function POST(request: NextRequest) {
@@ -170,32 +171,33 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
       }
 
       // Log API call
-      await supabase.from('api_call_logs').insert({
-        report_id: reportId,
-        api_provider: 'autodev',
+      await logApiCall({
+        reportId,
+        provider: 'autodev',
         endpoint: '/vin/{vin}',
-        cost: 0.0,
         success: true,
-        response_time_ms: vinResponseTime,
-        request_data: { vin: report.vin },
-        response_data: {
+        responseTimeMs: vinResponseTime,
+        cost: 0.0,
+        requestData: { vin: report.vin },
+        responseData: {
           make: vinResult.data.make,
           model: vinResult.data.model,
           year: vinResult.data.vehicle?.year,
+          vinValid: vinResult.data.vinValid,
         },
       })
     } else {
       console.warn(`[Webhook] Auto.dev VIN decode failed for report ${reportId}:`, vinResult.error)
       // Log failed API call
-      await supabase.from('api_call_logs').insert({
-        report_id: reportId,
-        api_provider: 'autodev',
+      await logApiCall({
+        reportId,
+        provider: 'autodev',
         endpoint: '/vin/{vin}',
-        cost: 0.0,
         success: false,
-        error_message: vinResult.error,
-        response_time_ms: vinResponseTime,
-        request_data: { vin: report.vin },
+        responseTimeMs: vinResponseTime,
+        cost: 0.0,
+        requestData: { vin: report.vin },
+        errorMessage: vinResult.error,
       })
     }
 
@@ -244,42 +246,43 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
         marketcheckData = mcResult.data
 
         // Log API call for cost tracking
-        await supabase.from('api_call_logs').insert({
-          report_id: reportId,
-          api_provider: 'marketcheck',
+        await logApiCall({
+          reportId,
+          provider: 'marketcheck',
           endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-          cost: 0.09,
           success: true,
-          response_time_ms: mcResponseTime,
-          request_data: {
+          responseTimeMs: mcResponseTime,
+          cost: 0.09,
+          requestData: {
             vin: report.vin,
             mileage: report.mileage,
             zip_code: report.zip_code,
             dealer_type: 'franchise',
             fallback_used: mcResult.fallbackUsed ?? false,
           },
-          response_data: {
+          responseData: {
             predicted_price: mcResult.data.predictedPrice,
             total_comparables_found: mcResult.data.totalComparablesFound,
+            recent_comparables_found: mcResult.data.recentComparables?.num_found ?? 0,
           },
         })
       } else {
         console.error(`[Webhook] MarketCheck failed for report ${reportId}:`, mcResult.error)
         // Log failed API call
-        await supabase.from('api_call_logs').insert({
-          report_id: reportId,
-          api_provider: 'marketcheck',
+        await logApiCall({
+          reportId,
+          provider: 'marketcheck',
           endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-          cost: 0.0,
           success: false,
-          error_message: mcResult.error,
-          response_time_ms: mcResponseTime,
-          request_data: {
+          responseTimeMs: mcResponseTime,
+          cost: 0.0,
+          requestData: {
             vin: report.vin,
             mileage: report.mileage,
             zip_code: report.zip_code,
             dealer_type: 'franchise',
           },
+          errorMessage: mcResult.error,
         })
       }
     } else {

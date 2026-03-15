@@ -15,6 +15,7 @@ import { fetchMarketCheckData, type MarketCheckPrediction } from '@/lib/api/mark
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
+import { logApiCall } from '@/lib/api/api-call-logger'
 
 export async function POST(request: Request) {
   try {
@@ -62,19 +63,30 @@ export async function POST(request: Request) {
     }
 
     // Fetch VIN decode
+    const autoDevStartTime = Date.now()
     const autoDevResult = await fetchAutoDevVinDecode(vin)
     const vehicleData: AutoDevVinDecodeData | null = autoDevResult.success
       ? autoDevResult.data!
       : null
 
-    await supabaseAdmin.from('api_call_logs').insert({
-      report_id: report.id,
-      api_provider: 'autodev',
-      endpoint: '/vin',
+    await logApiCall({
+      reportId: report.id,
+      provider: 'autodev',
+      endpoint: '/vin/{vin}',
       success: autoDevResult.success,
-      response_time_ms: 0,
+      responseTimeMs: Date.now() - autoDevStartTime,
       cost: 0.0,
-      error_message: autoDevResult.success ? null : autoDevResult.error,
+      requestData: { vin },
+      responseData:
+        autoDevResult.success && autoDevResult.data
+          ? {
+              make: autoDevResult.data.make,
+              model: autoDevResult.data.model,
+              year: autoDevResult.data.vehicle.year,
+              vinValid: autoDevResult.data.vinValid,
+            }
+          : undefined,
+      errorMessage: autoDevResult.success ? undefined : autoDevResult.error,
     })
 
     // Classify dealer type
@@ -97,6 +109,7 @@ export async function POST(request: Request) {
         model: vehicleData.model,
         trim: vehicleData.trim,
       }
+      const mcStartTime = Date.now()
       const mcResult = await fetchMarketCheckData(
         vin,
         mileage,
@@ -117,14 +130,23 @@ export async function POST(request: Request) {
         urlValidatedListingUrls = urlStats.validatedUrls
       }
 
-      await supabaseAdmin.from('api_call_logs').insert({
-        report_id: report.id,
-        api_provider: 'marketcheck',
-        endpoint: '/predict/car/price',
+      await logApiCall({
+        reportId: report.id,
+        provider: 'marketcheck',
+        endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
         success: mcResult.success,
-        response_time_ms: 0,
-        cost: mcResult.success ? 0.1 : 0.0,
-        error_message: mcResult.success ? null : mcResult.error,
+        responseTimeMs: Date.now() - mcStartTime,
+        cost: mcResult.success ? 0.09 : 0.0,
+        requestData: { vin, mileage, zip_code: zipCode, dealer_type: dealerType },
+        responseData:
+          mcResult.success && marketcheckValuation
+            ? {
+                predicted_price: marketcheckValuation.predictedPrice,
+                total_comparables_found: marketcheckValuation.totalComparablesFound,
+                recent_comparables_found: marketcheckValuation.recentComparables?.num_found ?? 0,
+              }
+            : undefined,
+        errorMessage: mcResult.success ? undefined : mcResult.error,
       })
     }
 

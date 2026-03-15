@@ -8,6 +8,10 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+jest.mock('@/lib/api/api-call-logger')
+import { logApiCall } from '@/lib/api/api-call-logger'
+const mockLogApiCall = logApiCall as jest.MockedFunction<typeof logApiCall>
+
 import { POST } from '@/app/api/admin/reports/create-free/route'
 
 // Mock all dependencies
@@ -168,6 +172,37 @@ describe('POST /api/admin/reports/create-free', () => {
       const data = await res.json()
       expect(res.status).toBe(201)
       expect(data.reportId).toBe('report-abc-123')
+    })
+
+    it('logs autodev and marketcheck api calls with correct fields', async () => {
+      mockLogApiCall.mockResolvedValue(undefined)
+
+      await POST(makeRequest({ vin: VALID_VIN, mileage: 35000, zipCode: '10001' }))
+
+      expect(mockLogApiCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'autodev',
+          endpoint: '/vin/{vin}',
+          cost: 0.0,
+          responseTimeMs: expect.any(Number),
+        })
+      )
+      // Confirm response_time_ms is measured (not hardcoded 0)
+      const autoDevCall = mockLogApiCall.mock.calls.find(c => c[0].provider === 'autodev')
+      expect(autoDevCall![0].responseTimeMs).toBeGreaterThanOrEqual(0)
+
+      expect(mockLogApiCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'marketcheck',
+          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+          cost: 0.09,
+          responseData: expect.objectContaining({
+            predicted_price: expect.any(Number),
+            total_comparables_found: expect.any(Number),
+            recent_comparables_found: expect.any(Number),
+          }),
+        })
+      )
     })
 
     it('calls generateAndUploadPDF with the created report id', async () => {

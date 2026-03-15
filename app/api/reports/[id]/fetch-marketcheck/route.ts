@@ -11,11 +11,9 @@ import { requireAuth } from '@/lib/db/auth'
 import { validateBeforeMarketCheckCall } from '@/lib/security/report-validation'
 import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
 import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
+import { logApiCall } from '@/lib/api/api-call-logger'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: reportId } = await params
 
@@ -87,8 +85,11 @@ export async function POST(
       // DEBUG: Log the listings array structure (first 3 only to avoid log spam)
       if (marketcheckResult.data.recentComparables?.listings) {
         const totalListings = marketcheckResult.data.recentComparables.listings.length
-        console.log(`[MarketCheck] Storing ${totalListings} listings in database (all recent comparables, no artificial limit)`)
-        console.log(`[MarketCheck] Sample listings (first 3 of ${totalListings}):`,
+        console.log(
+          `[MarketCheck] Storing ${totalListings} listings in database (all recent comparables, no artificial limit)`
+        )
+        console.log(
+          `[MarketCheck] Sample listings (first 3 of ${totalListings}):`,
           JSON.stringify(marketcheckResult.data.recentComparables.listings.slice(0, 3), null, 2)
         )
       } else {
@@ -120,19 +121,16 @@ export async function POST(
           generatedAt: new Date().toISOString(),
         }
 
-        // Get Supabase admin client for logging
-        const supabase = await createServerSupabaseClient()
-
         // Log successful API call
-        await supabase.from('api_call_logs').insert({
-          report_id: reportId,
-          api_provider: 'autodev',
+        await logApiCall({
+          reportId,
+          provider: 'autodev',
           endpoint: '/vin/{vin}',
-          cost: 0.00, // FREE tier - adjust if using paid tier
           success: true,
-          response_time_ms: vinResponseTime,
-          request_data: { vin },
-          response_data: {
+          responseTimeMs: vinResponseTime,
+          cost: 0.0,
+          requestData: { vin },
+          responseData: {
             make: vinDecodeResult.data.make,
             model: vinDecodeResult.data.model,
             year: vinDecodeResult.data.vehicle?.year,
@@ -143,19 +141,16 @@ export async function POST(
         // Soft fail - log error but continue
         console.warn(`[AutoDev VIN] Failed:`, vinDecodeResult.error)
 
-        // Get Supabase admin client for logging
-        const supabase = await createServerSupabaseClient()
-
         // Log failed API call
-        await supabase.from('api_call_logs').insert({
-          report_id: reportId,
-          api_provider: 'autodev',
+        await logApiCall({
+          reportId,
+          provider: 'autodev',
           endpoint: '/vin/{vin}',
-          cost: 0.00,
           success: false,
-          error_message: vinDecodeResult.error,
-          response_time_ms: vinResponseTime,
-          request_data: { vin },
+          responseTimeMs: vinResponseTime,
+          cost: 0.0,
+          requestData: { vin },
+          errorMessage: vinDecodeResult.error,
         })
       }
 
@@ -179,14 +174,19 @@ export async function POST(
           marketcheck_price_range_max: marketcheckResult.data.priceRange?.max || null,
           marketcheck_confidence: marketcheckResult.data.confidence,
           marketcheck_total_comparables_found: marketcheckResult.data.totalComparablesFound,
-          marketcheck_recent_comparables_found: marketcheckResult.data.recentComparables?.num_found || 0,
+          marketcheck_recent_comparables_found:
+            marketcheckResult.data.recentComparables?.num_found || 0,
 
           // IMPORTANT: Also update valuation_result to MarketCheck (replaces CarsXE)
           valuation_result: {
             predictedPrice: marketcheckResult.data.predictedPrice,
-            lowValue: marketcheckResult.data.priceRange?.min || Math.round(marketcheckResult.data.predictedPrice * 0.9),
+            lowValue:
+              marketcheckResult.data.priceRange?.min ||
+              Math.round(marketcheckResult.data.predictedPrice * 0.9),
             averageValue: marketcheckResult.data.predictedPrice,
-            highValue: marketcheckResult.data.priceRange?.max || Math.round(marketcheckResult.data.predictedPrice * 1.1),
+            highValue:
+              marketcheckResult.data.priceRange?.max ||
+              Math.round(marketcheckResult.data.predictedPrice * 1.1),
             confidence: marketcheckResult.data.confidence,
             dataPoints: marketcheckResult.data.totalComparablesFound,
             dataSource: 'marketcheck',
@@ -196,30 +196,22 @@ export async function POST(
 
       if (mcUpdateError) {
         console.error(`[MarketCheck] Error saving results:`, mcUpdateError)
-        return NextResponse.json(
-          { error: 'Failed to save results' },
-          { status: 500 }
-        )
+        return NextResponse.json({ error: 'Failed to save results' }, { status: 500 })
       }
 
       // Log API call for cost tracking
-      await supabase.from('api_call_logs').insert({
-        report_id: reportId,
-        api_provider: 'marketcheck',
+      await logApiCall({
+        reportId,
+        provider: 'marketcheck',
         endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-        cost: 0.09, // $0.09 per call
         success: true,
-        response_time_ms: apiResponseTime,
-        request_data: {
-          vin,
-          mileage,
-          zip_code,
-          dealer_type: 'franchise',
-        },
-        response_data: {
+        responseTimeMs: apiResponseTime,
+        cost: 0.09,
+        requestData: { vin, mileage, zip_code, dealer_type: 'franchise' },
+        responseData: {
           predicted_price: marketcheckResult.data.predictedPrice,
           total_comparables_found: marketcheckResult.data.totalComparablesFound,
-          recent_comparables_found: marketcheckResult.data.recentComparables?.num_found || 0,
+          recent_comparables_found: marketcheckResult.data.recentComparables?.num_found ?? 0,
         },
       })
 
@@ -230,30 +222,22 @@ export async function POST(
     } else {
       console.error(`[MarketCheck] API failed:`, marketcheckResult.error)
 
-      // Get Supabase admin client for logging
-      const supabase = await createServerSupabaseClient()
-
       // Log failed API call
-      await supabase.from('api_call_logs').insert({
-        report_id: reportId,
-        api_provider: 'marketcheck',
+      await logApiCall({
+        reportId,
+        provider: 'marketcheck',
         endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-        cost: 0.00, // No cost for failed calls
         success: false,
-        error_message: marketcheckResult.error,
-        response_time_ms: apiResponseTime,
-        request_data: {
-          vin,
-          mileage,
-          zip_code,
-          dealer_type: 'franchise',
-        },
+        responseTimeMs: apiResponseTime,
+        cost: 0.0,
+        requestData: { vin, mileage, zip_code, dealer_type: 'franchise' },
+        errorMessage: marketcheckResult.error,
       })
 
       return NextResponse.json(
         {
           error: marketcheckResult.error,
-          statusCode: marketcheckResult.statusCode
+          statusCode: marketcheckResult.statusCode,
         },
         { status: marketcheckResult.statusCode || 500 }
       )

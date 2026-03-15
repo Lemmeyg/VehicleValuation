@@ -8,12 +8,29 @@
 import { POST } from '@/app/api/reports/create/route'
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import * as rateLimitModule from '@/lib/rate-limit'
+import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
+import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
+import { validateListingUrls } from '@/lib/utils/url-validator'
+import { logApiCall } from '@/lib/api/api-call-logger'
 
 // Mock all dependencies
 jest.mock('@/lib/db/supabase')
 jest.mock('@/lib/rate-limit')
 jest.mock('@/lib/api/marketcheck-client')
 jest.mock('@/lib/api/autodev-client')
+jest.mock('@/lib/utils/url-validator')
+jest.mock('@/lib/api/api-call-logger')
+
+const mockFetchAutoDevVinDecode = fetchAutoDevVinDecode as jest.MockedFunction<
+  typeof fetchAutoDevVinDecode
+>
+const mockFetchMarketCheckData = fetchMarketCheckData as jest.MockedFunction<
+  typeof fetchMarketCheckData
+>
+const mockValidateListingUrls = validateListingUrls as jest.MockedFunction<
+  typeof validateListingUrls
+>
+const mockLogApiCall = logApiCall as jest.MockedFunction<typeof logApiCall>
 
 const mockSupabase = {
   auth: {
@@ -28,9 +45,12 @@ describe('POST /api/reports/create', () => {
     ;(createServerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
 
     // Mock rate limiter to allow requests by default
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(rateLimitModule.reportCreationLimiter as any) = {
       check: jest.fn().mockResolvedValue(undefined),
     }
+
+    mockLogApiCall.mockResolvedValue(undefined)
   })
 
   describe('Authentication', () => {
@@ -294,6 +314,7 @@ describe('POST /api/reports/create', () => {
 
     it('should reject requests exceeding rate limit', async () => {
       // Mock rate limiter to reject
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(rateLimitModule.reportCreationLimiter as any).check = jest
         .fn()
         .mockRejectedValue(new Error('Rate limit exceeded'))
@@ -370,6 +391,126 @@ describe('POST /api/reports/create', () => {
       const response = await POST(request)
 
       expect(response.status).toBe(200)
+    })
+  })
+
+  describe('API Call Logging', () => {
+    beforeEach(() => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: {
+          user: { id: 'test-user-123', email: 'test@example.com' },
+        },
+        error: null,
+      })
+
+      mockSupabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        single: jest.fn().mockResolvedValue({
+          data: { id: 'test-report-123' },
+          error: null,
+        }),
+        insert: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+      })
+
+      mockFetchAutoDevVinDecode.mockResolvedValue({
+        success: true,
+        data: {
+          make: 'Honda',
+          model: 'Accord',
+          trim: 'EX',
+          body: 'Sedan',
+          engine: '2.0L',
+          transmission: 'Automatic',
+          drive: 'FWD',
+          type: 'Gasoline',
+          vinValid: true,
+          vehicle: { year: 2020 },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+
+      mockFetchMarketCheckData.mockResolvedValue({
+        success: true,
+        data: {
+          predictedPrice: 22000,
+          msrp: 25000,
+          priceRange: { min: 20000, max: 24000 },
+          confidence: 'high',
+          totalComparablesFound: 50,
+          recentComparables: { num_found: 30 },
+          listingUrls: [],
+        },
+        fallbackUsed: false,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+
+      mockValidateListingUrls.mockResolvedValue({
+        prediction: {
+          predictedPrice: 22000,
+          msrp: 25000,
+          priceRange: { min: 20000, max: 24000 },
+          confidence: 'high',
+          totalComparablesFound: 50,
+          recentComparables: { num_found: 30 },
+          listingUrls: [],
+        },
+        stats: {
+          checkedCount: 0,
+          failedCount: 0,
+          failedUrls: [],
+          validatedUrls: [],
+          batchesUsed: 0,
+        },
+      })
+    })
+
+    it('should log AutoDev and MarketCheck calls with canonical endpoint strings and costs', async () => {
+      const request = new Request('http://localhost:3000/api/reports/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zipCode: '10001',
+          reportType: 'basic',
+        }),
+      })
+
+      await POST(request)
+
+      expect(mockLogApiCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'autodev',
+          endpoint: '/vin/{vin}',
+          cost: 0.0,
+          requestData: { vin: expect.any(String) },
+          responseData: expect.objectContaining({
+            make: expect.any(String),
+            vinValid: expect.any(Boolean),
+          }),
+        })
+      )
+      expect(mockLogApiCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'marketcheck',
+          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+          cost: 0.09,
+          requestData: expect.objectContaining({
+            vin: expect.any(String),
+            dealer_type: expect.any(String),
+          }),
+          responseData: expect.objectContaining({
+            predicted_price: expect.any(Number),
+            total_comparables_found: expect.any(Number),
+            recent_comparables_found: expect.any(Number),
+          }),
+        })
+      )
     })
   })
 })

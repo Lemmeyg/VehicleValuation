@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/db/auth'
 import { isAdmin } from '@/lib/db/admin-auth'
-import { createRouteHandlerSupabaseClient, supabaseAdmin } from '@/lib/db/supabase'
+import { createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import { getVinValidationError, sanitizeVin } from '@/lib/utils/vin-validator'
 import {
   fetchAutoDevVinDecode, // REAL API for VIN decode
@@ -25,6 +25,7 @@ import {
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { reportCreationLimiter } from '@/lib/rate-limit'
+import { logApiCall } from '@/lib/api/api-call-logger'
 
 const WEEKLY_LIMIT_HOURS = 168 // 7 days = 168 hours
 const DISABLE_RATE_LIMIT = process.env.DISABLE_RATE_LIMIT === 'true' // Development flag
@@ -152,17 +153,32 @@ export async function POST(request: Request) {
       vehicleData = autoDevVinResult.data!
 
       // Log API call
-      await logApiCall(report.id, 'autodev', '/vin', true, Date.now() - startTime, 0.0)
+      await logApiCall({
+        reportId: report.id,
+        provider: 'autodev',
+        endpoint: '/vin/{vin}',
+        success: true,
+        responseTimeMs: Date.now() - startTime,
+        cost: 0.0,
+        requestData: { vin },
+        responseData: {
+          make: vehicleData.make,
+          model: vehicleData.model,
+          year: vehicleData.vehicle.year,
+          vinValid: vehicleData.vinValid,
+        },
+      })
     } else {
-      await logApiCall(
-        report.id,
-        'autodev',
-        '/vin',
-        false,
-        Date.now() - startTime,
-        0.0,
-        autoDevVinResult.error
-      )
+      await logApiCall({
+        reportId: report.id,
+        provider: 'autodev',
+        endpoint: '/vin/{vin}',
+        success: false,
+        responseTimeMs: Date.now() - startTime,
+        cost: 0.0,
+        requestData: { vin },
+        errorMessage: autoDevVinResult.error,
+      })
     }
 
     // Determine dealer type for MarketCheck
@@ -223,15 +239,20 @@ export async function POST(request: Request) {
           urlValidationFailedUrls = urlStats.failedUrls
           urlValidatedListingUrls = urlStats.validatedUrls
 
-          await logApiCall(
-            report.id,
-            'marketcheck',
-            '/predict/car/price',
-            true,
-            Date.now() - marketCheckStartTime,
-            0.1, // $0.10 per call (estimate)
-            undefined
-          )
+          await logApiCall({
+            reportId: report.id,
+            provider: 'marketcheck',
+            endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+            success: true,
+            responseTimeMs: Date.now() - marketCheckStartTime,
+            cost: 0.09,
+            requestData: { vin, mileage, zip_code: zipCode, dealer_type: dealerType },
+            responseData: {
+              predicted_price: marketcheckValuation!.predictedPrice,
+              total_comparables_found: marketcheckValuation!.totalComparablesFound,
+              recent_comparables_found: marketcheckValuation!.recentComparables?.num_found ?? 0,
+            },
+          })
 
           console.log('[MARKETCHECK_SUCCESS]', {
             predictedPrice: marketcheckValuation.predictedPrice,
@@ -240,15 +261,16 @@ export async function POST(request: Request) {
           })
         } else {
           // Log failure but continue (graceful degradation)
-          await logApiCall(
-            report.id,
-            'marketcheck',
-            '/predict/car/price',
-            false,
-            Date.now() - marketCheckStartTime,
-            0.0,
-            marketCheckResult.error
-          )
+          await logApiCall({
+            reportId: report.id,
+            provider: 'marketcheck',
+            endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+            success: false,
+            responseTimeMs: Date.now() - marketCheckStartTime,
+            cost: 0.0,
+            requestData: { vin, mileage, zip_code: zipCode, dealer_type: dealerType },
+            errorMessage: marketCheckResult.error,
+          })
 
           console.warn('[MARKETCHECK_FAILURE]', {
             error: marketCheckResult.error,
@@ -259,15 +281,16 @@ export async function POST(request: Request) {
         // Unexpected error - log but don't fail
         console.error('[MARKETCHECK_EXCEPTION]', error)
 
-        await logApiCall(
-          report.id,
-          'marketcheck',
-          '/predict/car/price',
-          false,
-          Date.now() - marketCheckStartTime,
-          0.0,
-          error instanceof Error ? error.message : 'Unknown error'
-        )
+        await logApiCall({
+          reportId: report.id,
+          provider: 'marketcheck',
+          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+          success: false,
+          responseTimeMs: Date.now() - marketCheckStartTime,
+          cost: 0.0,
+          requestData: { vin, mileage, zip_code: zipCode, dealer_type: dealerType },
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        })
       }
     }
 
@@ -381,33 +404,5 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 })
-  }
-}
-
-/**
- * Log API call to database
- */
-async function logApiCall(
-  reportId: string,
-  provider: string,
-  endpoint: string,
-  success: boolean,
-  responseTimeMs: number,
-  cost: number,
-  errorMessage?: string
-) {
-  try {
-    await supabaseAdmin.from('api_call_logs').insert({
-      report_id: reportId,
-      api_provider: provider,
-      endpoint,
-      success,
-      response_time_ms: responseTimeMs,
-      cost,
-      error_message: errorMessage || null,
-    })
-  } catch (error) {
-    console.error('Error logging API call:', error)
-    // Don't fail the request if logging fails
   }
 }
