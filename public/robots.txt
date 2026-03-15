@@ -22,8 +22,7 @@ Disallow: /signup
 # Block transactional report pages (user-specific, not indexable)
 Disallow: /reports/
 
-# Block Next.js internals
-Disallow: /_next/static/chunks/
+# Block Next.js development internals (not present in production)
 Disallow: /_next/static/development/
 
 # Sitemap location
