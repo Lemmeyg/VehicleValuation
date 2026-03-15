@@ -1,0 +1,79 @@
+# TotalLossToolkit
+
+> Independent vehicle valuation tool helping car owners challenge insurance company total loss settlement offers.
+
+TotalLossToolkit.com helps vehicle owners who have received a total loss determination from their insurance company. When a car is declared a total loss, insurers typically undervalue the settlement by using flawed comparable vehicles, ignoring condition adjustments, or applying unfavorable regional pricing. TotalLossToolkit provides paid comparable vehicle market analysis reports backed by real MarketCheck market data, giving owners the documentation they need to dispute low offers and negotiate fair settlements.
+
+## Core Pages
+
+- [Home](https://www.totallosstoolkit.com/): Landing page with VIN entry form to start a valuation report. Explains the total loss problem, links to the knowledge base, professional directory, and report purchase flow. Designed for vehicle owners who have just received a total loss notice from their insurer.
+
+- [Pricing](https://www.totallosstoolkit.com/pricing): Two one-time-purchase report tiers — Basic and Premium — available via LemonSqueezy. No subscription required. The Premium report includes more comparable vehicles and a detailed market analysis PDF suitable for formal insurance disputes.
+
+- [Knowledge Base](https://www.totallosstoolkit.com/knowledge-base): 22 free educational articles across four categories (Insurance Guides, Insurance Claims, Insurance Education, Auto Insurance). SEO-focused content designed to help vehicle owners understand their rights and navigate the total loss claims process.
+
+- [Professional Directory](https://www.totallosstoolkit.com/directory): Searchable directory of independent appraisers, public adjusters, and insurance advocates who assist total loss claimants. Useful when a vehicle owner needs professional representation in a dispute.
+
+- [FAQ](https://www.totallosstoolkit.com/faq): Covers how total loss is determined, how TotalLossToolkit reports work, how to dispute a settlement, and state-specific rules. First stop for users who want to understand the process before purchasing a report.
+
+- [Guarantee](https://www.totallosstoolkit.com/guarantee): TotalLossToolkit guarantees the accuracy of its valuation reports. If a report contains a factual error in the market data, the purchase is refunded.
+
+## Knowledge Base — Insurance Guides
+
+State-specific total loss law breakdowns and tactical guides for fighting lowball offers. Covers the legal thresholds that trigger a total loss determination, state salvage title rules, owner-retain options, and step-by-step strategies for disputing undervalued settlements.
+
+- [How to Fight a Lowball Total Loss Offer](https://www.totallosstoolkit.com/knowledge-base/insurance-lowball-total-loss-offer-complete-guide-to-fighting-back): Comprehensive guide covering appraisal clause, independent appraisers, challenging comparables, and correcting equipment errors to fight lowball total loss valuations. The most complete single resource for owners who have received an undervalued settlement offer.
+
+- [Total Loss Settlement Too Low? Independent Appraisal Guide](https://www.totallosstoolkit.com/knowledge-base/total-loss-settlement-too-low-independent-appraisal-guide): When your total loss settlement is too low and comparable vehicles fail, independent appraisal can significantly increase your payout. Here is the full process.
+
+- [How to Challenge Insurance Comparable Vehicles](https://www.totallosstoolkit.com/knowledge-base/how-to-challenge-insurance-company-comparable-vehicles-comps): Your insurer picks comps that inflate your loss. Learn to spot wrong trims, rebuilt titles, and stale listings — and dispute them with evidence.
+
+- [Should You Buy Back Your Totaled Car?](https://www.totallosstoolkit.com/knowledge-base/should-you-buy-back-your-totaled-car-hidden-costs): Buying back a totaled car sounds smart, but hidden costs of salvage titles, insurance limits, and repairs often make it a costly mistake. Read this first.
+
+- [Owner Retain After Total Loss](https://www.totallosstoolkit.com/knowledge-base/owner-retain-after-total-loss-how-to-keep-your-car): Learn how owner-retain works after a total loss, who qualifies, and what the salvage title and rebuilt title process means for you. Step-by-step guide.
+
+- [California Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/california-total-loss-law-explained): Explains California total loss thresholds, salvage title rules, and insurance settlement rights for California vehicle owners. Includes guidance on filing a complaint with the California Department of Insurance.
+
+- [Florida Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/florida-total-loss-state-law-explained): Explains Florida total loss rules under F.S. 319.30, including the salvage title process and owner retain options for Florida drivers. Covers the Florida Department of Highway Safety and Motor Vehicles title process.
+
+- [Illinois Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/illinois-total-loss-law-explained): Explains Illinois total loss rules under 625 ILCS 5/3-117.1, salvage title requirements, and settlement rights for Illinois vehicle owners. Covers the Illinois Secretary of State title transfer process for salvage and rebuilt vehicles.
+
+- [Maryland Total Loss Rules Explained](https://www.totallosstoolkit.com/knowledge-base/maryland-total-loss-state-rules-explained): Explains Maryland total loss rules under Md. Code 11-152, the salvage title process, and insurance rights for Maryland claimants. Includes Maryland Insurance Administration complaint procedures for disputed settlements.
+
+- [New York Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/new-york-total-loss-law-explained): Explains New York total loss law under NY VTL and 11 NYCRR Part 216, settlement procedures, and the NY DFS complaint process for New York drivers. Covers New York's strict 30-day settlement timeline requirements for insurers.
+
+- [Pennsylvania Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/pennsylvania-total-loss-law-explained): Explains Pennsylvania total loss rules under 75 Pa.C.S. 1232, salvage title requirements, and settlement rights for Pennsylvania vehicle owners. Covers PennDOT title procedures and the Pennsylvania Insurance Department dispute process.
+
+## Knowledge Base — Insurance Claims
+
+Step-by-step how-to guides for the claims process — challenging valuations, finding better comparable vehicles, disputing fault determinations, and handling unusual claim scenarios like same-carrier conflicts.
+
+- [How to Challenge Your Insurance Vehicle Valuation](https://www.totallosstoolkit.com/knowledge-base/how-to-challenge-insurance-company-vehicle-valuation-complete-guide): Learn how to dispute your insurance company vehicle valuation with proven strategies for reviewing CCC reports, finding comparable vehicles, and using appraisal clauses. Includes a step-by-step framework applicable to any insurer and any state.
+
+- [How to Find Comparable Vehicles for Your Claim](https://www.totallosstoolkit.com/knowledge-base/how-to-find-comparable-vehicles-for-your-insurance-claim): Don't let your insurer choose the comps. Here's how to find better ones by mileage, trim, and market area — and get a higher settlement.
+
+- [Settlement Dispute Letter Template](https://www.totallosstoolkit.com/knowledge-base/settlement-dispute-letter-template): A professional letter template for disputing your insurance company total loss valuation with comparable vehicle evidence. Ready to customize with your vehicle details and send directly to your insurance adjuster.
+
+- [What to Do When Your Claim Is Denied](https://www.totallosstoolkit.com/knowledge-base/what-to-do-when-your-insurance-company-denies-your-claim): Step-by-step guide for handling insurance claim denials, from initial response to formal appeals and legal escalation. Covers state insurance department complaints, bad faith claims, and when to involve an attorney.
+
+- [Fighting Unfair Fault Determinations](https://www.totallosstoolkit.com/knowledge-base/insurance-says-you-are-at-fault-despite-police-report-complete-fighting-guide): Learn how to fight unfair insurance fault determinations even when police reports support your claim. Complete escalation guide with attorney options, DOI complaints, and subrogation strategies.
+
+- [Same-Carrier Insurance Conflicts](https://www.totallosstoolkit.com/knowledge-base/how-to-navigate-same-carrier-insurance-conflicts-after-an-accident): Learn how to handle insurance claims when both drivers have the same carrier. Understand conflicts of interest, subrogation processes, and effective escalation strategies to protect your rights.
+
+- [Dash Cam Essentials](https://www.totallosstoolkit.com/knowledge-base/dash-cam-essentials-protect-yourself-from-word-vs-word-insurance-disputes): Discover how dash cams eliminate word-vs-word insurance disputes with objective video evidence. Complete buying guide featuring Viofo and Garmin recommendations under $200, plus installation tips.
+
+## Knowledge Base — Insurance Education
+
+Foundational insurance knowledge for vehicle owners — understanding what your policy actually covers, when GAP insurance pays off, and how to avoid the documentation pitfalls that lead to claim denials.
+
+- [GAP Insurance Explained](https://www.totallosstoolkit.com/knowledge-base/gap-insurance-explained-why-every-new-car-buyer-needs-it): Learn what GAP insurance covers, when it pays off, and how to avoid losing thousands if your new car is totaled. Complete guide for new car buyers.
+
+- [How to Avoid Claim Denials](https://www.totallosstoolkit.com/knowledge-base/understanding-your-insurance-policy-how-to-avoid-claim-denials): Best practices for understanding insurance policies and avoiding claim denials through proper documentation and coverage awareness. Essential reading before an accident happens, not after.
+
+## Knowledge Base — Auto Insurance
+
+Broader insurance scenarios beyond total loss — handling uninsured drivers, understanding liability when you are at fault, and protecting yourself before an accident happens.
+
+- [Rear-Ended by an Uninsured Driver](https://www.totallosstoolkit.com/knowledge-base/rear-ended-uninsured-driver-your-rights-and-responsibilities): Complete guide for at-fault drivers who hit uninsured motorists, covering liability, insurance claims, and legal implications. Explains uninsured motorist coverage and how to pursue recovery when the other party has no insurance.
+
+- [Dealing with Uninsured Drivers](https://www.totallosstoolkit.com/knowledge-base/dealing-with-uninsured-drivers-prevention-and-protection-strategies): Best practices for protecting yourself from uninsured motorists, including coverage options, preventive measures, and post-accident steps. Covers UM/UIM coverage selection and what to do at the scene when the other driver has no insurance.
