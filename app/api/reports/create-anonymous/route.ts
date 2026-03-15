@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin, createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
-import { fetchAutoDevVinDecode, type AutoDevVinDecodeData } from '@/lib/api/autodev-client'
-import { logApiCall } from '@/lib/api/api-call-logger'
 
 /**
  * Create Anonymous Report Endpoint
@@ -129,28 +127,30 @@ export async function POST(request: Request) {
       )
     }
 
-    // Step 1: Create report in database with null vehicle_data
+    // Create report in database (link to authenticated user if available)
+    // Vehicle data (VIN decode) is populated later by the LemonSqueezy webhook
+    // using auto.dev, which is more reliable than the deprecated VinAudit endpoint.
     const { data: report, error: insertError } = await supabase
       .from('reports')
       .insert({
         vin: sanitizedVin,
         mileage: mileageNum,
         zip_code: zipCode,
-        email: normalizedEmail,
-        dealer_type: 'private',
-        status: 'pending',
-        vehicle_data: null,
-        user_id: authenticatedUserId,
+        email: normalizedEmail, // Store normalized email for later account linking
+        dealer_type: 'private', // Default value — updated by webhook after VIN decode
+        status: 'pending', // Reports start as pending until payment received
+        vehicle_data: null, // Populated by webhook after payment
+        user_id: authenticatedUserId, // Link to user if authenticated, otherwise null
       })
       .select()
       .single()
 
-    if (insertError || !report) {
+    if (insertError) {
       console.error('[create-anonymous] Database insert error:', insertError)
       return NextResponse.json(
         {
           error: 'Failed to create report. Please try again.',
-          details: process.env.NODE_ENV === 'development' ? insertError?.message : undefined,
+          details: process.env.NODE_ENV === 'development' ? insertError.message : undefined,
         },
         { status: 500 }
       )
@@ -164,65 +164,7 @@ export async function POST(request: Request) {
       linkedToUser: !!authenticatedUserId,
     })
 
-    // Step 2: Decode VIN using Auto.dev
-    const vinStartTime = Date.now()
-    const vinDecodeResult = await fetchAutoDevVinDecode(sanitizedVin)
-    const vinResponseTime = Date.now() - vinStartTime
-
-    let vehicleData: AutoDevVinDecodeData | null = null
-
-    if (vinDecodeResult.success && vinDecodeResult.data) {
-      vehicleData = vinDecodeResult.data
-
-      await logApiCall({
-        reportId: report.id,
-        provider: 'autodev',
-        endpoint: '/vin/{vin}',
-        success: true,
-        responseTimeMs: vinResponseTime,
-        cost: 0.0,
-        requestData: { vin: sanitizedVin },
-        responseData: {
-          make: vehicleData.make,
-          model: vehicleData.model,
-          year: vehicleData.vehicle.year,
-          vinValid: vehicleData.vinValid,
-        },
-      })
-    } else {
-      await logApiCall({
-        reportId: report.id,
-        provider: 'autodev',
-        endpoint: '/vin/{vin}',
-        success: false,
-        responseTimeMs: vinResponseTime,
-        cost: 0.0,
-        requestData: { vin: sanitizedVin },
-        errorMessage: vinDecodeResult.error,
-      })
-    }
-
-    // Step 3: Update report with vehicle data (camelCase keys, matching create/route.ts)
-    if (vehicleData) {
-      await supabase
-        .from('reports')
-        .update({
-          vehicle_data: {
-            year: vehicleData.vehicle.year.toString(),
-            make: vehicleData.make,
-            model: vehicleData.model,
-            trim: vehicleData.trim,
-            bodyType: vehicleData.body,
-            engine: vehicleData.engine,
-            transmission: vehicleData.transmission,
-            driveType: vehicleData.drive,
-            fuelType: vehicleData.type,
-          },
-        })
-        .eq('id', report.id)
-    }
-
-    // Step 4: Return response (vehicle data from memory, not DB re-fetch)
+    // Return report data
     return NextResponse.json({
       success: true,
       report: {
@@ -232,20 +174,8 @@ export async function POST(request: Request) {
         zip_code: report.zip_code,
         email: report.email,
         status: report.status,
-        vehicle_data: vehicleData
-          ? {
-              year: vehicleData.vehicle.year.toString(),
-              make: vehicleData.make,
-              model: vehicleData.model,
-              trim: vehicleData.trim,
-              bodyType: vehicleData.body,
-              engine: vehicleData.engine,
-              transmission: vehicleData.transmission,
-              driveType: vehicleData.drive,
-              fuelType: vehicleData.type,
-            }
-          : null,
-        marketcheck_valuation: null,
+        vehicle_data: report.vehicle_data,
+        marketcheck_valuation: report.marketcheck_valuation || null,
         created_at: report.created_at,
       },
     })

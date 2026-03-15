@@ -147,78 +147,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
     })
 
     // ========================================
-    // FETCH MARKETCHECK DATA (if not already present)
-    // ========================================
-    let marketcheckData = report.marketcheck_valuation
-
-    if (!marketcheckData) {
-      console.log(`[Webhook] Fetching MarketCheck data for report ${reportId}`)
-      const mcStartTime = Date.now()
-
-      const mcResult = await fetchMarketCheckData(
-        report.vin,
-        report.mileage,
-        report.zip_code,
-        false // is_certified
-      )
-
-      const mcResponseTime = Date.now() - mcStartTime
-
-      if (mcResult.success && mcResult.data) {
-        console.log(`[Webhook] MarketCheck success for report ${reportId}:`, {
-          predictedPrice: mcResult.data.predictedPrice,
-          totalComparables: mcResult.data.totalComparablesFound,
-          responseTimeMs: mcResponseTime,
-        })
-        marketcheckData = mcResult.data
-
-        // Log API call for cost tracking
-        await logApiCall({
-          reportId,
-          provider: 'marketcheck',
-          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-          success: true,
-          responseTimeMs: mcResponseTime,
-          cost: 0.09,
-          requestData: {
-            vin: report.vin,
-            mileage: report.mileage,
-            zip_code: report.zip_code,
-            dealer_type: 'franchise',
-          },
-          responseData: {
-            predicted_price: mcResult.data.predictedPrice,
-            total_comparables_found: mcResult.data.totalComparablesFound,
-            recent_comparables_found: mcResult.data.recentComparables?.num_found ?? 0,
-          },
-        })
-      } else {
-        console.error(`[Webhook] MarketCheck failed for report ${reportId}:`, mcResult.error)
-        // Log failed API call
-        await logApiCall({
-          reportId,
-          provider: 'marketcheck',
-          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-          success: false,
-          responseTimeMs: mcResponseTime,
-          cost: 0.0,
-          requestData: {
-            vin: report.vin,
-            mileage: report.mileage,
-            zip_code: report.zip_code,
-            dealer_type: 'franchise',
-          },
-          errorMessage: mcResult.error,
-        })
-      }
-    } else {
-      console.log(
-        `[Webhook] MarketCheck data already exists for report ${reportId}, skipping API call`
-      )
-    }
-
-    // ========================================
-    // FETCH AUTO.DEV VIN DECODE DATA
+    // FETCH AUTO.DEV VIN DECODE DATA (first — needed for MarketCheck fallback)
     // ========================================
     let autodevVinData = null
 
@@ -270,6 +199,96 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
         requestData: { vin: report.vin },
         errorMessage: vinResult.error,
       })
+    }
+
+    // Build subjectVehicle from auto.dev result so MarketCheck can use the search
+    // fallback when its VIN-based prediction endpoint returns "Failed to decode VIN"
+    const subjectVehicle =
+      vinResult.success && vinResult.data
+        ? {
+            year: vinResult.data.vehicle?.year,
+            make: vinResult.data.make,
+            model: vinResult.data.model,
+            trim: vinResult.data.trim,
+          }
+        : undefined
+
+    // ========================================
+    // FETCH MARKETCHECK DATA (if not already present)
+    // ========================================
+    let marketcheckData = report.marketcheck_valuation
+
+    if (!marketcheckData) {
+      console.log(`[Webhook] Fetching MarketCheck data for report ${reportId}`, {
+        hasSubjectVehicle: !!subjectVehicle,
+        subjectVehicle,
+      })
+      const mcStartTime = Date.now()
+
+      const mcResult = await fetchMarketCheckData(
+        report.vin,
+        report.mileage,
+        report.zip_code,
+        false, // is_certified
+        undefined, // retryConfig (use default)
+        subjectVehicle // enables search fallback for VINs MarketCheck can't decode directly
+      )
+
+      const mcResponseTime = Date.now() - mcStartTime
+
+      if (mcResult.success && mcResult.data) {
+        console.log(`[Webhook] MarketCheck success for report ${reportId}:`, {
+          predictedPrice: mcResult.data.predictedPrice,
+          totalComparables: mcResult.data.totalComparablesFound,
+          fallbackUsed: mcResult.fallbackUsed,
+          responseTimeMs: mcResponseTime,
+        })
+        marketcheckData = mcResult.data
+
+        // Log API call for cost tracking
+        await logApiCall({
+          reportId,
+          provider: 'marketcheck',
+          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+          success: true,
+          responseTimeMs: mcResponseTime,
+          cost: 0.09,
+          requestData: {
+            vin: report.vin,
+            mileage: report.mileage,
+            zip_code: report.zip_code,
+            dealer_type: 'franchise',
+            fallback_used: mcResult.fallbackUsed ?? false,
+          },
+          responseData: {
+            predicted_price: mcResult.data.predictedPrice,
+            total_comparables_found: mcResult.data.totalComparablesFound,
+            recent_comparables_found: mcResult.data.recentComparables?.num_found ?? 0,
+          },
+        })
+      } else {
+        console.error(`[Webhook] MarketCheck failed for report ${reportId}:`, mcResult.error)
+        // Log failed API call
+        await logApiCall({
+          reportId,
+          provider: 'marketcheck',
+          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+          success: false,
+          responseTimeMs: mcResponseTime,
+          cost: 0.0,
+          requestData: {
+            vin: report.vin,
+            mileage: report.mileage,
+            zip_code: report.zip_code,
+            dealer_type: 'franchise',
+          },
+          errorMessage: mcResult.error,
+        })
+      }
+    } else {
+      console.log(
+        `[Webhook] MarketCheck data already exists for report ${reportId}, skipping API call`
+      )
     }
 
     // ========================================
