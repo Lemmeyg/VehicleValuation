@@ -2,7 +2,7 @@
 
 > Independent vehicle valuation tool helping car owners challenge insurance company total loss settlement offers.
 
-TotalLossToolkit.com provides paid vehicle valuation reports backed by real market data, a free knowledge base covering total loss claims and insurance disputes, and a directory of professionals who help claimants negotiate fair settlements.
+TotalLossToolkit.com provides paid comparable vehicle market analysis reports backed by real market data, a free knowledge base covering total loss claims and insurance disputes, and a directory of professionals who help claimants negotiate fair settlements.
 
 ## Core Pages
 - [Home](https://www.totallosstoolkit.com/): Overview, report entry point, and access to all tools
@@ -18,7 +18,7 @@ TotalLossToolkit.com provides paid vehicle valuation reports backed by real mark
 - [How to Challenge Insurance Comparable Vehicles](https://www.totallosstoolkit.com/knowledge-base/how-to-challenge-insurance-company-comparable-vehicles-comps): Spot wrong trims, rebuilt titles, and stale listings in your insurer's comps
 - [Should You Buy Back Your Totaled Car?](https://www.totallosstoolkit.com/knowledge-base/should-you-buy-back-your-totaled-car-hidden-costs): Hidden costs of salvage titles, insurance limits, and repairs
 - [Owner Retain After Total Loss](https://www.totallosstoolkit.com/knowledge-base/owner-retain-after-total-loss-how-to-keep-your-car): How owner-retain works, who qualifies, and the salvage/rebuilt title process
-- [California Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/california-total-loss-law-explained): State-specific total loss thresholds under VC 544 and 10 CCR 2695.8, salvage title rules, and settlement rights
+- [California Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/california-total-loss-law-explained): California-specific total loss thresholds, salvage title rules, and insurance settlement rights for vehicle owners
 - [Florida Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/florida-total-loss-state-law-explained): Florida total loss rules under F.S. 319.30, including salvage title process and owner retain options
 - [Illinois Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/illinois-total-loss-law-explained): Illinois rules under 625 ILCS 5/3-117.1, salvage title requirements, and settlement rights
 - [Maryland Total Loss Rules Explained](https://www.totallosstoolkit.com/knowledge-base/maryland-total-loss-state-rules-explained): Maryland rules under Md. Code 11-152, salvage title process, and insurance rights
