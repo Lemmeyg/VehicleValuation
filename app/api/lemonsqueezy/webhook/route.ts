@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/lemonsqueezy/client'
 import { supabaseAdmin } from '@/lib/db/supabase'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
@@ -370,19 +370,22 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
       return
     }
 
-    // Generate PDF asynchronously
-    // Note: In production, consider using a queue for this
-    generateAndUploadPDF({ reportId }).catch(error => {
-      console.error(`PDF generation failed for report ${reportId}:`, error)
-      // Update report status to 'failed'
-      supabase
-        .from('reports')
-        .update({ status: 'failed' })
-        .eq('id', reportId)
-        .then(() => console.log(`Report ${reportId} marked as failed`))
+    // Generate PDF after the webhook response is sent.
+    // `after()` keeps the Vercel Lambda alive until the callback resolves,
+    // preventing the function from being killed before PDF upload completes.
+    after(async () => {
+      try {
+        console.log(`[Webhook] PDF generation starting for report ${reportId}`)
+        await generateAndUploadPDF({ reportId })
+        console.log(`[Webhook] PDF generation completed for report ${reportId}`)
+      } catch (error) {
+        console.error(`PDF generation failed for report ${reportId}:`, error)
+        await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
+        console.log(`Report ${reportId} marked as failed`)
+      }
     })
 
-    console.log(`[Webhook] PDF generation initiated for report ${reportId}`)
+    console.log(`[Webhook] PDF generation scheduled for report ${reportId}`)
   } catch (error) {
     console.error('Error handling order_created event:', error)
     throw error
