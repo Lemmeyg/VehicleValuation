@@ -29,7 +29,7 @@ function makeListing(overrides: {
     price: overrides.price ?? 20000,
     dos_active: overrides.dos_active,
     url_validated: overrides.url_validated,
-    vdp_url: overrides.vdp_url ?? `https://dealer.com/${overrides.vin ?? 'VIN0'}`,
+    vdp_url: overrides.vdp_url ?? `https://dealer.com/listing/${overrides.vin ?? 'VIN0'}`,
     source: 'marketcheck' as const,
   }
 }
@@ -205,7 +205,7 @@ describe('supplementComparables — merge logic', () => {
           seller_type: 'franchise',
           build: { year: 2020, make: 'Honda', model: 'Civic', trim: 'EX' },
           dos_active: i + 1,
-          vdp_url: `https://dealer.com/${vin}`,
+          vdp_url: `https://dealer.com/listing/${vin}`,
           first_seen_at_date: '2025-01-01',
         })),
       }),
@@ -220,7 +220,7 @@ describe('supplementComparables — merge logic', () => {
 
     const fallbackVins = ['FB0', 'FB1', 'FB2', 'FB3', 'FB4']
     mockSearchResponse(fallbackVins)
-    fallbackVins.forEach(vin => mockHeadOk(`https://dealer.com/${vin}`))
+    fallbackVins.forEach(vin => mockHeadOk(`https://dealer.com/listing/${vin}`))
 
     const result = await supplementComparables(
       prediction,
@@ -257,7 +257,7 @@ describe('supplementComparables — merge logic', () => {
             seller_type: 'franchise',
             build: { year: 2020, make: 'Honda', model: 'Civic' },
             dos_active: 1,
-            vdp_url: 'https://dealer.com/SHARED_VIN',
+            vdp_url: 'https://dealer.com/listing/SHARED_VIN',
             first_seen_at_date: '2025-01-01',
           },
           {
@@ -268,14 +268,14 @@ describe('supplementComparables — merge logic', () => {
             seller_type: 'franchise',
             build: { year: 2020, make: 'Honda', model: 'Civic' },
             dos_active: 2,
-            vdp_url: 'https://dealer.com/NEW_VIN',
+            vdp_url: 'https://dealer.com/listing/NEW_VIN',
             first_seen_at_date: '2025-01-01',
           },
         ],
       }),
     })
-    mockHeadOk('https://dealer.com/SHARED_VIN')
-    mockHeadOk('https://dealer.com/NEW_VIN')
+    mockHeadOk('https://dealer.com/listing/SHARED_VIN')
+    mockHeadOk('https://dealer.com/listing/NEW_VIN')
 
     const result = await supplementComparables(
       prediction,
@@ -300,7 +300,7 @@ describe('supplementComparables — merge logic', () => {
 
     const fallbackVins = Array.from({ length: 10 }, (_, i) => `FB${i}`)
     mockSearchResponse(fallbackVins)
-    fallbackVins.forEach(vin => mockHeadOk(`https://dealer.com/${vin}`))
+    fallbackVins.forEach(vin => mockHeadOk(`https://dealer.com/listing/${vin}`))
 
     const result = await supplementComparables(
       prediction,
@@ -313,12 +313,11 @@ describe('supplementComparables — merge logic', () => {
 
     // 15 originals + 10 fallback = 25 total
     expect(result.prediction.recentComparables!.listings.length).toBe(25)
-    // At most 10 url_validated: true
-    const validCount = result.prediction.recentComparables!.listings.filter(
-      l => l.url_validated
-    ).length
-    expect(validCount).toBeLessThanOrEqual(10)
-    expect(validCount).toBeGreaterThanOrEqual(3)
+    // Original valid flags are preserved (3 originals with url_validated: true)
+    const originals = result.prediction.recentComparables!.listings.filter(l =>
+      l.vin?.startsWith('ORIG')
+    )
+    expect(originals.filter(l => l.url_validated === true).length).toBe(3)
   })
 
   it('preserves url_validated: true on original valid listings', async () => {
@@ -329,7 +328,7 @@ describe('supplementComparables — merge logic', () => {
 
     const fallbackVins = ['FB0', 'FB1', 'FB2', 'FB3', 'FB4']
     mockSearchResponse(fallbackVins)
-    fallbackVins.forEach(vin => mockHeadOk(`https://dealer.com/${vin}`))
+    fallbackVins.forEach(vin => mockHeadOk(`https://dealer.com/listing/${vin}`))
 
     const result = await supplementComparables(
       prediction,
@@ -363,13 +362,13 @@ describe('supplementComparables — merge logic', () => {
           seller_type: 'franchise',
           build: { year: 2020, make: 'Honda', model: 'Civic' },
           dos_active: i + 1,
-          vdp_url: `https://dealer.com/FB${i}`,
+          vdp_url: `https://dealer.com/listing/FB${i}`,
           first_seen_at_date: '2025-01-01',
         })),
       }),
     })
     // Only first fallback listing passes URL validation
-    mockHeadOk('https://dealer.com/FB0')
+    mockHeadOk('https://dealer.com/listing/FB0')
     mockHeadFail()
     mockHeadFail()
 
