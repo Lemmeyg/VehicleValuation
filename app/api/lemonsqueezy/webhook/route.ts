@@ -6,6 +6,9 @@ import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
 import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import { logApiCall } from '@/lib/api/api-call-logger'
 import type { LemonSqueezyWebhookEvent } from '@/lib/lemonsqueezy/types'
+import { validateListingUrls } from '@/lib/utils/url-validator'
+import { supplementComparables } from '@/lib/utils/comparables-supplementer'
+import type { ValidationStats } from '@/lib/utils/url-validator'
 
 export async function POST(request: NextRequest) {
   try {
@@ -218,6 +221,9 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
     // ========================================
     let marketcheckData = report.marketcheck_valuation
 
+    let webhookSupplemented = false
+    let webhookFallbackUsed = false
+
     if (!marketcheckData) {
       console.log(`[Webhook] Fetching MarketCheck data for report ${reportId}`, {
         hasSubjectVehicle: !!subjectVehicle,
@@ -243,7 +249,54 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
           fallbackUsed: mcResult.fallbackUsed,
           responseTimeMs: mcResponseTime,
         })
-        marketcheckData = mcResult.data
+
+        webhookFallbackUsed = mcResult.fallbackUsed ?? false
+
+        // 1. Validate listing URLs (previously skipped for webhook path)
+        let validatedPrediction = mcResult.data
+        let urlStats: ValidationStats = {
+          checkedCount: 0,
+          failedCount: 0,
+          failedUrls: [],
+          validatedUrls: [],
+          batchesUsed: 0,
+        }
+        let urlValidationSucceeded = false
+
+        try {
+          const urlResult = await validateListingUrls(mcResult.data)
+          validatedPrediction = urlResult.prediction
+          urlStats = urlResult.stats
+          urlValidationSucceeded = true
+        } catch (err) {
+          console.error(
+            '[Webhook] validateListingUrls threw — proceeding with unvalidated listings:',
+            err
+          )
+          // Non-fatal: raw prediction used; url_validated flags will be absent
+        }
+
+        // 2. Top-up: only call supplement if URL validation completed
+        // (avoids spurious trigger when urlStats.validatedUrls.length would be 0 due to an exception)
+        if (urlValidationSucceeded) {
+          try {
+            const supplementResult = await supplementComparables(
+              validatedPrediction,
+              urlStats.validatedUrls.length,
+              subjectVehicle,
+              report.vin,
+              report.mileage ?? null,
+              report.zip_code ?? null
+            )
+            validatedPrediction = supplementResult.prediction
+            webhookSupplemented = supplementResult.supplemented
+          } catch (err) {
+            console.error('[Webhook] supplementComparables threw:', err)
+            // Non-fatal
+          }
+        }
+
+        marketcheckData = validatedPrediction
 
         // Log API call for cost tracking
         await logApiCall({
@@ -317,6 +370,8 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
       updateData.marketcheck_total_comparables_found = marketcheckData.totalComparablesFound
       updateData.marketcheck_recent_comparables_found =
         marketcheckData.recentComparables?.num_found || 0
+      updateData.comparables_supplemented = webhookSupplemented
+      updateData.marketcheck_fallback_used = webhookFallbackUsed
 
       // Also update valuation_result for consistency
       updateData.valuation_result = {

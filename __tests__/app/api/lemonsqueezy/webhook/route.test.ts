@@ -9,6 +9,8 @@ import * as marketcheck from '@/lib/api/marketcheck-client'
 import * as autodev from '@/lib/api/autodev-client'
 import * as pdfGenerator from '@/lib/services/pdf-generator'
 import { logApiCall } from '@/lib/api/api-call-logger'
+import { validateListingUrls } from '@/lib/utils/url-validator'
+import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 
 jest.mock('@/lib/api/api-call-logger', () => ({
   logApiCall: jest.fn().mockResolvedValue(undefined),
@@ -33,6 +35,24 @@ jest.mock('@/lib/api/autodev-client')
 jest.mock('@/lib/services/pdf-generator', () => ({
   generateAndUploadPDF: jest.fn(),
 }))
+jest.mock('@/lib/utils/url-validator', () => ({
+  validateListingUrls: jest.fn(),
+}))
+jest.mock('@/lib/utils/comparables-supplementer', () => ({
+  supplementComparables: jest.fn(),
+}))
+jest.mock('next/server', () => {
+  const actual = jest.requireActual('next/server')
+  return {
+    ...actual,
+    after: jest.fn((fn: () => Promise<void>) => {
+      // Fire-and-forget in tests — avoids "after called outside request scope" errors
+      Promise.resolve()
+        .then(fn)
+        .catch(() => undefined)
+    }),
+  }
+})
 jest.mock(
   '@react-pdf/renderer',
   () => ({
@@ -46,6 +66,13 @@ jest.mock(
   }),
   { virtual: true }
 )
+
+const mockValidateListingUrls = validateListingUrls as jest.MockedFunction<
+  typeof validateListingUrls
+>
+const mockSupplementComparables = supplementComparables as jest.MockedFunction<
+  typeof supplementComparables
+>
 
 const mockAdmin = supabaseAdmin as jest.Mocked<typeof supabaseAdmin>
 
@@ -122,6 +149,16 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
       data: { user: { id: 'new-user-id' } },
       error: null,
     })
+
+    // Pass-through defaults for url-validator and comparables-supplementer
+    mockValidateListingUrls.mockImplementation(async prediction => ({
+      prediction,
+      stats: { checkedCount: 0, failedCount: 0, failedUrls: [], validatedUrls: [], batchesUsed: 0 },
+    }))
+    mockSupplementComparables.mockImplementation(async prediction => ({
+      prediction,
+      supplemented: false,
+    }))
   })
 
   it('uses x-forwarded-host when NEXT_PUBLIC_APP_URL is not set', async () => {
@@ -394,5 +431,251 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'vin_decode_failed' })
     )
+  })
+})
+
+describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supplement', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(client.verifyWebhookSignature as jest.Mock).mockReturnValue(true)
+
+    // Default report mock: no pre-existing marketcheck_valuation
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: jest.fn().mockReturnValue({
+        eq: jest.fn().mockResolvedValue({ error: null }),
+      }),
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+    ;(autodev.fetchAutoDevVinDecode as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { make: 'Honda', model: 'Accord', vehicle: { year: 2021 }, vinValid: true },
+    })
+    ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
+      success: true,
+      fallbackUsed: false,
+      data: {
+        predictedPrice: 25000,
+        confidence: 'high',
+        totalComparablesFound: 10,
+        recentComparables: { num_found: 5, listings: [] },
+      },
+    })
+    mockLogApiCall.mockResolvedValue(undefined)
+    ;(pdfGenerator.generateAndUploadPDF as jest.Mock).mockResolvedValue(undefined)
+    ;(mockAdmin.auth.admin.createUser as jest.Mock).mockResolvedValue({
+      data: { user: { id: 'new-user-id' } },
+      error: null,
+    })
+
+    // Pass-through defaults
+    mockValidateListingUrls.mockImplementation(async prediction => ({
+      prediction,
+      stats: { checkedCount: 0, failedCount: 0, failedUrls: [], validatedUrls: [], batchesUsed: 0 },
+    }))
+    mockSupplementComparables.mockImplementation(async prediction => ({
+      prediction,
+      supplemented: false,
+    }))
+  })
+
+  function makeRequest(bodyOverrides: Record<string, unknown> = {}) {
+    const body = makeOrderCreatedBody(bodyOverrides)
+    return new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body,
+    })
+  }
+
+  it('calls validateListingUrls when MarketCheck fetch is needed (no pre-existing data)', async () => {
+    const request = makeRequest()
+    await POST(request)
+    expect(mockValidateListingUrls).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips validateListingUrls when MarketCheck data already present (idempotency path)', async () => {
+    // Override report mock to return existing marketcheck_valuation
+    const existingData = {
+      predictedPrice: 20000,
+      confidence: 'medium',
+      totalComparablesFound: 8,
+      recentComparables: { num_found: 4, listings: [] },
+    }
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: existingData,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: jest.fn().mockReturnValue({
+        eq: jest.fn().mockResolvedValue({ error: null }),
+      }),
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const request = makeRequest()
+    await POST(request)
+    expect(mockValidateListingUrls).not.toHaveBeenCalled()
+  })
+
+  it('writes comparables_supplemented: true to updateData when supplement fires', async () => {
+    const supplementedPrediction = {
+      predictedPrice: 25000,
+      confidence: 'high',
+      totalComparablesFound: 15,
+      recentComparables: { num_found: 5, listings: [] },
+    }
+    mockSupplementComparables.mockResolvedValue({
+      prediction: supplementedPrediction,
+      supplemented: true,
+    })
+
+    // Capture the update call
+    let capturedUpdateArg: Record<string, unknown> | null = null
+    const mockEq = jest.fn().mockResolvedValue({ error: null })
+    const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
+      capturedUpdateArg = data
+      return { eq: mockEq }
+    })
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const request = makeRequest()
+    await POST(request)
+
+    expect(capturedUpdateArg).not.toBeNull()
+    expect(capturedUpdateArg).toMatchObject({ comparables_supplemented: true })
+  })
+
+  it('writes marketcheck_fallback_used: true when VIN decode fallback was used', async () => {
+    ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
+      success: true,
+      fallbackUsed: true,
+      data: {
+        predictedPrice: 25000,
+        confidence: 'high',
+        totalComparablesFound: 10,
+        recentComparables: { num_found: 5, listings: [] },
+      },
+    })
+
+    let capturedUpdateArg: Record<string, unknown> | null = null
+    const mockEq = jest.fn().mockResolvedValue({ error: null })
+    const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
+      capturedUpdateArg = data
+      return { eq: mockEq }
+    })
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const request = makeRequest()
+    await POST(request)
+
+    expect(capturedUpdateArg).not.toBeNull()
+    expect(capturedUpdateArg).toMatchObject({ marketcheck_fallback_used: true })
+  })
+
+  it('proceeds without supplement when validateListingUrls throws — no retry triggered', async () => {
+    mockValidateListingUrls.mockRejectedValue(new Error('URL validation network error'))
+
+    let capturedUpdateArg: Record<string, unknown> | null = null
+    const mockEq = jest.fn().mockResolvedValue({ error: null })
+    const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
+      capturedUpdateArg = data
+      return { eq: mockEq }
+    })
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const request = makeRequest()
+    const response = await POST(request)
+
+    // Should return 200 — non-fatal error
+    expect(response.status).toBe(200)
+    // supplementComparables must NOT have been called
+    expect(mockSupplementComparables).not.toHaveBeenCalled()
+    // comparables_supplemented should be false
+    expect(capturedUpdateArg).not.toBeNull()
+    expect(capturedUpdateArg).toMatchObject({ comparables_supplemented: false })
   })
 })
