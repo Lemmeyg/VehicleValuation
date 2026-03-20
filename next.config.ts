@@ -2,17 +2,6 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   /* config options here */
-  async redirects() {
-    return [
-      {
-        // Redirect deleted article to KB index — non-www version hits Vercel 308 then this 301
-        source:
-          '/knowledge-base/how-to-challenge-insurance-company-vehicle-valuation-complete-guide',
-        destination: '/knowledge-base',
-        permanent: true,
-      },
-    ]
-  },
   async headers() {
     return [
       {
