@@ -1,43 +1,26 @@
-# TotalLossToolkit
+# TotalLossToolkit.com — llms.txt
+# https://llmstxt.org/
 
-> Independent vehicle valuation tool helping car owners challenge insurance company total loss settlement offers.
+# Site: TotalLossToolkit.com
+# Description: Tools and guides to help vehicle owners navigate total loss insurance claims.
+# Owner: TotalLossToolkit
 
-TotalLossToolkit.com provides paid comparable vehicle market analysis reports backed by real market data, a free knowledge base covering total loss claims and insurance disputes, and a directory of professionals who help claimants negotiate fair settlements.
+## Key Pages
 
-## Core Pages
-- [Home](https://www.totallosstoolkit.com/): Overview, report entry point, and access to all tools
-- [Pricing](https://www.totallosstoolkit.com/pricing): Report pricing tiers and purchase flow
-- [Knowledge Base](https://www.totallosstoolkit.com/knowledge-base): Free guides on total loss claims and insurance disputes
-- [Professional Directory](https://www.totallosstoolkit.com/directory): Find local appraisers and insurance advocates
-- [FAQ](https://www.totallosstoolkit.com/faq): Common total loss and insurance questions answered
-- [Guarantee](https://www.totallosstoolkit.com/guarantee): Our report accuracy guarantee
+- /: Homepage — total loss vehicle valuation reports
+- /pricing: Purchase a vehicle valuation report
+- /knowledge-base: Free educational articles on total loss claims
+- /directory: Directory of service providers (public adjusters, attorneys, appraisers)
+- /faq: Frequently asked questions
+- /guarantee: Money-back guarantee details
 
-## Knowledge Base — Insurance Guides
-- [How to Fight a Lowball Total Loss Offer](https://www.totallosstoolkit.com/knowledge-base/insurance-lowball-total-loss-offer-complete-guide-to-fighting-back): Complete guide to using appraisal clauses, independent appraisers, and disputing comparables
-- [Total Loss Settlement Too Low? Independent Appraisal Guide](https://www.totallosstoolkit.com/knowledge-base/total-loss-settlement-too-low-independent-appraisal-guide): When and how to use independent appraisal to increase your payout
-- [How to Challenge Insurance Comparable Vehicles](https://www.totallosstoolkit.com/knowledge-base/how-to-challenge-insurance-company-comparable-vehicles-comps): Spot wrong trims, rebuilt titles, and stale listings in your insurer's comps
-- [Should You Buy Back Your Totaled Car?](https://www.totallosstoolkit.com/knowledge-base/should-you-buy-back-your-totaled-car-hidden-costs): Hidden costs of salvage titles, insurance limits, and repairs
-- [Owner Retain After Total Loss](https://www.totallosstoolkit.com/knowledge-base/owner-retain-after-total-loss-how-to-keep-your-car): How owner-retain works, who qualifies, and the salvage/rebuilt title process
-- [California Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/california-total-loss-law-explained): California-specific total loss thresholds, salvage title rules, and insurance settlement rights for vehicle owners
-- [Florida Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/florida-total-loss-state-law-explained): Florida total loss rules under F.S. 319.30, including salvage title process and owner retain options
-- [Illinois Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/illinois-total-loss-law-explained): Illinois rules under 625 ILCS 5/3-117.1, salvage title requirements, and settlement rights
-- [Maryland Total Loss Rules Explained](https://www.totallosstoolkit.com/knowledge-base/maryland-total-loss-state-rules-explained): Maryland rules under Md. Code 11-152, salvage title process, and insurance rights
-- [New York Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/new-york-total-loss-law-explained): New York rules under NY VTL and 11 NYCRR Part 216, settlement procedures, and NY DFS complaint process
-- [Pennsylvania Total Loss Law Explained](https://www.totallosstoolkit.com/knowledge-base/pennsylvania-total-loss-law-explained): Pennsylvania rules under 75 Pa.C.S. 1232, salvage title requirements, and settlement rights
+## Knowledge Base Articles
 
-## Knowledge Base — Insurance Claims
-- [How to Challenge Your Insurance Vehicle Valuation](https://www.totallosstoolkit.com/knowledge-base/how-to-challenge-insurance-company-vehicle-valuation-complete-guide): Dispute CCC reports, find comparable vehicles, and use appraisal clauses
-- [How to Find Comparable Vehicles for Your Claim](https://www.totallosstoolkit.com/knowledge-base/how-to-find-comparable-vehicles-for-your-insurance-claim): Find better comps by mileage, trim, and market area to increase your settlement
-- [Settlement Dispute Letter Template](https://www.totallosstoolkit.com/knowledge-base/settlement-dispute-letter-template): Professional letter template for disputing total loss valuations with comparable vehicle evidence
-- [What to Do When Your Claim Is Denied](https://www.totallosstoolkit.com/knowledge-base/what-to-do-when-your-insurance-company-denies-your-claim): Step-by-step guide from initial response to formal appeals and legal escalation
-- [Fighting Unfair Fault Determinations](https://www.totallosstoolkit.com/knowledge-base/insurance-says-you-are-at-fault-despite-police-report-complete-fighting-guide): How to dispute fault decisions even when police reports support your claim
-- [Same-Carrier Insurance Conflicts](https://www.totallosstoolkit.com/knowledge-base/how-to-navigate-same-carrier-insurance-conflicts-after-an-accident): Handle claims when both drivers share the same insurer
-- [Dash Cam Essentials](https://www.totallosstoolkit.com/knowledge-base/dash-cam-essentials-protect-yourself-from-word-vs-word-insurance-disputes): How dash cams eliminate word-vs-word disputes; buying guide under $200
+Articles are available at /knowledge-base/[slug]. The sitemap at /sitemap.xml lists all published URLs.
 
-## Knowledge Base — Insurance Education
-- [GAP Insurance Explained](https://www.totallosstoolkit.com/knowledge-base/gap-insurance-explained-why-every-new-car-buyer-needs-it): What GAP insurance covers and when it pays off for new car buyers
-- [How to Avoid Claim Denials](https://www.totallosstoolkit.com/knowledge-base/understanding-your-insurance-policy-how-to-avoid-claim-denials): Understanding your policy and avoiding denials through documentation
+## Do Not Index
 
-## Knowledge Base — Auto Insurance
-- [Rear-Ended by an Uninsured Driver](https://www.totallosstoolkit.com/knowledge-base/rear-ended-uninsured-driver-your-rights-and-responsibilities): Rights and options when the at-fault driver has no insurance
-- [Dealing with Uninsured Drivers](https://www.totallosstoolkit.com/knowledge-base/dealing-with-uninsured-drivers-prevention-and-protection-strategies): Prevention strategies and coverage options to protect against uninsured motorists
+- /api/*: Internal API routes
+- /admin/*: Admin panel
+- /dashboard/*: User dashboard
+- /reports/*: Private user reports
