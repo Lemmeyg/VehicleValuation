@@ -63,10 +63,7 @@ export default async function KnowledgeBasePage() {
               guides subject to market changes, errors, and individual circumstances—consult
               licensed attorneys, insurance professionals, or certified appraisers before making
               decisions. Examples are hypothetical and do not guarantee similar results. Visit our{' '}
-              <Link
-                href="/service-providers"
-                className="text-primary-600 hover:text-primary-700 underline"
-              >
+              <Link href="/directory" className="text-primary-600 hover:text-primary-700 underline">
                 Service Provider Directory
               </Link>{' '}
               for qualified professionals or see our{' '}
