@@ -1,10 +1,12 @@
 import { getArticleBySlugStatic, getAllArticles, getAllArticleSlugs } from '@/lib/knowledge-base-db'
 import { getRelatedArticles } from '@/lib/utils/related-articles'
+import { splitArticleHtml } from '@/lib/utils/split-article-html'
 import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { ArticlePageTracker } from '@/components/ArticlePageTracker'
 import { ArticleCTA } from '@/components/ArticleCTA'
+import { ArticleReportBar } from '@/components/ArticleReportBar'
 import { RelatedArticlesSidebar } from '@/components/RelatedArticlesSidebar'
 import { RelatedArticlesMobile } from '@/components/RelatedArticlesMobile'
 
@@ -88,10 +90,21 @@ export default async function ArticlePage({ params }: Props) {
                 </div>
               </header>
 
-              <div
-                className="prose prose-lg max-w-none"
-                dangerouslySetInnerHTML={{ __html: article.htmlContent! }}
-              />
+              {splitArticleHtml(article.htmlContent!).map((segment, i) =>
+                segment.type === 'html' ? (
+                  <div
+                    key={i}
+                    className="prose prose-lg max-w-none"
+                    dangerouslySetInnerHTML={{ __html: segment.content }}
+                  />
+                ) : (
+                  <ArticleReportBar
+                    key={i}
+                    articleSlug={article.slug}
+                    placement={segment.placement}
+                  />
+                )
+              )}
 
               <ArticleCTA articleSlug={article.slug} />
 
