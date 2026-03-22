@@ -28,7 +28,15 @@ export async function generateMetadata({ params }: Props) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
   return {
-    title: `${article.title} | TotalLossToolKit.com`,
+    title: (() => {
+      const suffix = ' | TotalLossToolKit.com' // 23 chars
+      const maxTitle = 60 - suffix.length // 37 chars
+      const t =
+        article.title.length > maxTitle
+          ? article.title.slice(0, maxTitle - 1).trimEnd() + '\u2026'
+          : article.title
+      return `${t}${suffix}`
+    })(),
     description: article.description,
     alternates: {
       canonical: `${siteUrl}/knowledge-base/${slug}`,
