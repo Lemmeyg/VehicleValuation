@@ -535,6 +535,7 @@ function PricingContent() {
         <main className="pt-24 pb-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
+              <h1 className="sr-only">Get Your Total Loss Vehicle Valuation Report</h1>
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
               <p className="text-slate-600">
                 {creatingReport ? 'Analyzing your vehicle...' : 'Loading your vehicle data...'}
@@ -559,6 +560,7 @@ function PricingContent() {
         <main className="pt-24 pb-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
+              <h1 className="sr-only">Get Your Total Loss Vehicle Valuation Report</h1>
               <p className="text-red-600 mb-4">{error || 'Report not found'}</p>
               <Button onClick={() => router.push('/')}>Return to Homepage</Button>
             </div>
