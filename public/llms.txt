@@ -1,26 +1,20 @@
-# TotalLossToolkit.com — llms.txt
-# https://llmstxt.org/
+# TotalLossToolkit
 
-# Site: TotalLossToolkit.com
-# Description: Tools and guides to help vehicle owners navigate total loss insurance claims.
-# Owner: TotalLossToolkit
+> Independent market data reports and free guides to help vehicle owners dispute undervalued total loss insurance settlements.
 
-## Key Pages
+## Core Pages
+- [Home](https://www.totallosstoolkit.com/): Landing page explaining the total loss problem and how TotalLossToolkit helps owners challenge lowball settlements
+- [Pricing](https://www.totallosstoolkit.com/pricing): One-time-purchase report tiers — Basic ($19) and Premium ($25) — via LemonSqueezy, no subscription
+- [Knowledge Base](https://www.totallosstoolkit.com/knowledge-base): 22 free educational articles covering total loss law, claims tactics, and state-specific rules
+- [Professional Directory](https://www.totallosstoolkit.com/directory): Searchable directory of independent appraisers, public adjusters, and insurance advocates
+- [FAQ](https://www.totallosstoolkit.com/faq): How total loss is determined, how reports work, how to dispute a settlement, state-specific rules
+- [Guarantee](https://www.totallosstoolkit.com/guarantee): Premium Report money-back guarantee — refund if your settlement does not increase by more than the report cost
 
-- /: Homepage — total loss vehicle valuation reports
-- /pricing: Purchase a vehicle valuation report
-- /knowledge-base: Free educational articles on total loss claims
-- /directory: Directory of service providers (public adjusters, attorneys, appraisers)
-- /faq: Frequently asked questions
-- /guarantee: Money-back guarantee details
+## Reports
+- [Start a Report](https://www.totallosstoolkit.com/reports/new): Enter a VIN to begin a comparable vehicle valuation report
 
-## Knowledge Base Articles
-
-Articles are available at /knowledge-base/[slug]. The sitemap at /sitemap.xml lists all published URLs.
-
-## Do Not Index
-
-- /api/*: Internal API routes
-- /admin/*: Admin panel
-- /dashboard/*: User dashboard
-- /reports/*: Private user reports
+## Optional
+- [llms-full.txt](https://www.totallosstoolkit.com/llms-full.txt): Complete site content and all article descriptions for AI systems
+- [Terms of Service](https://www.totallosstoolkit.com/terms): Terms and conditions of use
+- [Privacy Policy](https://www.totallosstoolkit.com/privacy): Privacy policy
+- [Sitemap](https://www.totallosstoolkit.com/sitemap.xml): All published URLs
