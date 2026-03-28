@@ -24,6 +24,7 @@ import {
 } from '@/lib/api/marketcheck-client'
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
 import { validateListingUrls } from '@/lib/utils/url-validator'
+import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import { reportCreationLimiter } from '@/lib/rate-limit'
 import { logApiCall } from '@/lib/api/api-call-logger'
 
@@ -206,6 +207,7 @@ export async function POST(request: Request) {
     let urlValidationFailedCount: number | null = null
     let urlValidationFailedUrls: string[] | null = null
     let urlValidatedListingUrls: string[] | null = null
+    let comparablesSupplemented = false
     if (vehicleData) {
       const marketCheckStartTime = Date.now()
 
@@ -238,6 +240,24 @@ export async function POST(request: Request) {
           urlValidationFailedCount = urlStats.failedCount
           urlValidationFailedUrls = urlStats.failedUrls
           urlValidatedListingUrls = urlStats.validatedUrls
+
+          // Top-up: if fewer than 10 valid listings survived URL validation, supplement from search fallback
+          try {
+            const { prediction: supplementedPrediction, supplemented } =
+              await supplementComparables(
+                validatedPrediction,
+                urlStats.validatedUrls.length,
+                subjectVehicle,
+                vin,
+                mileage,
+                zipCode
+              )
+            marketcheckValuation = supplementedPrediction
+            comparablesSupplemented = supplemented
+          } catch (err) {
+            console.error('[SUPPLEMENT_EXCEPTION]', err)
+            // Non-fatal: use pre-supplement prediction
+          }
 
           await logApiCall({
             reportId: report.id,
@@ -342,6 +362,7 @@ export async function POST(request: Request) {
         }),
 
         marketcheck_fallback_used: marketcheckFallbackUsed,
+        comparables_supplemented: comparablesSupplemented,
 
         // Also update valuation_result for backward compatibility
         ...(marketcheckValuation && {

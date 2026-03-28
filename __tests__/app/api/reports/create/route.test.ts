@@ -11,6 +11,7 @@ import * as rateLimitModule from '@/lib/rate-limit'
 import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
 import { validateListingUrls } from '@/lib/utils/url-validator'
+import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import { logApiCall } from '@/lib/api/api-call-logger'
 
 // Mock all dependencies
@@ -19,6 +20,9 @@ jest.mock('@/lib/rate-limit')
 jest.mock('@/lib/api/marketcheck-client')
 jest.mock('@/lib/api/autodev-client')
 jest.mock('@/lib/utils/url-validator')
+jest.mock('@/lib/utils/comparables-supplementer', () => ({
+  supplementComparables: jest.fn(),
+}))
 jest.mock('@/lib/api/api-call-logger')
 
 const mockFetchAutoDevVinDecode = fetchAutoDevVinDecode as jest.MockedFunction<
@@ -29,6 +33,9 @@ const mockFetchMarketCheckData = fetchMarketCheckData as jest.MockedFunction<
 >
 const mockValidateListingUrls = validateListingUrls as jest.MockedFunction<
   typeof validateListingUrls
+>
+const mockSupplementComparables = supplementComparables as jest.MockedFunction<
+  typeof supplementComparables
 >
 const mockLogApiCall = logApiCall as jest.MockedFunction<typeof logApiCall>
 
@@ -51,6 +58,12 @@ describe('POST /api/reports/create', () => {
     }
 
     mockLogApiCall.mockResolvedValue(undefined)
+
+    // Default: pass-through (no supplementation)
+    mockSupplementComparables.mockImplementation(async prediction => ({
+      prediction,
+      supplemented: false,
+    }))
   })
 
   describe('Authentication', () => {
@@ -509,6 +522,124 @@ describe('POST /api/reports/create', () => {
             total_comparables_found: expect.any(Number),
             recent_comparables_found: expect.any(Number),
           }),
+        })
+      )
+    })
+  })
+
+  describe('Comparables Supplementation', () => {
+    beforeEach(() => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: {
+          user: { id: 'test-user-123', email: 'test@example.com' },
+        },
+        error: null,
+      })
+
+      mockSupabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        single: jest.fn().mockResolvedValue({
+          data: { id: 'test-report-123' },
+          error: null,
+        }),
+        insert: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+      })
+
+      mockFetchAutoDevVinDecode.mockResolvedValue({
+        success: true,
+        data: {
+          make: 'Honda',
+          model: 'Accord',
+          trim: 'EX',
+          body: 'Sedan',
+          engine: '2.0L',
+          transmission: 'Automatic',
+          drive: 'FWD',
+          type: 'Gasoline',
+          vinValid: true,
+          vehicle: { year: 2020 },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+
+      mockFetchMarketCheckData.mockResolvedValue({
+        success: true,
+        data: {
+          predictedPrice: 22000,
+          msrp: 25000,
+          priceRange: { min: 20000, max: 24000 },
+          confidence: 'high',
+          totalComparablesFound: 50,
+          recentComparables: { num_found: 30 },
+          listingUrls: [],
+        },
+        fallbackUsed: false,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+
+      mockValidateListingUrls.mockResolvedValue({
+        prediction: {
+          predictedPrice: 22000,
+          msrp: 25000,
+          priceRange: { min: 20000, max: 24000 },
+          confidence: 'high',
+          totalComparablesFound: 50,
+          recentComparables: { num_found: 30 },
+          listingUrls: [],
+        },
+        stats: {
+          checkedCount: 0,
+          failedCount: 0,
+          failedUrls: [],
+          validatedUrls: [],
+          batchesUsed: 0,
+        },
+      })
+    })
+
+    it('writes comparables_supplemented: true to DB when supplement fires', async () => {
+      mockSupplementComparables.mockImplementationOnce(async prediction => ({
+        prediction,
+        supplemented: true,
+      }))
+
+      const mockUpdate = jest.fn().mockReturnThis()
+      const mockEq = jest.fn().mockResolvedValue({ error: null })
+      mockSupabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        eq: mockEq,
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        single: jest.fn().mockResolvedValue({
+          data: { id: 'test-report-123' },
+          error: null,
+        }),
+        insert: jest.fn().mockReturnThis(),
+        update: mockUpdate,
+      })
+
+      const request = new Request('http://localhost:3000/api/reports/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zipCode: '10001',
+          reportType: 'basic',
+        }),
+      })
+
+      await POST(request)
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          comparables_supplemented: true,
         })
       )
     })

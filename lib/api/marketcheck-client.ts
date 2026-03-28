@@ -164,9 +164,9 @@ export interface MarketCheckResponse {
 
 /**
  * Fallback: fetch comparables via search endpoint when VIN decode fails.
- * Called internally — not exported.
+ * Uses MarketCheck search API to find comparable vehicles by year/make/model.
  */
-async function fetchMarketCheckSearchFallback(
+export async function fetchMarketCheckSearchFallback(
   apiKey: string,
   year: number,
   make: string,
@@ -223,8 +223,8 @@ async function fetchMarketCheckSearchFallback(
     }
 
     // Map search listings to MarketCheckComparable shape
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const comparables: MarketCheckComparable[] = listings
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((l: any) => ({
         id: l.id,
         vin: l.vin,
