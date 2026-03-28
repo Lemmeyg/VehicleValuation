@@ -251,52 +251,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
         })
 
         webhookFallbackUsed = mcResult.fallbackUsed ?? false
-
-        // 1. Validate listing URLs (previously skipped for webhook path)
-        let validatedPrediction = mcResult.data
-        let urlStats: ValidationStats = {
-          checkedCount: 0,
-          failedCount: 0,
-          failedUrls: [],
-          validatedUrls: [],
-          batchesUsed: 0,
-        }
-        let urlValidationSucceeded = false
-
-        try {
-          const urlResult = await validateListingUrls(mcResult.data)
-          validatedPrediction = urlResult.prediction
-          urlStats = urlResult.stats
-          urlValidationSucceeded = true
-        } catch (err) {
-          console.error(
-            '[Webhook] validateListingUrls threw — proceeding with unvalidated listings:',
-            err
-          )
-          // Non-fatal: raw prediction used; url_validated flags will be absent
-        }
-
-        // 2. Top-up: only call supplement if URL validation completed
-        // (avoids spurious trigger when urlStats.validatedUrls.length would be 0 due to an exception)
-        if (urlValidationSucceeded) {
-          try {
-            const supplementResult = await supplementComparables(
-              validatedPrediction,
-              urlStats.validatedUrls.length,
-              subjectVehicle,
-              report.vin,
-              report.mileage ?? null,
-              report.zip_code ?? null
-            )
-            validatedPrediction = supplementResult.prediction
-            webhookSupplemented = supplementResult.supplemented
-          } catch (err) {
-            console.error('[Webhook] supplementComparables threw:', err)
-            // Non-fatal
-          }
-        }
-
-        marketcheckData = validatedPrediction
+        marketcheckData = mcResult.data
 
         // Log API call for cost tracking
         await logApiCall({
@@ -342,6 +297,56 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
       console.log(
         `[Webhook] MarketCheck data already exists for report ${reportId}, skipping API call`
       )
+    }
+
+    // URL validation + supplement always run on whatever marketcheckData we have.
+    // This handles both: fresh data from the API call above, and pre-existing data
+    // stored by the fetch-marketcheck route before payment was made.
+    if (marketcheckData) {
+      let validatedPrediction = marketcheckData
+      let urlStats: ValidationStats = {
+        checkedCount: 0,
+        failedCount: 0,
+        failedUrls: [],
+        validatedUrls: [],
+        batchesUsed: 0,
+      }
+      let urlValidationSucceeded = false
+
+      try {
+        const urlResult = await validateListingUrls(marketcheckData)
+        validatedPrediction = urlResult.prediction
+        urlStats = urlResult.stats
+        urlValidationSucceeded = true
+      } catch (err) {
+        console.error(
+          '[Webhook] validateListingUrls threw — proceeding with unvalidated listings:',
+          err
+        )
+        // Non-fatal: raw prediction used; url_validated flags will be absent
+      }
+
+      // Top-up: only call supplement if URL validation completed
+      // (avoids spurious trigger when urlStats.validatedUrls.length would be 0 due to an exception)
+      if (urlValidationSucceeded) {
+        try {
+          const supplementResult = await supplementComparables(
+            validatedPrediction,
+            urlStats.validatedUrls.length,
+            subjectVehicle,
+            report.vin,
+            report.mileage ?? null,
+            report.zip_code ?? null
+          )
+          validatedPrediction = supplementResult.prediction
+          webhookSupplemented = supplementResult.supplemented
+        } catch (err) {
+          console.error('[Webhook] supplementComparables threw:', err)
+          // Non-fatal
+        }
+      }
+
+      marketcheckData = validatedPrediction
     }
 
     // ========================================
