@@ -185,8 +185,14 @@ export async function fetchMarketCheckSearchFallback(
 
   console.log('[MarketCheck Fallback] Trying search endpoint', { year, make, model, vin })
 
-  try {
-    const response = await fetch(url.toString(), {
+  interface SearchResult {
+    data: { num_found: number; listings: unknown[] } | null
+    error: string | null
+    statusCode: number
+  }
+
+  async function fetchSearchListings(searchUrl: URL): Promise<SearchResult> {
+    const response = await fetch(searchUrl.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json', 'User-Agent': 'VehicleValuationSaaS/1.0' },
       signal: AbortSignal.timeout(30000),
@@ -199,20 +205,61 @@ export async function fetchMarketCheckSearchFallback(
         body: errorText,
       })
       return {
-        success: false,
+        data: null,
         error: `MarketCheck search fallback failed: ${response.status} ${response.statusText}`,
         statusCode: response.status,
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data: { num_found: number; listings: any[] } = await response.json()
-    const listings = data.listings || []
+    const data = (await response.json()) as { num_found: number; listings: unknown[] }
+    return { data, error: null, statusCode: response.status }
+  }
+
+  try {
+    let result = await fetchSearchListings(url)
+
+    if (result.error) {
+      return { success: false, error: result.error, statusCode: result.statusCode }
+    }
+
+    let listings = result.data!.listings || []
+    let numFound = result.data!.num_found
 
     console.log('[MarketCheck Fallback] Search succeeded', {
-      num_found: data.num_found,
+      num_found: numFound,
       returned: listings.length,
+      yearFilter: year,
     })
+
+    // If year-filtered search returns no results (common for 2023+ vehicles where the
+    // search index only covers up to 2022), retry without the year constraint to get
+    // comparable listings from adjacent model years.
+    if (listings.length === 0) {
+      const urlWithoutYear = new URL('https://api.marketcheck.com/v2/search/car/active')
+      urlWithoutYear.searchParams.append('api_key', apiKey)
+      urlWithoutYear.searchParams.append('make', make)
+      urlWithoutYear.searchParams.append('model', model)
+      urlWithoutYear.searchParams.append('rows', '50')
+      urlWithoutYear.searchParams.append('start', '0')
+
+      console.log(
+        '[MarketCheck Fallback] Year-filtered search returned 0 results, retrying without year',
+        { make, model }
+      )
+      result = await fetchSearchListings(urlWithoutYear)
+
+      if (result.error) {
+        return { success: false, error: result.error, statusCode: result.statusCode }
+      }
+
+      listings = result.data!.listings || []
+      numFound = result.data!.num_found
+
+      console.log('[MarketCheck Fallback] No-year search result', {
+        num_found: numFound,
+        returned: listings.length,
+      })
+    }
 
     if (listings.length === 0) {
       return {
@@ -282,7 +329,7 @@ export async function fetchMarketCheckSearchFallback(
       confidence,
       dataSource: 'marketcheck',
       requestParams: { vin, miles, zip, dealer_type: 'franchise' },
-      totalComparablesFound: data.num_found,
+      totalComparablesFound: numFound,
       comparablesStats: undefined,
       recentComparables: {
         num_found: comparables.length,
