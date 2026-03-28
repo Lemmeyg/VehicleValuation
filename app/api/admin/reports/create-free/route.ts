@@ -13,6 +13,7 @@ import { getVinValidationError, sanitizeVin } from '@/lib/utils/vin-validator'
 import { fetchAutoDevVinDecode, type AutoDevVinDecodeData } from '@/lib/api/autodev-client'
 import { fetchMarketCheckData, type MarketCheckPrediction } from '@/lib/api/marketcheck-client'
 import { validateListingUrls } from '@/lib/utils/url-validator'
+import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
 import { logApiCall } from '@/lib/api/api-call-logger'
@@ -102,6 +103,7 @@ export async function POST(request: Request) {
     let urlValidationFailedCount: number | null = null
     let urlValidationFailedUrls: string[] | null = null
     let urlValidatedListingUrls: string[] | null = null
+    let comparablesSupplemented = false
     if (vehicleData) {
       const subjectVehicle = {
         year: vehicleData.vehicle.year,
@@ -123,11 +125,21 @@ export async function POST(request: Request) {
         const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
           mcResult.data!
         )
-        marketcheckValuation = validatedPrediction
         marketcheckFallbackUsed = mcResult.fallbackUsed === true
         urlValidationFailedCount = urlStats.failedCount
         urlValidationFailedUrls = urlStats.failedUrls
         urlValidatedListingUrls = urlStats.validatedUrls
+
+        const supplementResult = await supplementComparables(
+          validatedPrediction,
+          urlStats.validatedUrls.length,
+          subjectVehicle,
+          vin,
+          mileage,
+          zipCode
+        )
+        marketcheckValuation = supplementResult.prediction
+        comparablesSupplemented = supplementResult.supplemented
       }
 
       await logApiCall({
@@ -201,6 +213,7 @@ export async function POST(request: Request) {
           validated_listing_urls: urlValidatedListingUrls,
         }),
         marketcheck_fallback_used: marketcheckFallbackUsed,
+        comparables_supplemented: comparablesSupplemented,
         mileage,
         zip_code: zipCode,
         dealer_type: dealerType,
