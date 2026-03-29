@@ -402,57 +402,60 @@ describe('supplementComparables — merge logic', () => {
 // ─── Sort order and pagination ─────────────────────────────────────────────────
 
 describe('supplementComparables — sort order and pagination', () => {
-  it('processes year-close listings before year-far listings (sort by year then distance)', async () => {
-    // Subject: 2020. Listings: year=2015 (far, distance=5), year=2020 (exact, distance=100),
-    // year=2019 (close, distance=10). Expected sort: 2020 → 2019 → 2015.
+  it('processes year-close listings first, with distance as tiebreaker (sort by year then distance)', async () => {
+    // Subject: 2020. All 3 listings are within ±2 years (pass the year filter).
+    // L_X: year=2020, distance=50 (diff=0, farther)
+    // L_Y: year=2020, distance=20 (diff=0, closer)
+    // L_Z: year=2018, distance=5  (diff=2, very close by distance but year-far)
+    // Expected sort: L_Y (diff=0,dist=20) → L_X (diff=0,dist=50) → L_Z (diff=2,dist=5)
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         num_found: 3,
         listings: [
           {
-            id: 'L_A',
-            vin: 'L_A',
-            price: 10000,
-            miles: 50000,
-            seller_type: 'franchise',
-            build: { year: 2015, make: 'Honda', model: 'Civic' },
-            distance: 5,
-            dealer_address: { city: 'NY', state: 'NY', zip: '10001' },
-            vdp_url: 'https://dealer.com/listing/L_A',
-            first_seen_at_date: '2025-01-01',
-          },
-          {
-            id: 'L_B',
-            vin: 'L_B',
+            id: 'L_X',
+            vin: 'L_X',
             price: 20000,
             miles: 30000,
             seller_type: 'franchise',
             build: { year: 2020, make: 'Honda', model: 'Civic' },
-            distance: 100,
+            distance: 50,
             dealer_address: { city: 'LA', state: 'CA', zip: '90210' },
-            vdp_url: 'https://dealer.com/listing/L_B',
+            vdp_url: 'https://dealer.com/listing/L_X',
             first_seen_at_date: '2025-01-01',
           },
           {
-            id: 'L_C',
-            vin: 'L_C',
-            price: 18000,
-            miles: 40000,
+            id: 'L_Y',
+            vin: 'L_Y',
+            price: 19000,
+            miles: 35000,
             seller_type: 'franchise',
-            build: { year: 2019, make: 'Honda', model: 'Civic' },
-            distance: 10,
-            dealer_address: { city: 'Chicago', state: 'IL', zip: '60601' },
-            vdp_url: 'https://dealer.com/listing/L_C',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            distance: 20,
+            dealer_address: { city: 'Austin', state: 'TX', zip: '78701' },
+            vdp_url: 'https://dealer.com/listing/L_Y',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'L_Z',
+            vin: 'L_Z',
+            price: 15000,
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2018, make: 'Honda', model: 'Civic' },
+            distance: 5,
+            dealer_address: { city: 'NY', state: 'NY', zip: '10001' },
+            vdp_url: 'https://dealer.com/listing/L_Z',
             first_seen_at_date: '2025-01-01',
           },
         ],
       }),
     })
-    // HEAD requests — will be consumed in sort order: L_B (year=2020), L_C (year=2019), L_A (year=2015)
-    mockHeadOk('https://dealer.com/listing/L_B')
-    mockHeadOk('https://dealer.com/listing/L_C')
-    mockHeadOk('https://dealer.com/listing/L_A')
+    // HEAD requests consumed in sort order: L_Y (year=2020,dist=20), L_X (year=2020,dist=50), L_Z (year=2018,dist=5)
+    mockHeadOk('https://dealer.com/listing/L_Y')
+    mockHeadOk('https://dealer.com/listing/L_X')
+    mockHeadOk('https://dealer.com/listing/L_Z')
     // Pass 2: validCount(0) + 3 = 3 < 10, so pass 2 fires → return empty
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
@@ -471,13 +474,13 @@ describe('supplementComparables — sort order and pagination', () => {
 
     const calls = (global.fetch as jest.Mock).mock.calls
     // calls[0]: search API (page 1)
-    // calls[1]: HEAD for first sorted listing = L_B (year=2020, diff=0)
-    // calls[2]: HEAD for second sorted = L_C (year=2019, diff=1)
-    // calls[3]: HEAD for third sorted = L_A (year=2015, diff=5)
+    // calls[1]: HEAD for L_Y (year=2020, diff=0, dist=20) — same year as subject, closest distance
+    // calls[2]: HEAD for L_X (year=2020, diff=0, dist=50) — same year, farther distance
+    // calls[3]: HEAD for L_Z (year=2018, diff=2, dist=5)  — year further from subject
     // calls[4]: search API (page 2)
-    expect(calls[1][0]).toBe('https://dealer.com/listing/L_B')
-    expect(calls[2][0]).toBe('https://dealer.com/listing/L_C')
-    expect(calls[3][0]).toBe('https://dealer.com/listing/L_A')
+    expect(calls[1][0]).toBe('https://dealer.com/listing/L_Y')
+    expect(calls[2][0]).toBe('https://dealer.com/listing/L_X')
+    expect(calls[3][0]).toBe('https://dealer.com/listing/L_Z')
   })
 
   it('does NOT make a second API call when pass 1 finds >= 10 valid listings', async () => {

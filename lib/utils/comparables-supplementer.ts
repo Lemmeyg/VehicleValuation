@@ -91,11 +91,14 @@ async function fetchAndValidatePage(
   const listings = fallbackResult.data.recentComparables?.listings ?? []
   if (listings.length === 0) return null
 
+  const yearFiltered = applyYearFilter(listings, subjectVehicle.year)
+  if (yearFiltered.length === 0) return null
+
   const predictionForValidation: MarketCheckPrediction = {
     ...fallbackResult.data,
     recentComparables: {
       ...fallbackResult.data.recentComparables!,
-      listings,
+      listings: yearFiltered,
     },
   }
 
