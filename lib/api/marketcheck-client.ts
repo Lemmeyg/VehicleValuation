@@ -173,9 +173,9 @@ export async function fetchMarketCheckSearchFallback(
   model: string,
   vin: string,
   miles: number,
-  zip: string
+  zip: string,
+  start: number = 0
 ): Promise<MarketCheckResponse> {
-  // Geo-filter to within 100 miles of the subject vehicle's zip (subscription cap).
   // Year is omitted — the search index only covers up to 2022 so year filtering
   // is done post-query by the caller (comparables-supplementer) using progressive widening.
   const url = new URL('https://api.marketcheck.com/v2/search/car/active')
@@ -183,11 +183,10 @@ export async function fetchMarketCheckSearchFallback(
   url.searchParams.append('make', make)
   url.searchParams.append('model', model)
   url.searchParams.append('zip', zip)
-  url.searchParams.append('radius', '100')
   url.searchParams.append('rows', '50')
-  url.searchParams.append('start', '0')
+  url.searchParams.append('start', start.toString())
 
-  console.log('[MarketCheck Fallback] Trying search endpoint', { make, model, zip, radius: 100 })
+  console.log('[MarketCheck Fallback] Trying search endpoint', { make, model, zip, start })
 
   try {
     const response = await fetch(url.toString(), {
@@ -253,7 +252,7 @@ export async function fetchMarketCheckSearchFallback(
                 city: l.dealer_address?.city ?? l.dealer?.city,
                 state: l.dealer_address?.state ?? l.dealer?.state,
                 zip: l.dealer_address?.zip ?? l.dealer?.zip,
-                distance_miles: undefined,
+                distance_miles: l.distance ?? undefined,
               }
             : undefined,
         latitude: l.latitude,
