@@ -13,7 +13,7 @@
  * - Requires at least 2 path segments on the final URL to reject homepages ("/") and
  *   single-segment index pages ("/inventory") while accepting common 2-segment VDP
  *   formats like "/inventory/12345" or "/used-vehicles/vin123456".
- * - Validates in batches of 20 (sorted by dos_active) and stops as soon as
+ * - Validates in batches of 20 (sorted by dos_active by default, or by a caller-supplied sortFn) and stops as soon as
  *   TARGET_VALID (10) passing listings are found.
  */
 
@@ -90,7 +90,7 @@ async function checkUrl(url: string): Promise<boolean> {
 /**
  * Validate listing URLs in a MarketCheckPrediction using sequential batching.
  *
- * - Sorts all listings by dos_active (ascending) and processes them in batches
+ * - Sorts all listings using the provided sortFn if supplied, otherwise defaults to dos_active (ascending). Processes in batches
  *   of BATCH_SIZE (20). Each batch is validated in parallel.
  * - Stops as soon as TARGET_VALID (10) listings with passing URLs are found.
  *   Additional batches are only fetched if the previous batch did not supply enough.
