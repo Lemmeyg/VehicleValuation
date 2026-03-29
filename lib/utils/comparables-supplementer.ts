@@ -56,10 +56,45 @@ export async function supplementComparables(
   const fallbackListings = fallbackResult.data.recentComparables?.listings ?? []
   if (fallbackListings.length === 0) return unchanged
 
-  // Validate fallback listing URLs using validateListingUrls
+  // Progressive year widening: try ±2 years, then ±5, then all.
+  // The search index only covers up to 2022, so newer vehicles may need wider bands.
+  // Filtering before URL validation avoids wasting HTTP checks on out-of-range listings.
+  const YEAR_DELTAS = [2, 5, Infinity]
+  let yearFiltered: MarketCheckComparable[] = []
+  let appliedDelta = Infinity
+  for (const delta of YEAR_DELTAS) {
+    const band =
+      delta === Infinity
+        ? fallbackListings
+        : fallbackListings.filter(l => Math.abs(l.year - subjectVehicle.year) <= delta)
+    if (band.length > 0) {
+      yearFiltered = band
+      appliedDelta = delta
+      break
+    }
+  }
+
+  if (yearFiltered.length === 0) return unchanged
+
+  console.log('[supplementComparables] Year filter applied', {
+    subjectYear: subjectVehicle.year,
+    delta: appliedDelta === Infinity ? 'none' : `±${appliedDelta}`,
+    beforeFilter: fallbackListings.length,
+    afterFilter: yearFiltered.length,
+  })
+
+  // Validate URLs on the year-filtered listings only
+  const predictionForValidation: MarketCheckPrediction = {
+    ...fallbackResult.data,
+    recentComparables: {
+      ...fallbackResult.data.recentComparables!,
+      listings: yearFiltered,
+    },
+  }
+
   let validatedFallbackListings: MarketCheckComparable[] = []
   try {
-    const { prediction: validatedFallback } = await validateListingUrls(fallbackResult.data)
+    const { prediction: validatedFallback } = await validateListingUrls(predictionForValidation)
     validatedFallbackListings = validatedFallback.recentComparables?.listings ?? []
   } catch (err) {
     console.error('[supplementComparables] validateListingUrls threw on fallback:', err)
