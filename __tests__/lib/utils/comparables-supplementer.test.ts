@@ -276,6 +276,11 @@ describe('supplementComparables — merge logic', () => {
     })
     mockHeadOk('https://dealer.com/listing/SHARED_VIN')
     mockHeadOk('https://dealer.com/listing/NEW_VIN')
+    // After dedup, only NEW_VIN is added. validCount(1) + 1 new valid = 2 < 10, so pass 2 fires.
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ num_found: 0, listings: [] }),
+    })
 
     const result = await supplementComparables(
       prediction,
@@ -371,6 +376,11 @@ describe('supplementComparables — merge logic', () => {
     mockHeadOk('https://dealer.com/listing/FB0')
     mockHeadFail()
     mockHeadFail()
+    // validCount(1) + 1 fallback valid = 2 < 10, so pass 2 fires.
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ num_found: 0, listings: [] }),
+    })
 
     const result = await supplementComparables(
       prediction,
@@ -386,5 +396,282 @@ describe('supplementComparables — merge logic', () => {
       l => l.url_validated
     ).length
     expect(validCount).toBe(2) // 1 original + 1 fallback
+  })
+})
+
+// ─── Sort order and pagination ─────────────────────────────────────────────────
+
+describe('supplementComparables — sort order and pagination', () => {
+  it('processes year-close listings before year-far listings (sort by year then distance)', async () => {
+    // Subject: 2020. Listings: year=2015 (far, distance=5), year=2020 (exact, distance=100),
+    // year=2019 (close, distance=10). Expected sort: 2020 → 2019 → 2015.
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 3,
+        listings: [
+          {
+            id: 'L_A',
+            vin: 'L_A',
+            price: 10000,
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2015, make: 'Honda', model: 'Civic' },
+            distance: 5,
+            dealer_address: { city: 'NY', state: 'NY', zip: '10001' },
+            vdp_url: 'https://dealer.com/listing/L_A',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'L_B',
+            vin: 'L_B',
+            price: 20000,
+            miles: 30000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            distance: 100,
+            dealer_address: { city: 'LA', state: 'CA', zip: '90210' },
+            vdp_url: 'https://dealer.com/listing/L_B',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'L_C',
+            vin: 'L_C',
+            price: 18000,
+            miles: 40000,
+            seller_type: 'franchise',
+            build: { year: 2019, make: 'Honda', model: 'Civic' },
+            distance: 10,
+            dealer_address: { city: 'Chicago', state: 'IL', zip: '60601' },
+            vdp_url: 'https://dealer.com/listing/L_C',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+    // HEAD requests — will be consumed in sort order: L_B (year=2020), L_C (year=2019), L_A (year=2015)
+    mockHeadOk('https://dealer.com/listing/L_B')
+    mockHeadOk('https://dealer.com/listing/L_C')
+    mockHeadOk('https://dealer.com/listing/L_A')
+    // Pass 2: validCount(0) + 3 = 3 < 10, so pass 2 fires → return empty
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ num_found: 0, listings: [] }),
+    })
+
+    const prediction = makePrediction([])
+    await supplementComparables(
+      prediction,
+      0,
+      { year: 2020, make: 'Honda', model: 'Civic' },
+      'VIN0',
+      30000,
+      '90210'
+    )
+
+    const calls = (global.fetch as jest.Mock).mock.calls
+    // calls[0]: search API (page 1)
+    // calls[1]: HEAD for first sorted listing = L_B (year=2020, diff=0)
+    // calls[2]: HEAD for second sorted = L_C (year=2019, diff=1)
+    // calls[3]: HEAD for third sorted = L_A (year=2015, diff=5)
+    // calls[4]: search API (page 2)
+    expect(calls[1][0]).toBe('https://dealer.com/listing/L_B')
+    expect(calls[2][0]).toBe('https://dealer.com/listing/L_C')
+    expect(calls[3][0]).toBe('https://dealer.com/listing/L_A')
+  })
+
+  it('does NOT make a second API call when pass 1 finds >= 10 valid listings', async () => {
+    // 10 fallback listings, all valid. validCount=0 + 10 = 10 >= MIN_VALID → no pass 2.
+    const vins = Array.from({ length: 10 }, (_, i) => `PASS1_${i}`)
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: vins.length,
+        listings: vins.map((vin, i) => ({
+          id: vin,
+          vin,
+          price: 18000,
+          miles: 40000,
+          seller_type: 'franchise',
+          build: { year: 2020, make: 'Honda', model: 'Civic' },
+          dos_active: i + 1,
+          vdp_url: `https://dealer.com/listing/${vin}`,
+          first_seen_at_date: '2025-01-01',
+        })),
+      }),
+    })
+    vins.forEach(vin => mockHeadOk(`https://dealer.com/listing/${vin}`))
+
+    const prediction = makePrediction([])
+    await supplementComparables(prediction, 0, subjectVehicle, 'VIN0', 30000, '90210')
+
+    // Only 1 search API call (page 1) + 10 HEAD calls = 11 total. No page 2.
+    const allCalls = (global.fetch as jest.Mock).mock.calls
+    const searchApiCalls = allCalls.filter(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('api.marketcheck.com')
+    )
+    expect(searchApiCalls.length).toBe(1)
+  })
+
+  it('makes a second API call (start=50) when pass 1 finds fewer than 10 valid', async () => {
+    // Pass 1: 3 listings, all valid. validCount=0 + 3 = 3 < 10 → pass 2 fires.
+    const pass1Vins = ['P1_A', 'P1_B', 'P1_C']
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: pass1Vins.length,
+        listings: pass1Vins.map((vin, i) => ({
+          id: vin,
+          vin,
+          price: 18000,
+          miles: 40000,
+          seller_type: 'franchise',
+          build: { year: 2020, make: 'Honda', model: 'Civic' },
+          dos_active: i + 1,
+          vdp_url: `https://dealer.com/listing/${vin}`,
+          first_seen_at_date: '2025-01-01',
+        })),
+      }),
+    })
+    pass1Vins.forEach(vin => mockHeadOk(`https://dealer.com/listing/${vin}`))
+
+    // Pass 2: returns empty
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ num_found: 0, listings: [] }),
+    })
+
+    const prediction = makePrediction([])
+    await supplementComparables(prediction, 0, subjectVehicle, 'VIN0', 30000, '90210')
+
+    const allCalls = (global.fetch as jest.Mock).mock.calls
+    const searchApiCalls = allCalls.filter(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('api.marketcheck.com')
+    )
+    expect(searchApiCalls.length).toBe(2)
+    // Second call should have start=50
+    const pass2Url = new URL(searchApiCalls[1][0] as string)
+    expect(pass2Url.searchParams.get('start')).toBe('50')
+  })
+
+  it('deduplicates pass 2 listings against pass 1 listings', async () => {
+    // Pass 1: returns VIN "SHARED" + "UNIQUE_P1". Pass 2: returns "SHARED" + "UNIQUE_P2".
+    // Result should have UNIQUE_P1 and UNIQUE_P2 but only one SHARED (from pass 1).
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 2,
+        listings: ['SHARED', 'UNIQUE_P1'].map((vin, i) => ({
+          id: vin,
+          vin,
+          price: 18000,
+          miles: 40000,
+          seller_type: 'franchise',
+          build: { year: 2020, make: 'Honda', model: 'Civic' },
+          dos_active: i + 1,
+          vdp_url: `https://dealer.com/listing/${vin}`,
+          first_seen_at_date: '2025-01-01',
+        })),
+      }),
+    })
+    mockHeadOk('https://dealer.com/listing/SHARED')
+    mockHeadOk('https://dealer.com/listing/UNIQUE_P1')
+
+    // Pass 2
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 2,
+        listings: ['SHARED', 'UNIQUE_P2'].map((vin, i) => ({
+          id: vin,
+          vin,
+          price: 99999,
+          miles: 1000, // different price to verify dedup keeps pass 1 version
+          seller_type: 'franchise',
+          build: { year: 2020, make: 'Honda', model: 'Civic' },
+          dos_active: i + 1,
+          vdp_url: `https://dealer.com/listing/${vin}`,
+          first_seen_at_date: '2025-01-01',
+        })),
+      }),
+    })
+    mockHeadOk('https://dealer.com/listing/SHARED')
+    mockHeadOk('https://dealer.com/listing/UNIQUE_P2')
+
+    const prediction = makePrediction([])
+    const result = await supplementComparables(
+      prediction,
+      0,
+      subjectVehicle,
+      'VIN0',
+      30000,
+      '90210'
+    )
+
+    const allListings = result.prediction.recentComparables!.listings
+    const sharedListings = allListings.filter(l => l.vin === 'SHARED')
+    expect(sharedListings.length).toBe(1)
+    expect(sharedListings[0].price).toBe(18000) // pass 1 price wins, not pass 2's 99999
+    expect(allListings.some(l => l.vin === 'UNIQUE_P1')).toBe(true)
+    expect(allListings.some(l => l.vin === 'UNIQUE_P2')).toBe(true)
+  })
+
+  it('includes pass 2 valid listings in the result even if pass 1 had some valid', async () => {
+    // Pass 1: 3 valid. Pass 2: 2 more valid. Final result has all 5 as fallback.
+    const pass1Vins = ['P1_A', 'P1_B', 'P1_C']
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 3,
+        listings: pass1Vins.map((vin, i) => ({
+          id: vin,
+          vin,
+          price: 18000,
+          miles: 40000,
+          seller_type: 'franchise',
+          build: { year: 2020, make: 'Honda', model: 'Civic' },
+          dos_active: i + 1,
+          vdp_url: `https://dealer.com/listing/${vin}`,
+          first_seen_at_date: '2025-01-01',
+        })),
+      }),
+    })
+    pass1Vins.forEach(vin => mockHeadOk(`https://dealer.com/listing/${vin}`))
+
+    const pass2Vins = ['P2_A', 'P2_B']
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 2,
+        listings: pass2Vins.map((vin, i) => ({
+          id: vin,
+          vin,
+          price: 17000,
+          miles: 45000,
+          seller_type: 'franchise',
+          build: { year: 2020, make: 'Honda', model: 'Civic' },
+          dos_active: i + 1,
+          vdp_url: `https://dealer.com/listing/${vin}`,
+          first_seen_at_date: '2025-01-01',
+        })),
+      }),
+    })
+    pass2Vins.forEach(vin => mockHeadOk(`https://dealer.com/listing/${vin}`))
+
+    const prediction = makePrediction([])
+    const result = await supplementComparables(
+      prediction,
+      0,
+      subjectVehicle,
+      'VIN0',
+      30000,
+      '90210'
+    )
+
+    expect(result.supplemented).toBe(true)
+    const fallbackInResult = result.prediction.recentComparables!.listings
+    expect(fallbackInResult.some(l => l.vin === 'P1_A')).toBe(true)
+    expect(fallbackInResult.some(l => l.vin === 'P2_A')).toBe(true)
+    expect(fallbackInResult.length).toBe(5) // 3 pass1 + 2 pass2
   })
 })
