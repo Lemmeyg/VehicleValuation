@@ -1031,14 +1031,6 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
                   <Text style={styles.statLabel}>HIGHEST</Text>
                   <Text style={styles.statValue}>{formatCurrency(stats.maxPrice)}</Text>
                 </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>FRANCHISE</Text>
-                  <Text style={styles.statValue}>{stats.franchiseCount}</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>INDEPENDENT</Text>
-                  <Text style={styles.statValue}>{stats.independentCount}</Text>
-                </View>
               </View>
 
               {/* SVG Charts side by side */}
