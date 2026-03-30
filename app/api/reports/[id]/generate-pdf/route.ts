@@ -40,32 +40,31 @@ export async function POST(request: Request, { params }: RouteParams) {
     // If you want to require payment before PDF download, set REQUIRE_PAYMENT_FOR_PDF=true
     const requirePayment = process.env.REQUIRE_PAYMENT_FOR_PDF === 'true'
     if (requirePayment && (!report.price_paid || report.price_paid === 0)) {
-      return NextResponse.json(
-        { error: 'Report has not been paid for' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Report has not been paid for' }, { status: 400 })
     }
 
-    // Check if PDF already exists
-    if (report.pdf_url) {
-      return NextResponse.json(
-        {
-          message: 'PDF already generated',
-          pdfUrl: report.pdf_url,
-        },
-        { status: 200 }
-      )
+    // If PDF has already been stored, generate a fresh 1-hour signed URL
+    if (report.pdf_storage_path) {
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from('vehicle-reports')
+        .createSignedUrl(report.pdf_storage_path, 3600)
+
+      if (!signedUrlError && signedUrlData?.signedUrl) {
+        return NextResponse.json({
+          message: 'PDF ready',
+          pdfUrl: signedUrlData.signedUrl,
+        })
+      }
+      // Path exists in DB but file may be missing — fall through to regenerate
+      console.warn('Signed URL failed for stored path, regenerating:', signedUrlError)
     }
 
-    // Generate and upload PDF
+    // No stored path — generate the PDF for the first time (or re-generate after failure)
     const result = await generateAndUploadPDF({ reportId })
 
     if (!result.success) {
       console.error('PDF generation failed:', result.error)
-      return NextResponse.json(
-        { error: result.error || 'Failed to generate PDF' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: result.error || 'Failed to generate PDF' }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -74,10 +73,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     })
   } catch (error) {
     console.error('Error in generate-pdf route:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -110,9 +106,6 @@ export async function GET(request: Request, { params }: RouteParams) {
     })
   } catch (error) {
     console.error('Error checking PDF status:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

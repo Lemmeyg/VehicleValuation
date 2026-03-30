@@ -98,14 +98,22 @@ export async function generateAndUploadPDF(
       return { success: false, error: 'Failed to upload PDF' }
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage.from('vehicle-reports').getPublicUrl(filepath)
+    // Generate a 1-hour signed URL for the immediate response
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+      .from('vehicle-reports')
+      .createSignedUrl(filepath, 3600)
 
-    // Update report with PDF URL and status
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      console.error('Error creating signed URL:', signedUrlError)
+      return { success: false, error: 'Failed to create signed URL' }
+    }
+
+    // Update report: store the storage path (permanent) and mark completed
     const { error: updateError } = await supabase
       .from('reports')
       .update({
-        pdf_url: urlData.publicUrl,
+        pdf_url: signedUrlData.signedUrl,
+        pdf_storage_path: filepath,
         status: 'completed',
         updated_at: new Date().toISOString(),
       })
@@ -118,7 +126,7 @@ export async function generateAndUploadPDF(
 
     return {
       success: true,
-      pdfUrl: urlData.publicUrl,
+      pdfUrl: signedUrlData.signedUrl,
     }
   } catch (error) {
     console.error('Error generating PDF:', error)
