@@ -678,3 +678,78 @@ describe('supplementComparables — sort order and pagination', () => {
     expect(fallbackInResult.length).toBe(5) // 3 pass1 + 2 pass2
   })
 })
+
+describe('supplementComparables — search model derivation', () => {
+  it('uses model from existing comparables, not subject vehicle model, when they differ', async () => {
+    // Simulates the C-Max Energi case: VIN-decoded model = 'C-Max Energi',
+    // but MarketCheck search index model = 'C-Max' (as seen on the listing objects).
+    const existingListing = {
+      ...makeListing({ vin: 'ORIG_1', url_validated: false }),
+      model: 'C-Max', // MarketCheck search-index model name
+    }
+    const prediction = makePrediction([existingListing])
+
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 1,
+        listings: [
+          {
+            id: 'FB_1',
+            vin: 'FB_1',
+            price: 11000,
+            miles: 55000,
+            seller_type: 'franchise',
+            build: { year: 2016, make: 'Ford', model: 'C-Max' },
+            vdp_url: 'https://dealer.com/listing/FB_1',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+    mockHeadOk('https://dealer.com/listing/FB_1')
+    // Pass 2 empty (0 + 1 valid < 10)
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ num_found: 0, listings: [] }),
+    })
+
+    await supplementComparables(
+      prediction,
+      0,
+      { year: 2016, make: 'Ford', model: 'C-Max Energi', trim: 'SEL' }, // VIN-decoded model
+      'SUBJECT_VIN',
+      54040,
+      '94563'
+    )
+
+    // The search API call (calls[0]) should use 'C-Max' (from existing listing),
+    // NOT 'C-Max Energi' (from subjectVehicle).
+    const searchUrl: string = (global.fetch as jest.Mock).mock.calls[0][0]
+    expect(searchUrl).toContain('model=C-Max')
+    expect(searchUrl).not.toContain('model=C-Max+Energi')
+    expect(searchUrl).not.toContain('model=C-Max%20Energi')
+  })
+
+  it('falls back to subject vehicle model when no existing comparables', async () => {
+    const prediction = makePrediction([]) // no existing listings
+
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ num_found: 0, listings: [] }),
+    })
+
+    await supplementComparables(
+      prediction,
+      0,
+      { year: 2016, make: 'Ford', model: 'C-Max Energi', trim: 'SEL' },
+      'SUBJECT_VIN',
+      54040,
+      '94563'
+    )
+
+    // No existing listings → falls back to subjectVehicle.model
+    const searchUrl: string = (global.fetch as jest.Mock).mock.calls[0][0]
+    expect(searchUrl).toContain('model=C-Max')
+  })
+})

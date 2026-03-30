@@ -134,10 +134,16 @@ export async function supplementComparables(
   const originalListings = prediction.recentComparables?.listings ?? []
   const originalVinSet = new Set(originalListings.map(l => l.vin).filter(Boolean))
 
+  // MarketCheck's search index may use a shorter model name than the VIN-decoded value
+  // (e.g. 'C-Max' vs 'C-Max Energi'). Use the model from existing comparables when
+  // available — they already reflect the search index's model name.
+  const searchModel = originalListings[0]?.model ?? subjectVehicle.model
+  const searchVehicle: typeof subjectVehicle = { ...subjectVehicle, model: searchModel }
+
   // ── Pass 1 (rows 0–49) ───────────────────────────────────────────────────────
   let pass1Listings: MarketCheckComparable[] = []
   try {
-    const validated = await fetchAndValidatePage(apiKey, subjectVehicle, vin, mileage, zip, 0)
+    const validated = await fetchAndValidatePage(apiKey, searchVehicle, vin, mileage, zip, 0)
     if (validated === null) return unchanged
     pass1Listings = validated.filter(l => !originalVinSet.has(l.vin))
   } catch (err) {
@@ -156,7 +162,7 @@ export async function supplementComparables(
       ...pass1Listings.map(l => l.vin).filter(Boolean),
     ])
     try {
-      const validated = await fetchAndValidatePage(apiKey, subjectVehicle, vin, mileage, zip, 50)
+      const validated = await fetchAndValidatePage(apiKey, searchVehicle, vin, mileage, zip, 50)
       if (validated !== null) {
         pass2Listings = validated.filter(l => !pass1VinSet.has(l.vin))
       }
