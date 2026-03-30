@@ -2,21 +2,34 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
 
 interface Props {
   reportId: string
+  checkoutEmail: string | null
 }
+
+type PollerState = 'polling' | 'setup' | 'magic-link-sent' | 'timedOut'
 
 const MAX_POLLS = 30
 const POLL_INTERVAL_MS = 2000
 
-export function ReportReadyPoller({ reportId }: Props) {
+export function ReportReadyPoller({ reportId, checkoutEmail }: Props) {
   const router = useRouter()
-  const [timedOut, setTimedOut] = useState(false)
   const attemptsRef = useRef(0)
+  const [pollerState, setPollerState] = useState<PollerState>('polling')
+
+  // Account setup form state
+  const [email, setEmail] = useState(checkoutEmail ?? '')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [formError, setFormError] = useState('')
 
   useEffect(() => {
-    if (timedOut) return
+    if (pollerState !== 'polling') return
 
     attemptsRef.current = 0
 
@@ -24,30 +37,94 @@ export function ReportReadyPoller({ reportId }: Props) {
       try {
         const res = await fetch(`/api/reports/${reportId}/status`)
         if (!res.ok) return
-
         const data = await res.json()
         if (data.ready) {
-          router.push(`/reports/${reportId}/view`)
+          if (checkoutEmail) {
+            // Anonymous buyer — show account setup instead of redirecting
+            setPollerState('setup')
+          } else {
+            // Already authenticated — redirect directly
+            router.push(`/reports/${reportId}/view`)
+          }
           return
         }
       } catch {
         // Network error — keep polling
       }
-
       attemptsRef.current += 1
       if (attemptsRef.current >= MAX_POLLS) {
-        setTimedOut(true)
+        setPollerState('timedOut')
       }
     }
 
     const timer = setInterval(poll, POLL_INTERVAL_MS)
-    // Kick off the first poll immediately
     poll()
-
     return () => clearInterval(timer)
-  }, [reportId, router, timedOut])
+  }, [reportId, router, pollerState, checkoutEmail])
 
-  if (timedOut) {
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setFormError('')
+
+    if (password !== confirmPassword) {
+      setFormError('Passwords do not match')
+      return
+    }
+    if (password.length < 8) {
+      setFormError('Password must be at least 8 characters')
+      return
+    }
+    if (!agreedToTerms) {
+      setFormError('Please agree to the Terms and Conditions')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        // Account already exists (created by webhook) — send magic link instead
+        if (
+          data.error?.toLowerCase().includes('already registered') ||
+          data.error?.toLowerCase().includes('already exists')
+        ) {
+          await sendMagicLink()
+          return
+        }
+        setFormError(data.error || 'Failed to create account')
+        return
+      }
+
+      // Account created and session established — go to report
+      router.push(`/reports/${reportId}/view`)
+      router.refresh()
+    } catch {
+      setFormError('An unexpected error occurred. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const sendMagicLink = async () => {
+    try {
+      await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      setPollerState('magic-link-sent')
+    } catch {
+      setFormError('Failed to send sign-in link. Please try again.')
+    }
+  }
+
+  if (pollerState === 'timedOut') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
@@ -89,10 +166,183 @@ export function ReportReadyPoller({ reportId }: Props) {
     )
   }
 
+  if (pollerState === 'magic-link-sent') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Mail className="w-8 h-8 text-green-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Check your email</h1>
+          <p className="text-slate-600 mb-2">
+            We sent a sign-in link to <span className="font-medium">{email}</span>.
+          </p>
+          <p className="text-sm text-slate-400">
+            Click the link to access your report. The link expires in 24 hours.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (pollerState === 'setup') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg
+                className="w-8 h-8 text-green-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900">Your report is ready!</h1>
+            <p className="text-slate-600 mt-1">Create your account to access it.</p>
+          </div>
+
+          <form onSubmit={handleCreateAccount} className="space-y-4">
+            {formError && (
+              <div className="rounded-md bg-red-50 p-3">
+                <p className="text-sm text-red-800">{formError}</p>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                Email address
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="appearance-none block w-full px-3 py-3 pr-10 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="At least 8 characters"
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="confirm-password"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Confirm password
+              </label>
+              <input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                placeholder="Re-enter password"
+                disabled={loading}
+              />
+            </div>
+
+            <div className="flex items-start">
+              <input
+                id="terms"
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={e => setAgreedToTerms(e.target.checked)}
+                className="h-4 w-4 mt-0.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                disabled={loading}
+              />
+              <label htmlFor="terms" className="ml-3 text-sm text-gray-700 cursor-pointer">
+                I agree to the{' '}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  className="text-blue-600 hover:text-blue-500 underline"
+                >
+                  Terms and Conditions
+                </a>
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !agreedToTerms}
+              className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  Creating account...
+                </>
+              ) : (
+                'Create account & view report'
+              )}
+            </button>
+          </form>
+
+          <div className="mt-4 text-center space-y-2">
+            <button
+              type="button"
+              onClick={sendMagicLink}
+              disabled={loading}
+              className="text-sm text-blue-600 hover:text-blue-500 disabled:opacity-50"
+            >
+              Email me a sign-in link instead
+            </button>
+            <p className="text-sm text-gray-500">
+              Already have an account?{' '}
+              <a
+                href={`/auth?redirect=/reports/${reportId}/view`}
+                className="text-blue-600 hover:text-blue-500"
+              >
+                Sign in
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // pollerState === 'polling'
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
-        {/* Animated spinner */}
         <div className="w-16 h-16 mx-auto mb-6">
           <svg
             className="animate-spin w-16 h-16 text-emerald-600"
@@ -115,7 +365,6 @@ export function ReportReadyPoller({ reportId }: Props) {
             />
           </svg>
         </div>
-
         <h1 className="text-2xl font-bold text-slate-900 mb-2">Payment Successful!</h1>
         <p className="text-slate-600 mb-2">Fetching your vehicle&apos;s valuation data&hellip;</p>
         <p className="text-sm text-slate-400">This takes about 10 seconds.</p>

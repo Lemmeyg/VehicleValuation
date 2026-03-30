@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getUser } from '@/lib/db/auth'
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { createServerSupabaseClient, supabaseAdmin } from '@/lib/db/supabase'
 import { RedditPurchaseTracker } from './RedditPurchaseTracker'
 import { ReportReadyPoller } from './ReportReadyPoller'
 
@@ -26,9 +26,15 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
   // Auth-optional: returns null for anonymous/unauthenticated users
   const user = await getUser()
 
-  // Anonymous buyer — poll until webhook completes, then redirect to /view
+  // Anonymous buyer — fetch checkout email then show poller with account setup
   if (!user) {
-    return <ReportReadyPoller reportId={reportId} />
+    const { data: anonReport } = await supabaseAdmin
+      .from('reports')
+      .select('email')
+      .eq('id', reportId)
+      .single()
+
+    return <ReportReadyPoller reportId={reportId} checkoutEmail={anonReport?.email ?? null} />
   }
 
   // Authenticated user — fetch report details as before
