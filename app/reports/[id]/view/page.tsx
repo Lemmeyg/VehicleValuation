@@ -8,6 +8,7 @@ import { getUser } from '@/lib/db/auth'
 import { supabaseAdmin } from '@/lib/db/supabase'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { canViewReport } from '@/lib/utils/report-access'
 import Image from 'next/image'
 import { Car, FileText } from 'lucide-react'
 import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
@@ -20,12 +21,17 @@ interface PageProps {
 }
 
 export default async function ReportViewPage({ params }: PageProps) {
-  // Auth is optional — UUID is the access credential for paid reports
   const user = await getUser()
-
   const { id } = await params
 
-  // Use admin client: no user_id filter — anyone with the UUID can view if paid
+  // Auth required — redirect unauthenticated visitors to sign in
+  if (!user) {
+    redirect(`/auth?redirect=/reports/${id}/view`)
+  }
+
+  const isAdmin = user.user_metadata?.is_admin === true
+
+  // Fetch report via admin client so we can check ownership ourselves
   const { data: report, error } = await supabaseAdmin
     .from('reports')
     .select('*')
@@ -42,6 +48,27 @@ export default async function ReportViewPage({ params }: PageProps) {
           </p>
           <Link href="/dashboard" className="mt-4 inline-block text-blue-600 hover:text-blue-500">
             Back to Dashboard
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Ownership check — admins can view any report
+  if (!canViewReport(user.id, isAdmin, report.user_id)) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h1 className="text-2xl font-bold text-gray-900">Access Denied</h1>
+          <p className="mt-2 text-gray-600">
+            This report belongs to a different account. Sign in with the email address you used at
+            checkout to access this report.
+          </p>
+          <Link
+            href={`/auth?redirect=/reports/${id}/view`}
+            className="mt-4 inline-block px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+          >
+            Sign in with a different account
           </Link>
         </div>
       </div>
