@@ -267,11 +267,15 @@ describe('fetchMarketCheckSearchFallback — API params', () => {
     })
   }
 
-  it('does NOT include radius in the search URL', async () => {
+  it('does NOT include radius or zip in the search URL (national, ungeofiltered search)', async () => {
+    // zip without radius returns 0 results from the MarketCheck API (treats as 0-mile radius).
+    // The search endpoint also never returns a distance field, so zip provides no benefit.
     mockSearchSuccess()
     await fetchMarketCheckSearchFallback('key', 2020, 'Honda', 'Civic', 'VIN0', 50000, '78701')
     const calledUrl = mockFetch.mock.calls[0][0] as string
-    expect(new URL(calledUrl).searchParams.has('radius')).toBe(false)
+    const params = new URL(calledUrl).searchParams
+    expect(params.has('radius')).toBe(false)
+    expect(params.has('zip')).toBe(false)
   })
 
   it('uses start=0 by default', async () => {
