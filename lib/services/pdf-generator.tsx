@@ -68,9 +68,21 @@ export async function generateAndUploadPDF(
     // Generate PDF buffer
     const pdfBuffer = await renderToBuffer(<VehicleReportPDF data={pdfData} />)
 
-    // Generate filename
-    const sanitizedVin = reportData.vin.toUpperCase().replace(/[^A-Z0-9]/g, '')
-    const filename = `total-loss-report-${sanitizedVin}.pdf`
+    // Generate filename from vehicle year/make/model, falling back to VIN
+    const vinData = reportData.autodev_vin_data
+    const vehicleYear = vinData?.vehicle?.year
+    const vehicleMake = vinData?.make
+    const vehicleModel = vinData?.model
+
+    let filenamePart: string
+    if (vehicleYear && vehicleMake && vehicleModel) {
+      filenamePart = `${vehicleYear}-${vehicleMake}-${vehicleModel}`
+        .replace(/[^A-Za-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+    } else {
+      filenamePart = reportData.vin.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    }
+    const filename = `total-loss-report-${filenamePart}.pdf`
     const filepath = `reports/${reportData.user_id}/${filename}`
 
     // Upload to Supabase Storage
