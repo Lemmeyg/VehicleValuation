@@ -13,11 +13,11 @@
  * - Requires at least 2 path segments on the final URL to reject homepages ("/") and
  *   single-segment index pages ("/inventory") while accepting common 2-segment VDP
  *   formats like "/inventory/12345" or "/used-vehicles/vin123456".
- * - Validates in batches of 20 (sorted by dos_active) and stops as soon as
+ * - Validates in batches of 20 (sorted by dos_active by default, or by a caller-supplied sortFn) and stops as soon as
  *   TARGET_VALID (10) passing listings are found.
  */
 
-import type { MarketCheckPrediction } from '@/lib/api/marketcheck-client'
+import type { MarketCheckPrediction, MarketCheckComparable } from '@/lib/api/marketcheck-client'
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
@@ -90,7 +90,7 @@ async function checkUrl(url: string): Promise<boolean> {
 /**
  * Validate listing URLs in a MarketCheckPrediction using sequential batching.
  *
- * - Sorts all listings by dos_active (ascending) and processes them in batches
+ * - Sorts all listings using the provided sortFn if supplied, otherwise defaults to dos_active (ascending). Processes in batches
  *   of BATCH_SIZE (20). Each batch is validated in parallel.
  * - Stops as soon as TARGET_VALID (10) listings with passing URLs are found.
  *   Additional batches are only fetched if the previous batch did not supply enough.
@@ -103,7 +103,8 @@ async function checkUrl(url: string): Promise<boolean> {
  *          URLs were checked, how many failed, and which URLs failed.
  */
 export async function validateListingUrls(
-  prediction: MarketCheckPrediction
+  prediction: MarketCheckPrediction,
+  options?: { sortFn?: (listings: MarketCheckComparable[]) => MarketCheckComparable[] }
 ): Promise<{ prediction: MarketCheckPrediction; stats: ValidationStats }> {
   const emptyStats: ValidationStats = {
     checkedCount: 0,
@@ -119,14 +120,13 @@ export async function validateListingUrls(
 
   const allListings = prediction.recentComparables.listings
 
-  // Sort all listings by dos_active ascending (same ordering as the display layer).
-  // Listings without dos_active get Infinity, sinking them to the bottom of the sort.
-  const sortedIndices = allListings
-    .map((l, i) => ({ i, dos: l.dos_active ?? Infinity }))
-    .sort((a, b) => a.dos - b.dos)
-    .map(({ i }) => i)
+  // Sort listings: use provided sortFn, or default to dos_active ascending.
+  // Listings without dos_active get Infinity, sinking them to the bottom.
+  const sortedListings = options?.sortFn
+    ? options.sortFn(allListings)
+    : [...allListings].sort((a, b) => (a.dos_active ?? Infinity) - (b.dos_active ?? Infinity))
 
-  const validIndexSet = new Set<number>()
+  const validListingSet = new Set<MarketCheckComparable>()
   const stats: ValidationStats = {
     checkedCount: 0,
     failedCount: 0,
@@ -136,30 +136,29 @@ export async function validateListingUrls(
   }
 
   // Process batches sequentially; each batch runs its fetches in parallel.
-  // Stop as soon as TARGET_VALID passing listings have been found.
+  // Stop as soon as TARGET_VALID (10) listings with passing URLs have been found.
   for (
     let offset = 0;
-    offset < sortedIndices.length && validIndexSet.size < TARGET_VALID;
+    offset < sortedListings.length && validListingSet.size < TARGET_VALID;
     offset += BATCH_SIZE
   ) {
-    const batch = sortedIndices.slice(offset, offset + BATCH_SIZE)
+    const batch = sortedListings.slice(offset, offset + BATCH_SIZE)
     stats.batchesUsed++
 
     const batchResults = await Promise.allSettled(
-      batch.map(async idx => {
-        const listing = allListings[idx]
+      batch.map(async listing => {
         if (!listing.vdp_url) {
           // No URL: auto-valid, don't count as a URL check
-          return { idx, valid: true, url: null }
+          return { listing, valid: true, url: null }
         }
         const valid = await checkUrl(listing.vdp_url)
-        return { idx, valid, url: listing.vdp_url }
+        return { listing, valid, url: listing.vdp_url }
       })
     )
 
     for (const result of batchResults) {
       if (result.status === 'fulfilled') {
-        const { idx, valid, url } = result.value
+        const { listing, valid, url } = result.value
         if (url !== null) {
           // Only count listings where we actually fetched a URL
           stats.checkedCount++
@@ -171,16 +170,16 @@ export async function validateListingUrls(
           }
         }
         if (valid) {
-          validIndexSet.add(idx)
+          validListingSet.add(listing)
         }
       }
     }
   }
 
   // Annotate every listing with url_validated
-  const validatedListings = allListings.map((listing, idx) => ({
+  const validatedListings = allListings.map(listing => ({
     ...listing,
-    url_validated: validIndexSet.has(idx),
+    url_validated: validListingSet.has(listing),
   }))
 
   return {

@@ -9,7 +9,7 @@ global.fetch = mockFetch
 
 process.env.MARKETCHECK_API_KEY = 'test-api-key'
 
-import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
+import { fetchMarketCheckData, fetchMarketCheckSearchFallback } from '@/lib/api/marketcheck-client'
 
 describe('fetchMarketCheckData - search fallback', () => {
   beforeEach(() => {
@@ -236,5 +236,109 @@ describe('fetchMarketCheckData - search fallback', () => {
       subject
     )
     expect(low.data!.confidence).toBe('low')
+  })
+})
+
+describe('fetchMarketCheckSearchFallback — API params', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  function mockSearchSuccess() {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 1,
+        listings: [
+          {
+            id: 'abc',
+            vin: 'VIN1',
+            price: 10000,
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            distance: 42,
+            dealer_address: { city: 'Austin', state: 'TX', zip: '78701' },
+            vdp_url: 'https://dealer.com/inventory/abc',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+  }
+
+  it('does NOT include radius or zip in the search URL (national, ungeofiltered search)', async () => {
+    // zip without radius returns 0 results from the MarketCheck API (treats as 0-mile radius).
+    // The search endpoint also never returns a distance field, so zip provides no benefit.
+    mockSearchSuccess()
+    await fetchMarketCheckSearchFallback('key', 2020, 'Honda', 'Civic', 'VIN0', 50000, '78701')
+    const calledUrl = mockFetch.mock.calls[0][0] as string
+    const params = new URL(calledUrl).searchParams
+    expect(params.has('radius')).toBe(false)
+    expect(params.has('zip')).toBe(false)
+  })
+
+  it('uses start=0 by default', async () => {
+    mockSearchSuccess()
+    await fetchMarketCheckSearchFallback('key', 2020, 'Honda', 'Civic', 'VIN0', 50000, '78701')
+    const calledUrl = mockFetch.mock.calls[0][0] as string
+    expect(new URL(calledUrl).searchParams.get('start')).toBe('0')
+  })
+
+  it('passes start=50 when requested (pagination)', async () => {
+    mockSearchSuccess()
+    await fetchMarketCheckSearchFallback('key', 2020, 'Honda', 'Civic', 'VIN0', 50000, '78701', 50)
+    const calledUrl = mockFetch.mock.calls[0][0] as string
+    expect(new URL(calledUrl).searchParams.get('start')).toBe('50')
+  })
+
+  it('maps distance from API response into location.distance_miles', async () => {
+    mockSearchSuccess()
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Honda',
+      'Civic',
+      'VIN0',
+      50000,
+      '78701'
+    )
+    expect(result.success).toBe(true)
+    const listing = result.data!.recentComparables!.listings[0]
+    expect(listing.location?.distance_miles).toBe(42)
+  })
+
+  it('distance_miles is undefined when API omits distance field', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 1,
+        listings: [
+          {
+            id: 'xyz',
+            vin: 'VIN2',
+            price: 10000,
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            // no distance field
+            dealer_address: { city: 'Austin', state: 'TX', zip: '78701' },
+            vdp_url: 'https://dealer.com/inventory/xyz',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Honda',
+      'Civic',
+      'VIN0',
+      50000,
+      '78701'
+    )
+    const listing = result.data!.recentComparables!.listings[0]
+    expect(listing.location?.distance_miles).toBeUndefined()
   })
 })

@@ -512,8 +512,8 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
     expect(mockValidateListingUrls).toHaveBeenCalledTimes(1)
   })
 
-  it('skips validateListingUrls when MarketCheck data already present (idempotency path)', async () => {
-    // Override report mock to return existing marketcheck_valuation
+  it('runs validateListingUrls on pre-existing MarketCheck data (from fetch-marketcheck before payment)', async () => {
+    // Override report mock to return existing marketcheck_valuation (set by fetch-marketcheck pre-payment)
     const existingData = {
       predictedPrice: 20000,
       confidence: 'medium',
@@ -544,7 +544,10 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
 
     const request = makeRequest()
     await POST(request)
-    expect(mockValidateListingUrls).not.toHaveBeenCalled()
+    // URL validation must run even on pre-existing data — the fetch-marketcheck route
+    // stores raw unvalidated listings, so the webhook must validate + supplement them
+    expect(mockValidateListingUrls).toHaveBeenCalledTimes(1)
+    expect(mockValidateListingUrls).toHaveBeenCalledWith(existingData)
   })
 
   it('writes comparables_supplemented: true to updateData when supplement fires', async () => {

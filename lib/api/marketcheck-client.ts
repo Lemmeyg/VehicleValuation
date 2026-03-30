@@ -173,17 +173,22 @@ export async function fetchMarketCheckSearchFallback(
   model: string,
   vin: string,
   miles: number,
-  zip: string
+  zip: string,
+  start: number = 0
 ): Promise<MarketCheckResponse> {
+  // Year is omitted — the search index only covers up to 2022 so year filtering
+  // is done post-query by the caller (comparables-supplementer) using progressive widening.
+  // zip is omitted — passing zip without radius returns 0 results (API treats it as 0-mile
+  // radius). The search endpoint also never returns a distance field, so geo-sorting is
+  // not possible here; year-closeness sort is applied post-fetch instead.
   const url = new URL('https://api.marketcheck.com/v2/search/car/active')
   url.searchParams.append('api_key', apiKey)
-  url.searchParams.append('year', year.toString())
   url.searchParams.append('make', make)
   url.searchParams.append('model', model)
   url.searchParams.append('rows', '50')
-  url.searchParams.append('start', '0')
+  url.searchParams.append('start', start.toString())
 
-  console.log('[MarketCheck Fallback] Trying search endpoint', { year, make, model, vin })
+  console.log('[MarketCheck Fallback] Trying search endpoint', { make, model, start })
 
   try {
     const response = await fetch(url.toString(), {
@@ -205,12 +210,12 @@ export async function fetchMarketCheckSearchFallback(
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data: { num_found: number; listings: any[] } = await response.json()
+    const data = (await response.json()) as { num_found: number; listings: unknown[] }
     const listings = data.listings || []
+    const numFound = data.num_found
 
     console.log('[MarketCheck Fallback] Search succeeded', {
-      num_found: data.num_found,
+      num_found: numFound,
       returned: listings.length,
     })
 
@@ -249,7 +254,7 @@ export async function fetchMarketCheckSearchFallback(
                 city: l.dealer_address?.city ?? l.dealer?.city,
                 state: l.dealer_address?.state ?? l.dealer?.state,
                 zip: l.dealer_address?.zip ?? l.dealer?.zip,
-                distance_miles: undefined,
+                distance_miles: l.distance ?? undefined,
               }
             : undefined,
         latitude: l.latitude,
@@ -282,7 +287,7 @@ export async function fetchMarketCheckSearchFallback(
       confidence,
       dataSource: 'marketcheck',
       requestParams: { vin, miles, zip, dealer_type: 'franchise' },
-      totalComparablesFound: data.num_found,
+      totalComparablesFound: numFound,
       comparablesStats: undefined,
       recentComparables: {
         num_found: comparables.length,

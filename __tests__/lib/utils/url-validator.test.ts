@@ -436,4 +436,51 @@ describe('validateListingUrls', () => {
       expect(resultListings[i].url_validated).toBe(false)
     }
   })
+
+  it('processes listings in sortFn order when sortFn is provided (not dos_active order)', async () => {
+    // Three listings: dos_active order would be 0→1→2 (A→B→C).
+    // sortFn reverses them, so processing order should be C→B→A.
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/A', dos_active: 1 },
+      { vdp_url: 'https://dealer.com/inventory/B', dos_active: 2 },
+      { vdp_url: 'https://dealer.com/inventory/C', dos_active: 3 },
+    ])
+
+    // All pass validation
+    mockFetchOk('https://dealer.com/inventory/C')
+    mockFetchOk('https://dealer.com/inventory/B')
+    mockFetchOk('https://dealer.com/inventory/A')
+
+    const sortFn = (listings: import('@/lib/api/marketcheck-client').MarketCheckComparable[]) =>
+      [...listings].reverse()
+
+    await validateListingUrls(prediction, { sortFn })
+
+    // fetch calls should be in C→B→A order (reversed), not A→B→C (dos_active order)
+    const calls = (global.fetch as jest.Mock).mock.calls
+    expect(calls[0][0]).toBe('https://dealer.com/inventory/C')
+    expect(calls[1][0]).toBe('https://dealer.com/inventory/B')
+    expect(calls[2][0]).toBe('https://dealer.com/inventory/A')
+  })
+
+  it('falls back to dos_active sort when no sortFn is provided', async () => {
+    // listing 0 has dos_active=3, listing 1 has dos_active=1, listing 2 has dos_active=2
+    // dos_active ascending: listing1(dos=1) → listing2(dos=2) → listing0(dos=3)
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/X', dos_active: 3 },
+      { vdp_url: 'https://dealer.com/inventory/Y', dos_active: 1 },
+      { vdp_url: 'https://dealer.com/inventory/Z', dos_active: 2 },
+    ])
+
+    mockFetchOk('https://dealer.com/inventory/Y') // dos=1, first
+    mockFetchOk('https://dealer.com/inventory/Z') // dos=2, second
+    mockFetchOk('https://dealer.com/inventory/X') // dos=3, third
+
+    await validateListingUrls(prediction) // no sortFn → uses dos_active
+
+    const calls = (global.fetch as jest.Mock).mock.calls
+    expect(calls[0][0]).toBe('https://dealer.com/inventory/Y')
+    expect(calls[1][0]).toBe('https://dealer.com/inventory/Z')
+    expect(calls[2][0]).toBe('https://dealer.com/inventory/X')
+  })
 })
