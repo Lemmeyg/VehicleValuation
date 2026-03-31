@@ -132,18 +132,6 @@ export default async function ReportViewPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Anonymous visitor banner */}
-      {!user && (
-        <div className="bg-emerald-700 text-white text-center py-3 px-4 text-sm">
-          <span>Save this report to your account — </span>
-          <a
-            href={`/login?redirect=/reports/${id}/view`}
-            className="underline font-semibold hover:text-emerald-200"
-          >
-            Sign in or create a free account
-          </a>
-        </div>
-      )}
       <ReportViewTracker
         reportId={id}
         vehicleYear={autodevData?.vehicle?.year}

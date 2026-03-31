@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
 
 interface Props {
@@ -15,7 +14,6 @@ const MAX_POLLS = 30
 const POLL_INTERVAL_MS = 2000
 
 export function ReportReadyPoller({ reportId, checkoutEmail }: Props) {
-  const router = useRouter()
   const attemptsRef = useRef(0)
   const [pollerState, setPollerState] = useState<PollerState>('polling')
 
@@ -39,13 +37,9 @@ export function ReportReadyPoller({ reportId, checkoutEmail }: Props) {
         if (!res.ok) return
         const data = await res.json()
         if (data.ready) {
-          if (checkoutEmail) {
-            // Anonymous buyer — show account setup instead of redirecting
-            setPollerState('setup')
-          } else {
-            // Already authenticated — redirect directly
-            router.push(`/reports/${reportId}/view`)
-          }
+          // ReportReadyPoller is only rendered for unauthenticated users — always
+          // show the account setup form so the buyer can claim their report.
+          setPollerState('setup')
           return
         }
       } catch {
@@ -101,9 +95,10 @@ export function ReportReadyPoller({ reportId, checkoutEmail }: Props) {
         return
       }
 
-      // Account created and session established — go to report
-      router.push(`/reports/${reportId}/view`)
-      router.refresh()
+      // Link the report to the new account so canViewReport passes
+      await fetch(`/api/reports/${reportId}/claim`, { method: 'POST' })
+      // Hard navigation so the server reads the fresh session cookie
+      window.location.href = `/reports/${reportId}/view`
     } catch {
       setFormError('An unexpected error occurred. Please try again.')
     } finally {
