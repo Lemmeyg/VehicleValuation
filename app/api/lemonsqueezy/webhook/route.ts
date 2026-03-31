@@ -16,8 +16,17 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text()
     const signature = request.headers.get('x-signature')
 
+    // [WH-0] Log every incoming webhook request for diagnosis
+    console.log('[WH-0] Webhook POST received', {
+      signature: signature ? `present (${signature.substring(0, 8)}...)` : 'MISSING',
+      contentType: request.headers.get('content-type'),
+      bodyLength: rawBody.length,
+    })
+
     if (!signature) {
-      console.error('Missing webhook signature')
+      console.error(
+        '[WH-0] FATAL: Missing x-signature header — LemonSqueezy signing secret may not be configured in LS dashboard'
+      )
       return NextResponse.json({ error: 'Missing signature header' }, { status: 400 })
     }
 
