@@ -86,7 +86,13 @@ export async function POST(request: Request) {
       console.log('[create-anonymous] Found recent duplicate report:', recentReports[0].id)
       console.log('[create-anonymous] Returning existing report instead of creating duplicate')
 
-      // Return the existing report instead of creating a duplicate
+      // Fetch full row to include access_token
+      const { data: existingReport } = await supabase
+        .from('reports')
+        .select('access_token')
+        .eq('id', recentReports[0].id)
+        .single()
+
       return NextResponse.json({
         success: true,
         report: {
@@ -99,6 +105,8 @@ export async function POST(request: Request) {
           vehicle_data: null,
           marketcheck_valuation: null,
           created_at: recentReports[0].created_at,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          access_token: (existingReport as any)?.access_token ?? null,
         },
         message: 'Returning existing recent report (idempotency check)',
       })
@@ -127,6 +135,13 @@ export async function POST(request: Request) {
       )
     }
 
+    // Generate access token only for anonymous users (null for authenticated reports)
+    const isAnonymous = !authenticatedUserId
+    const accessToken = isAnonymous ? crypto.randomUUID() : null
+    const accessTokenExpiresAt = isAnonymous
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      : null
+
     // Create report in database (link to authenticated user if available)
     // Vehicle data (VIN decode) is populated later by the LemonSqueezy webhook
     // using auto.dev, which is more reliable than the deprecated VinAudit endpoint.
@@ -141,6 +156,10 @@ export async function POST(request: Request) {
         status: 'pending', // Reports start as pending until payment received
         vehicle_data: null, // Populated by webhook after payment
         user_id: authenticatedUserId, // Link to user if authenticated, otherwise null
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(isAnonymous
+          ? { access_token: accessToken, access_token_expires_at: accessTokenExpiresAt }
+          : ({} as any)),
       })
       .select()
       .single()
@@ -177,6 +196,8 @@ export async function POST(request: Request) {
         vehicle_data: report.vehicle_data,
         marketcheck_valuation: report.marketcheck_valuation || null,
         created_at: report.created_at,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        access_token: (report as any).access_token ?? null,
       },
     })
   } catch (error) {
