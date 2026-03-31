@@ -54,7 +54,7 @@ export function ReportReadyPoller({ reportId, checkoutEmail }: Props) {
     const timer = setInterval(poll, POLL_INTERVAL_MS)
     poll()
     return () => clearInterval(timer)
-  }, [reportId, router, pollerState, checkoutEmail])
+  }, [reportId, pollerState, checkoutEmail])
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault()
