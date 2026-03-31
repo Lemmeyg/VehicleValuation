@@ -1,12 +1,12 @@
 import { supabaseAdmin } from '@/lib/db/supabase'
 
 interface LogApiCallParams {
-  reportId: string
-  provider: 'autodev' | 'marketcheck'
+  reportId?: string
+  provider: 'autodev' | 'marketcheck' | 'webhook'
   endpoint: string
   success: boolean
-  responseTimeMs: number
-  cost: number
+  responseTimeMs?: number
+  cost?: number
   requestData?: Record<string, unknown>
   responseData?: Record<string, unknown>
   errorMessage?: string
@@ -15,12 +15,12 @@ interface LogApiCallParams {
 export async function logApiCall(params: LogApiCallParams): Promise<void> {
   try {
     const { error } = await supabaseAdmin.from('api_call_logs').insert({
-      report_id: params.reportId,
+      report_id: params.reportId ?? 'unset',
       api_provider: params.provider,
       endpoint: params.endpoint,
       success: params.success,
-      response_time_ms: params.responseTimeMs,
-      cost: params.cost,
+      response_time_ms: params.responseTimeMs ?? 0,
+      cost: params.cost ?? 0,
       request_data: params.requestData ?? null,
       response_data: params.responseData ?? null,
       error_message: params.errorMessage ?? null,

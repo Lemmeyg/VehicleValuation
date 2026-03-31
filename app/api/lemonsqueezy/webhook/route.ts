@@ -24,9 +24,10 @@ export async function POST(request: NextRequest) {
     // Verify webhook signature
     const isValid = verifyWebhookSignature(rawBody, signature)
     if (!isValid) {
-      console.error('Invalid webhook signature')
+      console.error('[WH-1] Invalid webhook signature')
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
+    console.log('[WH-1] Signature verified OK')
 
     // Resolve the public app URL (needed for magic link emails)
     const forwardedHost = request.headers.get('x-forwarded-host')
@@ -77,14 +78,30 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
     const status = event.data.attributes.status
 
     console.log(
-      `Processing order ${orderId} for report ${reportId}, user ${rawUserId ?? 'anonymous'}`
+      `[WH-2] Processing order ${orderId} for report ${reportId}, user ${rawUserId ?? 'anonymous'}, status ${status}`
     )
+    await logApiCall({
+      reportId,
+      provider: 'webhook',
+      endpoint: '[WH-2] order_created received',
+      success: true,
+      requestData: { orderId, reportId, rawUserId: rawUserId ?? null, status, customerEmail },
+    })
 
     // Resolve user ID: use the authenticated userId from checkout, or find/create from email
     let resolvedUserId: string | null = rawUserId ?? null
     if (!resolvedUserId && customerEmail) {
-      console.log(`[Webhook] Anonymous purchase — resolving user from email: ${customerEmail}`)
+      console.log(`[WH-3] Anonymous purchase — resolving user from email: ${customerEmail}`)
       resolvedUserId = await resolveUserFromEmail(customerEmail, reportId, appUrl)
+      console.log(`[WH-3] resolveUserFromEmail result: ${resolvedUserId ?? 'NULL'}`)
+      await logApiCall({
+        reportId,
+        provider: 'webhook',
+        endpoint: '[WH-3] resolveUserFromEmail',
+        success: resolvedUserId !== null,
+        responseData: { resolvedUserId: resolvedUserId ?? null },
+        errorMessage: resolvedUserId ? undefined : 'resolveUserFromEmail returned null',
+      })
     }
 
     // Write customer name to user profile
@@ -103,9 +120,18 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
 
     // Only process paid orders
     if (status !== 'paid') {
-      console.log(`Order ${orderId} status is ${status}, skipping`)
+      console.log(`[WH-4] Order ${orderId} status is ${status}, skipping`)
+      await logApiCall({
+        reportId,
+        provider: 'webhook',
+        endpoint: '[WH-4] order status check',
+        success: false,
+        errorMessage: `Order status is '${status}', expected 'paid' — processing skipped`,
+        requestData: { orderId, status },
+      })
       return
     }
+    console.log(`[WH-4] Order status is 'paid' — proceeding`)
 
     // Use admin client (service role) to bypass RLS - webhooks have no user session
     const supabase = supabaseAdmin
@@ -126,9 +152,25 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
     })
 
     if (paymentError) {
-      console.error('Error creating payment record:', paymentError)
+      console.error('[WH-5] Error creating payment record:', paymentError)
+      await logApiCall({
+        reportId,
+        provider: 'webhook',
+        endpoint: '[WH-5] payment insert',
+        success: false,
+        errorMessage: `paymentError: ${paymentError.message} | code: ${paymentError.code} | details: ${paymentError.details}`,
+        requestData: { reportId, resolvedUserId, orderId, amount, status },
+      })
       throw new Error(`Failed to create payment record: ${paymentError.message}`)
     }
+    console.log(`[WH-5] Payment record created OK for report ${reportId}`)
+    await logApiCall({
+      reportId,
+      provider: 'webhook',
+      endpoint: '[WH-5] payment insert',
+      success: true,
+      requestData: { reportId, resolvedUserId, orderId, amount },
+    })
 
     // Fetch the report to get VIN, mileage, ZIP for API calls
     const { data: report, error: fetchError } = await supabase
@@ -138,9 +180,18 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
       .single()
 
     if (fetchError || !report) {
-      console.error('Error fetching report for API calls:', fetchError)
+      console.error('[WH-6] Error fetching report for API calls:', fetchError)
+      await logApiCall({
+        reportId,
+        provider: 'webhook',
+        endpoint: '[WH-6] report fetch',
+        success: false,
+        errorMessage: fetchError?.message ?? 'report not found',
+        requestData: { reportId },
+      })
       throw new Error(`Failed to fetch report: ${fetchError?.message}`)
     }
+    console.log(`[WH-6] Report fetched OK for report ${reportId}`)
 
     console.log(`[Webhook] Report ${reportId} fetched for API calls:`, {
       vin: report.vin?.substring(0, 8) + '...',
@@ -496,27 +547,48 @@ async function resolveUserFromEmail(
   let resolvedUserId: string | null = null
 
   // Try to create the user — returns the user object with ID on success
+  console.log('[WH-3a] Calling supabaseAdmin.auth.admin.createUser for', email)
   const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email,
     email_confirm: true,
+  })
+  console.log('[WH-3a] createUser result:', {
+    userId: createData?.user?.id ?? null,
+    errorCode: createError?.status ?? null,
+    errorMsg: createError?.message ?? null,
   })
 
   if (!createError && createData?.user) {
     // New user created — ID is available immediately from the response
     resolvedUserId = createData.user.id
-    console.log('[Webhook] Created new Supabase user for anonymous buyer:', {
+    console.log('[WH-3a] Created new Supabase user for anonymous buyer:', {
       email,
       userId: resolvedUserId,
     })
   } else {
     // User already exists — find their ID via listUsers
     // (Supabase admin SDK v2 has no getUserByEmail; listUsers is the available option)
+    console.log(
+      '[WH-3b] createUser failed — falling back to listUsers. createError:',
+      createError?.message
+    )
     const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
       perPage: 1000,
     })
+    console.log('[WH-3b] listUsers result:', {
+      userCount: listData?.users?.length ?? null,
+      errorMsg: listError?.message ?? null,
+    })
 
     if (listError) {
-      console.error('[Webhook] Failed to list users while resolving existing user:', listError)
+      console.error('[WH-3b] Failed to list users:', listError)
+      await logApiCall({
+        reportId,
+        provider: 'webhook',
+        endpoint: '[WH-3b] listUsers',
+        success: false,
+        errorMessage: `listUsers error: ${listError.message}`,
+      })
       return null
     }
 
@@ -524,16 +596,24 @@ async function resolveUserFromEmail(
 
     if (!existingUser) {
       console.error(
-        '[Webhook] User not found after createUser error for email:',
+        '[WH-3b] User not found after createUser error for email:',
         email,
-        'Error:',
+        'createError:',
         createError
       )
+      await logApiCall({
+        reportId,
+        provider: 'webhook',
+        endpoint: '[WH-3b] listUsers lookup',
+        success: false,
+        errorMessage: `User not found after createUser failed. createError: ${createError?.message}`,
+        requestData: { email },
+      })
       return null
     }
 
     resolvedUserId = existingUser.id
-    console.log('[Webhook] Found existing Supabase user for anonymous buyer:', {
+    console.log('[WH-3b] Found existing Supabase user for anonymous buyer:', {
       email,
       userId: resolvedUserId,
     })
