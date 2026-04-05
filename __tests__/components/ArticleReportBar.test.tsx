@@ -2,7 +2,8 @@
  * Tests for ArticleReportBar component
  *
  * Covers: render, value-prop ticker, form validation, auth modal trigger,
- * successful submission flow, and PostHog analytics event.
+ * successful submission flow, and PostHog analytics events (form-start,
+ * form-submitted, report-workflow tracking).
  */
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
