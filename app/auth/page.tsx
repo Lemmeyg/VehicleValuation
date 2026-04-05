@@ -39,6 +39,7 @@ function AuthContent() {
   const prefilledEmail = searchParams.get('email')
   const isExistingUser = searchParams.get('existingUser') === 'true'
   const fromHero = searchParams.get('fromHero') === 'true'
+  const tokenExpired = searchParams.get('reason') === 'token_expired'
 
   // Auth state
   const [step, setStep] = useState<AuthStep>('email')
@@ -340,6 +341,14 @@ function AuthContent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
+        {/* Expired token banner */}
+        {tokenExpired && (
+          <div className="rounded-lg bg-amber-50 border border-amber-300 p-4 text-sm text-amber-900">
+            <p className="font-semibold mb-1">Your report link has expired.</p>
+            <p>Sign in or create a free account to access your report.</p>
+          </div>
+        )}
+
         {/* Header */}
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">

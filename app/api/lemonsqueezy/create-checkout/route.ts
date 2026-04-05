@@ -71,6 +71,17 @@ export async function POST(request: NextRequest) {
       (forwardedHost ? `${forwardedProto}://${forwardedHost}` : request.nextUrl.origin)
     console.log('[create-checkout] appUrl resolved to:', appUrl)
 
+    // For anonymous users, successUrl goes straight to the view page with the token.
+    // Authenticated users continue to the success page (no change).
+    let successUrl = `${appUrl}/reports/${reportId}/success`
+    if (!user) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const accessToken = (report as any).access_token as string | null
+      if (accessToken) {
+        successUrl = `${appUrl}/reports/${reportId}/view?token=${accessToken}`
+      }
+    }
+
     // Create checkout session
     const checkout = await createCheckout({
       variantId,
@@ -79,7 +90,7 @@ export async function POST(request: NextRequest) {
         reportType,
         ...(user?.id ? { userId: user.id } : {}),
       },
-      successUrl: `${appUrl}/reports/${reportId}/success`,
+      successUrl,
       cancelUrl: `${appUrl}/reports/${reportId}`,
     })
 
