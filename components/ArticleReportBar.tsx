@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
-import { trackEvent } from '@/lib/analytics/events'
+import { trackEvent, trackFormSubmission, trackReportWorkflow } from '@/lib/analytics/events'
+import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import AuthModal from './AuthModal'
 
 interface ArticleReportBarProps {
@@ -40,6 +41,18 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
     formRef.current = { vin, mileage, zipCode }
   }, [vin, mileage, zipCode])
 
+  const hasTrackedFormStart = useRef(false)
+
+  const trackFormStart = () => {
+    if (!hasTrackedFormStart.current) {
+      hasTrackedFormStart.current = true
+      trackReportWorkflow({
+        step: 'article_bar_form_started',
+        kb_source_slug: articleSlug,
+      })
+    }
+  }
+
   // Ticker animation
   useEffect(() => {
     const interval = setInterval(() => {
@@ -49,6 +62,7 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
   }, [])
 
   const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
     if (value.length <= 17) {
       setVin(value)
@@ -57,11 +71,13 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
   }
 
   const handleMileageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     setMileage(e.target.value.replace(/\D/g, ''))
     setError('')
   }
 
   const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))
     setError('')
   }
@@ -81,17 +97,20 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
     const vinError = getVinValidationError(sanitized)
     if (vinError) {
       setError(vinError)
+      trackFormSubmission('article_report_bar', { success: false, error: 'invalid_vin' })
       return
     }
 
     const mileageNum = parseInt(currentMileage)
     if (isNaN(mileageNum) || mileageNum < 0 || mileageNum > 999999) {
       setError('Please enter a valid mileage between 0 and 999,999')
+      trackFormSubmission('article_report_bar', { success: false, error: 'invalid_mileage' })
       return
     }
 
     if (currentZip.length !== 5) {
       setError('Please enter a valid 5-digit ZIP code')
+      trackFormSubmission('article_report_bar', { success: false, error: 'invalid_zip' })
       return
     }
 
@@ -113,12 +132,28 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
 
       if (!response.ok) {
         setError(data.error || 'Failed to create report')
+        trackFormSubmission('article_report_bar', {
+          success: false,
+          error: data.error || 'api_error',
+        })
         return
       }
+
+      const kbAttr = getKBAttribution()
+      trackFormSubmission('article_report_bar', { success: true })
+      trackReportWorkflow({
+        step: 'article_bar_form_submitted',
+        kb_source_slug: articleSlug,
+        ...(kbAttr && {
+          kb_source_title: kbAttr.title,
+          kb_source_visited_at: kbAttr.visited_at,
+        }),
+      })
 
       router.push(`/pricing?reportId=${data.report.id}`)
     } catch {
       setError('An unexpected error occurred')
+      trackFormSubmission('article_report_bar', { success: false, error: 'unexpected_error' })
     } finally {
       setLoading(false)
     }
