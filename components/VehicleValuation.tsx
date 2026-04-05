@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2 } from 'lucide-react'
 import { Button } from './ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
 import AuthModal from './AuthModal'
+import { trackFormSubmission, trackReportWorkflow } from '@/lib/analytics/events'
+import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 
 const PRICING_TIERS = [
   {
@@ -52,7 +54,17 @@ export default function VehicleValuation() {
   const [error, setError] = useState('')
   const [showAuthModal, setShowAuthModal] = useState(false)
 
+  const hasTrackedFormStart = useRef(false)
+
+  const trackFormStart = () => {
+    if (!hasTrackedFormStart.current) {
+      hasTrackedFormStart.current = true
+      trackReportWorkflow({ step: 'bottom_form_started' })
+    }
+  }
+
   const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
     if (value.length <= 17) {
       setVin(value)
@@ -61,12 +73,14 @@ export default function VehicleValuation() {
   }
 
   const handleMileageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.replace(/\D/g, '') // Only digits
     setMileage(value)
     setError('')
   }
 
   const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     const value = e.target.value.replace(/\D/g, '').slice(0, 5) // Only digits, max 5
     setZipCode(value)
     setError('')
@@ -76,37 +90,35 @@ export default function VehicleValuation() {
     e.preventDefault()
     setError('')
 
-    // Check authentication FIRST
     if (!user) {
       setShowAuthModal(true)
       return
     }
 
-    // Validate VIN
     const sanitized = sanitizeVin(vin)
     const vinError = getVinValidationError(sanitized)
     if (vinError) {
       setError(vinError)
+      trackFormSubmission('bottom_vehicle_form', { success: false, error: 'invalid_vin' })
       return
     }
 
-    // Validate mileage
     const mileageNum = parseInt(mileage)
     if (isNaN(mileageNum) || mileageNum < 0 || mileageNum > 999999) {
       setError('Please enter a valid mileage between 0 and 999,999')
+      trackFormSubmission('bottom_vehicle_form', { success: false, error: 'invalid_mileage' })
       return
     }
 
-    // Validate ZIP
     if (zipCode.length !== 5) {
       setError('Please enter a valid 5-digit ZIP code')
+      trackFormSubmission('bottom_vehicle_form', { success: false, error: 'invalid_zip' })
       return
     }
 
     setLoading(true)
 
     try {
-      // Create report via existing API
       const response = await fetch('/api/reports/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,14 +137,29 @@ export default function VehicleValuation() {
         } else {
           setError(data.error || 'Failed to create report')
         }
+        trackFormSubmission('bottom_vehicle_form', {
+          success: false,
+          error: data.error || 'api_error',
+        })
         return
       }
 
-      // Redirect to pricing page with report ID
+      const kbAttr = getKBAttribution()
+      trackFormSubmission('bottom_vehicle_form', { success: true })
+      trackReportWorkflow({
+        step: 'bottom_form_submitted',
+        ...(kbAttr && {
+          kb_source_slug: kbAttr.slug,
+          kb_source_title: kbAttr.title,
+          kb_source_visited_at: kbAttr.visited_at,
+        }),
+      })
+
       router.push(`/pricing?reportId=${data.report.id}`)
     } catch (err) {
       console.error('Error creating report:', err)
       setError('An unexpected error occurred')
+      trackFormSubmission('bottom_vehicle_form', { success: false, error: 'unexpected_error' })
     } finally {
       setLoading(false)
     }
@@ -142,12 +169,15 @@ export default function VehicleValuation() {
     setShowAuthModal(false)
     // After successful auth, automatically submit the form
     if (vin.length === 17 && mileage && zipCode.length === 5) {
-      handleSubmit(new Event('submit') as any)
+      handleSubmit(new Event('submit') as unknown as React.FormEvent)
     }
   }
 
   return (
-    <section id="valuation" className="py-24 bg-gradient-to-br from-primary-50 via-emerald-50 to-blue-50">
+    <section
+      id="valuation"
+      className="py-24 bg-gradient-to-br from-primary-50 via-emerald-50 to-blue-50"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
@@ -177,7 +207,9 @@ export default function VehicleValuation() {
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm"
                 required
               />
-              <p className={`text-sm mt-1 ${vin.length === 17 ? 'text-green-600' : 'text-slate-500'}`}>
+              <p
+                className={`text-sm mt-1 ${vin.length === 17 ? 'text-green-600' : 'text-slate-500'}`}
+              >
                 {vin.length}/17 characters
               </p>
             </div>
@@ -216,7 +248,9 @@ export default function VehicleValuation() {
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-mono text-sm"
                 required
               />
-              <p className={`text-sm mt-1 ${zipCode.length === 5 ? 'text-green-600' : 'text-slate-500'}`}>
+              <p
+                className={`text-sm mt-1 ${zipCode.length === 5 ? 'text-green-600' : 'text-slate-500'}`}
+              >
                 {zipCode.length}/5 digits
               </p>
             </div>

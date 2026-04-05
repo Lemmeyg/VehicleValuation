@@ -2,7 +2,8 @@
  * Tests for ArticleReportBar component
  *
  * Covers: render, value-prop ticker, form validation, auth modal trigger,
- * successful submission flow, and PostHog analytics event.
+ * successful submission flow, and PostHog analytics events (form-start,
+ * form-submitted, report-workflow tracking).
  */
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -200,6 +201,84 @@ describe('ArticleReportBar', () => {
       await userEvent.type(screen.getByPlaceholderText(/90210/i), VALID_ZIP)
       fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
       expect(global.fetch).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('analytics tracking', () => {
+    it('fires article_bar_form_started on first field interaction', async () => {
+      setupMocks()
+      render(<ArticleReportBar articleSlug="test-slug" placement="post_toc" />)
+      await userEvent.type(screen.getByPlaceholderText(/1HGCM82633A123456/i), 'A')
+      expect(mockPosthog.capture).toHaveBeenCalledWith(
+        'report_workflow',
+        expect.objectContaining({
+          step: 'article_bar_form_started',
+          kb_source_slug: 'test-slug',
+        })
+      )
+    })
+
+    it('fires article_bar_form_started only once even across multiple field changes', async () => {
+      setupMocks()
+      render(<ArticleReportBar articleSlug="test-slug" placement="post_toc" />)
+      await userEvent.type(screen.getByPlaceholderText(/1HGCM82633A123456/i), 'A')
+      await userEvent.type(screen.getByPlaceholderText(/42,000/i), '1')
+      const formStartedCalls = mockPosthog.capture.mock.calls.filter(
+        ([name, props]: [string, Record<string, unknown>]) =>
+          name === 'report_workflow' && props?.step === 'article_bar_form_started'
+      )
+      expect(formStartedCalls).toHaveLength(1)
+    })
+
+    it('fires form_submitted with success:true after successful API call', async () => {
+      setupMocks({ loggedIn: true })
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ report: { id: 'r1' } }),
+      })
+      render(<ArticleReportBar articleSlug="test-slug" placement="post_toc" />)
+      await fillForm()
+      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      await waitFor(() => expect(mockPush).toHaveBeenCalled())
+      expect(mockPosthog.capture).toHaveBeenCalledWith(
+        'form_submitted',
+        expect.objectContaining({ form: 'article_report_bar', success: true })
+      )
+    })
+
+    it('fires report_workflow article_bar_form_submitted after successful API call', async () => {
+      setupMocks({ loggedIn: true })
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ report: { id: 'r1' } }),
+      })
+      render(<ArticleReportBar articleSlug="my-article" placement="post_toc" />)
+      await fillForm()
+      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      await waitFor(() => expect(mockPush).toHaveBeenCalled())
+      expect(mockPosthog.capture).toHaveBeenCalledWith(
+        'report_workflow',
+        expect.objectContaining({
+          step: 'article_bar_form_submitted',
+          kb_source_slug: 'my-article',
+        })
+      )
+    })
+
+    it('fires form_submitted with success:false when API returns error', async () => {
+      setupMocks({ loggedIn: true })
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'rate limit' }),
+      })
+      render(<ArticleReportBar articleSlug="test-slug" placement="post_toc" />)
+      await fillForm()
+      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      await waitFor(() => screen.getByText(/rate limit/i))
+      expect(mockPosthog.capture).toHaveBeenCalledWith(
+        'form_submitted',
+        expect.objectContaining({ form: 'article_report_bar', success: false })
+      )
     })
   })
 })
