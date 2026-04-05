@@ -61,6 +61,8 @@ export type ReportWorkflowEvent = {
   step:
     | 'hero_form_started'
     | 'hero_form_submitted'
+    | 'article_bar_form_started'
+    | 'article_bar_form_submitted'
     | 'bottom_form_started'
     | 'bottom_form_submitted'
     | 'pricing_viewed'
