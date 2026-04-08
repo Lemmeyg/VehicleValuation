@@ -12,6 +12,12 @@ const config: Config = {
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/__tests__/setup.ts'],
   moduleNameMapper: {
+    // Specific mocks must come before the general @/ catch-all — Jest uses first match.
+    // @react-pdf/renderer uses ESM and cannot be parsed by Jest's CommonJS transform.
+    '^@react-pdf/renderer$': '<rootDir>/__tests__/__mocks__/@react-pdf/renderer.ts',
+    // Mock Supabase DB client to avoid requiring real env vars in unit tests.
+    '^@/lib/db/supabase$': '<rootDir>/__tests__/__mocks__/lib/db/supabase.ts',
+    // General @/ alias — must be last so specific overrides above are checked first.
     '^@/(.*)$': '<rootDir>/$1',
   },
   testPathIgnorePatterns: [

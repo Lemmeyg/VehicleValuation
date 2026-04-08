@@ -1,3 +1,5 @@
+import { ADMIN_URL_TTL_SECONDS } from '@/lib/services/pdf-generator'
+
 describe('PDF filename generation', () => {
   function buildFilename(
     autodevVinData: { vehicle?: { year?: number }; make?: string; model?: string } | null,
@@ -48,5 +50,11 @@ describe('PDF filename generation', () => {
   it('falls back to VIN when make is missing', () => {
     const filename = buildFilename({ vehicle: { year: 2019 }, model: 'Civic' }, '1HGBH41JXMN109186')
     expect(filename).toBe('total-loss-report-1HGBH41JXMN109186.pdf')
+  })
+})
+
+describe('PDF admin URL TTL constant', () => {
+  it('is 10 years in seconds', () => {
+    expect(ADMIN_URL_TTL_SECONDS).toBe(10 * 365 * 24 * 60 * 60)
   })
 })

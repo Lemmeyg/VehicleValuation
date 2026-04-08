@@ -27,6 +27,10 @@ interface ReportData {
   created_at: string
 }
 
+// 10-year TTL for admin-only signed URLs stored in the database.
+// Never surfaced in API responses — DB access required to retrieve.
+export const ADMIN_URL_TTL_SECONDS = 315_360_000 // 10 * 365 * 24 * 60 * 60
+
 /**
  * Generate PDF report and upload to Supabase Storage
  */
@@ -108,12 +112,19 @@ export async function generateAndUploadPDF(
       return { success: false, error: 'Failed to create signed URL' }
     }
 
+    // Generate a long-lived admin URL (10 years) stored only in the DB.
+    // Never returned by any API route — accessible to DB admins only.
+    const { data: adminUrlData } = await supabase.storage
+      .from('vehicle-reports')
+      .createSignedUrl(filepath, ADMIN_URL_TTL_SECONDS)
+
     // Update report: store the storage path (permanent) and mark completed
     const { error: updateError } = await supabase
       .from('reports')
       .update({
         pdf_url: signedUrlData.signedUrl,
         pdf_storage_path: filepath,
+        pdf_admin_url: adminUrlData?.signedUrl ?? null,
         status: 'completed',
         updated_at: new Date().toISOString(),
       })
