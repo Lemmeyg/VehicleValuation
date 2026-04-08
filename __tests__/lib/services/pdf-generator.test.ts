@@ -1,3 +1,25 @@
+// Mock heavy dependencies that pdf-generator.tsx imports at module level.
+// These are mocked before the production import so they never execute.
+jest.mock('@/lib/db/supabase', () => ({
+  supabase: {},
+  supabaseAdmin: {},
+  createBrowserSupabaseClient: jest.fn(),
+  createServerSupabaseClient: jest.fn(),
+  createRouteHandlerSupabaseClient: jest.fn(),
+}))
+jest.mock('@react-pdf/renderer', () => ({
+  renderToBuffer: jest.fn().mockResolvedValue(Buffer.from('')),
+  StyleSheet: { create: (s: unknown) => s },
+  Document: () => null,
+  Page: () => null,
+  View: () => null,
+  Text: () => null,
+  Image: () => null,
+  Font: { register: jest.fn(), load: jest.fn() },
+}))
+
+import { ADMIN_URL_TTL_SECONDS } from '@/lib/services/pdf-generator'
+
 describe('PDF filename generation', () => {
   function buildFilename(
     autodevVinData: { vehicle?: { year?: number }; make?: string; model?: string } | null,
@@ -52,10 +74,7 @@ describe('PDF filename generation', () => {
 })
 
 describe('PDF admin URL TTL constant', () => {
-  const ADMIN_URL_TTL_SECONDS = 315_360_000 // 10 years
-
-  it('is approximately 10 years in seconds', () => {
-    const tenYearsInSeconds = 10 * 365 * 24 * 60 * 60
-    expect(ADMIN_URL_TTL_SECONDS).toBe(tenYearsInSeconds)
+  it('is 10 years in seconds', () => {
+    expect(ADMIN_URL_TTL_SECONDS).toBe(10 * 365 * 24 * 60 * 60)
   })
 })
