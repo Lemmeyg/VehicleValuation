@@ -1,23 +1,3 @@
-// Mock heavy dependencies that pdf-generator.tsx imports at module level.
-// These are mocked before the production import so they never execute.
-jest.mock('@/lib/db/supabase', () => ({
-  supabase: {},
-  supabaseAdmin: {},
-  createBrowserSupabaseClient: jest.fn(),
-  createServerSupabaseClient: jest.fn(),
-  createRouteHandlerSupabaseClient: jest.fn(),
-}))
-jest.mock('@react-pdf/renderer', () => ({
-  renderToBuffer: jest.fn().mockResolvedValue(Buffer.from('')),
-  StyleSheet: { create: (s: unknown) => s },
-  Document: () => null,
-  Page: () => null,
-  View: () => null,
-  Text: () => null,
-  Image: () => null,
-  Font: { register: jest.fn(), load: jest.fn() },
-}))
-
 import { ADMIN_URL_TTL_SECONDS } from '@/lib/services/pdf-generator'
 
 describe('PDF filename generation', () => {
