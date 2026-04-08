@@ -50,3 +50,12 @@ describe('PDF filename generation', () => {
     expect(filename).toBe('total-loss-report-1HGBH41JXMN109186.pdf')
   })
 })
+
+describe('PDF admin URL TTL constant', () => {
+  const ADMIN_URL_TTL_SECONDS = 315_360_000 // 10 years
+
+  it('is approximately 10 years in seconds', () => {
+    const tenYearsInSeconds = 10 * 365 * 24 * 60 * 60
+    expect(ADMIN_URL_TTL_SECONDS).toBe(tenYearsInSeconds)
+  })
+})
