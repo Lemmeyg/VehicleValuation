@@ -632,7 +632,7 @@ async function resolveUserFromEmail(
   const { error: otpError } = await supabaseAdmin.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${appUrl}/auth/callback?next=/reports/${reportId}/view`,
+      emailRedirectTo: `${appUrl}/api/auth/callback?next=/reports/${reportId}/view`,
       shouldCreateUser: false, // User already exists — no need to create again
     },
   })

@@ -26,28 +26,22 @@ export async function POST(request: Request) {
     // Validate email
     if (!email) {
       console.error('[magic-link] Missing email')
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: 'Invalid email address' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
     }
 
     // Get the app URL for callback
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-    // Build final redirect URL - must go to client-side page to access hash params
-    // Magic link tokens are in URL hash (#access_token=...) which is only available client-side
+    // Build final redirect URL — must go to the API route handler which performs
+    // the PKCE code exchange server-side (Supabase SSR uses PKCE by default)
     const redirectUrl = reportId
-      ? `${appUrl}/auth/callback?reportId=${reportId}`
-      : `${appUrl}/auth/callback`
+      ? `${appUrl}/api/auth/callback?reportId=${reportId}`
+      : `${appUrl}/api/auth/callback`
 
     console.log('[magic-link] Sending magic link to:', email)
     console.log('[magic-link] Redirect URL:', redirectUrl)
@@ -68,8 +62,9 @@ export async function POST(request: Request) {
       if (error.status === 429 || error.code === 'over_email_send_rate_limit') {
         return NextResponse.json(
           {
-            error: 'Please wait a minute before requesting another magic link. Check your email for the previous one.',
-            code: 'rate_limit'
+            error:
+              'Please wait a minute before requesting another magic link. Check your email for the previous one.',
+            code: 'rate_limit',
           },
           { status: 429 }
         )
@@ -107,7 +102,6 @@ export async function POST(request: Request) {
       success: true,
       message: 'Magic link sent! Check your email to access your report.',
     })
-
   } catch (error) {
     console.error('Unexpected error in magic-link:', error)
     return NextResponse.json(
