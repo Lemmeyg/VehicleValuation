@@ -57,6 +57,7 @@ function AuthContent() {
   const [error, setError] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
   const [showEmailForm, setShowEmailForm] = useState(false)
+  const [loginFailCount, setLoginFailCount] = useState(0)
 
   // Pre-fill email from URL params
   useEffect(() => {
@@ -135,6 +136,7 @@ function AuthContent() {
 
       if (!response.ok) {
         setError(data.error || 'Login failed')
+        setLoginFailCount(c => c + 1)
         trackAuthEvent({
           method: 'email',
           step: 'failed',
@@ -518,6 +520,15 @@ function AuthContent() {
               {error && (
                 <div className="rounded-md bg-red-50 p-4">
                   <p className="text-sm text-red-800">{error}</p>
+                </div>
+              )}
+
+              {loginFailCount >= 1 && (
+                <div className="rounded-md bg-blue-50 border border-blue-200 p-4">
+                  <p className="text-sm text-blue-800">
+                    If you purchased without creating an account first, you may not have a password
+                    yet. Use &ldquo;Email me a login link&rdquo; below instead.
+                  </p>
                 </div>
               )}
 

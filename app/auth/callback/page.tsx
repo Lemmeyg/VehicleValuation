@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
 
 /**
@@ -19,6 +20,7 @@ function AuthCallbackContent() {
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('Verifying your email...')
+  const [recoveryUrl, setRecoveryUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -41,6 +43,22 @@ function AuthCallbackContent() {
         const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
         const reportId = searchParams?.get('reportId')
         const nextUrl = searchParams?.get('next') // For OAuth redirects
+        const oauthError = searchParams?.get('error')
+
+        // Handle OAuth errors (e.g. user cancelled Google sign-in)
+        if (oauthError) {
+          const authUrl = `/auth${nextUrl ? `?redirect=${encodeURIComponent(nextUrl)}` : ''}`
+          setRecoveryUrl(authUrl)
+          setStatus('error')
+          if (oauthError === 'access_denied') {
+            setMessage(
+              'Google sign-in was cancelled or failed. You can still access your report by entering your email and using the magic link option instead.'
+            )
+          } else {
+            setMessage('Sign-in failed. Please try again using your email address.')
+          }
+          return
+        }
 
         console.log('[auth-callback] Starting authentication callback')
         console.log('[auth-callback] Report ID from URL:', reportId)
@@ -148,9 +166,9 @@ function AuthCallbackContent() {
 
         if (!session) {
           console.log('No session found and no hash parameters')
+          setRecoveryUrl('/auth')
           setStatus('error')
-          setMessage('No active session. Please request a new magic link.')
-          setTimeout(() => router.push('/'), 3000)
+          setMessage('No active session found. Please request a new magic link.')
           return
         }
 
@@ -259,7 +277,19 @@ function AuthCallbackContent() {
               </svg>
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Verification Failed</h2>
-            <p className="text-gray-600">{message}</p>
+            <p className="text-gray-600 mb-4">{message}</p>
+            {recoveryUrl ? (
+              <Link
+                href={recoveryUrl}
+                className="inline-block px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Sign in with email instead
+              </Link>
+            ) : (
+              <Link href="/" className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+                Return to home
+              </Link>
+            )}
           </>
         )}
       </div>
