@@ -34,8 +34,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
     }
 
-    // Get the app URL for callback
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    // Derive callback base URL:
+    // - NEXT_PUBLIC_APP_URL for production (set in Vercel production env vars)
+    // - VERCEL_URL for preview deployments (auto-set by Vercel per deployment)
+    // - localhost fallback for local dev
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
     // Build final redirect URL — must go to the API route handler which performs
     // the PKCE code exchange server-side (Supabase SSR uses PKCE by default)
