@@ -44,6 +44,8 @@ function AuthCallbackContent() {
         const reportId = searchParams?.get('reportId')
         const nextUrl = searchParams?.get('next') // For OAuth redirects
         const oauthError = searchParams?.get('error')
+        const tokenHash = searchParams?.get('token_hash')
+        const otpType = searchParams?.get('type')
 
         // Handle OAuth errors (e.g. user cancelled Google sign-in)
         if (oauthError) {
@@ -57,6 +59,55 @@ function AuthCallbackContent() {
           } else {
             setMessage('Sign-in failed. Please try again using your email address.')
           }
+          return
+        }
+
+        // Handle token_hash OTP flow — used by Supabase server-side signInWithOtp
+        if (tokenHash && otpType) {
+          console.log('[auth-callback] token_hash OTP flow, type:', otpType)
+          const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: otpType as 'magiclink' | 'email' | 'recovery' | 'invite',
+          })
+
+          if (otpError || !otpData.session) {
+            console.error('[auth-callback] OTP verification failed:', otpError?.message)
+            setRecoveryUrl('/auth')
+            setStatus('error')
+            setMessage('Sign-in link is invalid or has expired. Please request a new one.')
+            return
+          }
+
+          console.log('[auth-callback] OTP verified for:', otpData.session.user.email)
+
+          if (otpData.session.user.email) {
+            try {
+              await fetch('/api/reports/link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: otpData.session.user.id,
+                  email: otpData.session.user.email,
+                }),
+              })
+            } catch {
+              // Non-fatal — continue to redirect
+            }
+          }
+
+          setStatus('success')
+          setMessage('Success! Redirecting...')
+          const storedRedirect = localStorage.getItem('auth_redirect_to')
+          let redirectUrl = '/pricing'
+          if (nextUrl) {
+            redirectUrl = decodeURIComponent(nextUrl)
+          } else if (storedRedirect) {
+            redirectUrl = storedRedirect
+          } else if (reportId) {
+            redirectUrl = `/reports/${reportId}/view`
+          }
+          localStorage.removeItem('auth_redirect_to')
+          setTimeout(() => router.push(redirectUrl), 1000)
           return
         }
 
