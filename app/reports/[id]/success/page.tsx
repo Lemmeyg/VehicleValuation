@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getUser } from '@/lib/db/auth'
 import { createServerSupabaseClient, supabaseAdmin } from '@/lib/db/supabase'
 import { RedditPurchaseTracker } from './RedditPurchaseTracker'
+import { PostHogPurchaseTracker } from './PostHogPurchaseTracker'
 import { ReportReadyPoller } from './ReportReadyPoller'
 
 /**
@@ -30,11 +31,17 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
   if (!user) {
     const { data: anonReport } = await supabaseAdmin
       .from('reports')
-      .select('email')
+      .select('email, price_paid')
       .eq('id', reportId)
       .single()
 
-    return <ReportReadyPoller reportId={reportId} checkoutEmail={anonReport?.email ?? null} />
+    return (
+      <ReportReadyPoller
+        reportId={reportId}
+        checkoutEmail={anonReport?.email ?? null}
+        pricePaid={anonReport?.price_paid ?? null}
+      />
+    )
   }
 
   // Authenticated user — fetch report details as before
@@ -56,11 +63,19 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
     redirect(`/reports/${reportId}`)
   }
 
+  const planType = report.price_paid === 2900 ? 'basic' : 'premium'
+
   return (
     <div className="min-h-screen bg-gray-50">
       <RedditPurchaseTracker
         value={report.price_paid / 100}
         currency="USD"
+        transactionId={sessionId}
+      />
+      <PostHogPurchaseTracker
+        reportId={reportId}
+        planType={planType}
+        amountCents={report.price_paid}
         transactionId={sessionId}
       />
       {/* Navigation */}
