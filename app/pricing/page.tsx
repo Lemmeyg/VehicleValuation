@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Check, CheckCircle2, Quote, ShieldCheck, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import ReportPreviewCondensed from '@/components/ReportPreviewCondensed'
+import ExitIntentPopup from '@/components/ExitIntentPopup'
 import {
   trackReportWorkflow,
   trackPaymentInitiated,
@@ -31,14 +32,14 @@ const PRICING_TIERS = [
   {
     id: 'BASIC',
     name: 'Basic Report',
-    price: 19,
+    price: 23,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID!,
     features: CORE_FEATURES,
   },
   {
     id: 'PREMIUM',
     name: 'Premium Report',
-    price: 25,
+    price: 29,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID!,
     features: [
       ...CORE_FEATURES,
@@ -349,7 +350,7 @@ function PricingContent() {
     }
   }
 
-  const handleSelectPlan = async (tier: (typeof PRICING_TIERS)[0]) => {
+  const handleSelectPlan = async (tier: (typeof PRICING_TIERS)[0], discountCode?: string) => {
     if (!report) return
 
     // Track checkout initiation before any processing
@@ -495,6 +496,7 @@ function PricingContent() {
         body: JSON.stringify({
           reportId: report.id,
           reportType: tier.id,
+          ...(discountCode ? { discountCode } : {}),
         }),
       })
 
@@ -1016,6 +1018,11 @@ function PricingContent() {
           </div>
         </div>
       )}
+      <ExitIntentPopup
+        vin={report.vin}
+        reportId={report.id}
+        onSelectPlan={discountCode => handleSelectPlan(PRICING_TIERS[0], discountCode)}
+      />
     </div>
   )
 }
