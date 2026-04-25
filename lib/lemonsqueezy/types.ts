@@ -133,4 +133,5 @@ export interface CreateCheckoutParams {
   customData: LemonSqueezyCheckoutData
   successUrl: string
   cancelUrl: string
+  discountCode?: string
 }
