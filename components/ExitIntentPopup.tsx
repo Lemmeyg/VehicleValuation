@@ -26,6 +26,7 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
 
       try {
         const res = await fetch(`/api/reports/check-vin-count?vin=${encodeURIComponent(vin)}`)
+        if (!res.ok) return
         const data = await res.json()
         if (data.count === 1) {
           sessionStorage.setItem('exit_popup_shown', 'true')

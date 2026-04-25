@@ -133,6 +133,21 @@ describe('ExitIntentPopup', () => {
     })
   })
 
+  it('dismisses popup on backdrop click', async () => {
+    render(<ExitIntentPopup {...defaultProps} />)
+
+    await act(async () => {
+      fireEvent(document, new MouseEvent('mouseleave', { clientY: 0, bubbles: true }))
+    })
+
+    await waitFor(() => screen.getByText(/wait — get your report for \$19 today/i))
+
+    const backdrop = document.querySelector('.fixed.inset-0')!
+    fireEvent.click(backdrop)
+
+    expect(screen.queryByText(/get your report for \$19/i)).not.toBeInTheDocument()
+  })
+
   it('sets exit_popup_shown in sessionStorage when popup is shown', async () => {
     render(<ExitIntentPopup {...defaultProps} />)
 
