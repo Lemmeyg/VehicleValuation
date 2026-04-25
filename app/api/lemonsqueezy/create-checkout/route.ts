@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json()
-    const { reportId, reportType } = body
+    const { reportId, reportType, discountCode } = body
 
     // Validate inputs
     if (!reportId || !reportType) {
@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
       },
       successUrl,
       cancelUrl: `${appUrl}/reports/${reportId}`,
+      discountCode,
     })
 
     // Return checkout URL
