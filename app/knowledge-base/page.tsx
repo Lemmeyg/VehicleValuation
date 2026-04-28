@@ -1,15 +1,11 @@
-/**
- * Knowledge Base Page
- *
- * Displays all knowledge base articles with filtering and search
- */
-
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { BookOpen, Clock, Tag } from 'lucide-react'
-import { getAllArticles } from '@/lib/knowledge-base-db'
+import { getAllArticles, searchArticles, getArticlesByCategory } from '@/lib/knowledge-base-db'
 import Link from 'next/link'
 import { KnowledgeBasePageTracker, ArticleLinkTracker } from '@/components/KnowledgeBaseTracker'
+import { KBFilterBar } from '@/components/KBFilterBar'
+import { deriveCategories, filterArticlesByCategory } from '@/lib/utils/kb-articles'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
@@ -36,8 +32,27 @@ export const metadata = {
   },
 }
 
-export default async function KnowledgeBasePage() {
-  const articles = await getAllArticles()
+interface Props {
+  searchParams: Promise<{ q?: string; category?: string }>
+}
+
+export default async function KnowledgeBasePage({ searchParams }: Props) {
+  const { q, category } = await searchParams
+
+  const allArticles = await getAllArticles()
+  const categoryNames = deriveCategories(allArticles).map(c => c.name)
+  const totalCount = allArticles.length
+
+  let articles = allArticles
+  if (q && category) {
+    const searchResults = await searchArticles(q)
+    articles = filterArticlesByCategory(searchResults, category)
+  } else if (q) {
+    articles = await searchArticles(q)
+  } else if (category) {
+    articles = await getArticlesByCategory(category)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <KnowledgeBasePageTracker articleCount={articles.length} />
@@ -74,6 +89,18 @@ export default async function KnowledgeBasePage() {
             </p>
           </div>
 
+          {/* Filter bar */}
+          <div className="max-w-4xl mx-auto mb-4">
+            <KBFilterBar categories={categoryNames} activeCategory={category} activeQuery={q} />
+          </div>
+
+          {/* Results count */}
+          <p className="text-sm text-slate-500 mb-8 max-w-4xl mx-auto">
+            {q || category
+              ? `Showing ${articles.length} of ${totalCount} articles`
+              : `Showing ${totalCount} articles`}
+          </p>
+
           {/* Articles Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {articles.map(article => (
@@ -83,7 +110,6 @@ export default async function KnowledgeBasePage() {
                   className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all cursor-pointer group border border-slate-100 hover:border-primary-200 block"
                 >
                   <div className="p-6">
-                    {/* Badge */}
                     <div className="flex items-center justify-between mb-4">
                       <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase bg-primary-100 text-primary-700">
                         {article.category}
@@ -93,23 +119,15 @@ export default async function KnowledgeBasePage() {
                         {article.readingTime}
                       </div>
                     </div>
-
-                    {/* Icon */}
                     <div className="mb-4">
                       <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-emerald-600 rounded-lg flex items-center justify-center">
                         <BookOpen className="h-6 w-6 text-white" />
                       </div>
                     </div>
-
-                    {/* Title */}
                     <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-primary-600 transition-colors">
                       {article.title}
                     </h3>
-
-                    {/* Description */}
                     <p className="text-slate-600 mb-4 line-clamp-3">{article.description}</p>
-
-                    {/* Tags */}
                     <div className="flex flex-wrap gap-2 mb-4">
                       {article.tags.map((tag, idx) => (
                         <span
@@ -121,8 +139,6 @@ export default async function KnowledgeBasePage() {
                         </span>
                       ))}
                     </div>
-
-                    {/* Read More */}
                     <div className="text-primary-600 font-semibold text-sm hover:text-primary-700 flex items-center">
                       Read Article
                       <svg
@@ -144,6 +160,18 @@ export default async function KnowledgeBasePage() {
               </ArticleLinkTracker>
             ))}
           </div>
+
+          {articles.length === 0 && (
+            <div className="text-center py-16">
+              <p className="text-slate-500 text-lg">No articles found.</p>
+              <Link
+                href="/knowledge-base"
+                className="mt-4 inline-block text-primary-600 font-semibold hover:text-primary-700"
+              >
+                Clear filters
+              </Link>
+            </div>
+          )}
         </div>
       </main>
 
