@@ -1,6 +1,8 @@
 import type { Article } from '@/lib/knowledge-base-db'
 
-export function deriveCategories(articles: Article[]): { name: string; count: number }[] {
+export type CategoryCount = { name: string; count: number }
+
+export function deriveCategories(articles: Article[]): CategoryCount[] {
   const counts = new Map<string, number>()
   for (const article of articles) {
     counts.set(article.category, (counts.get(article.category) ?? 0) + 1)

@@ -1,11 +1,13 @@
 import type { Article } from '@/lib/knowledge-base-db'
+import type { CategoryCount } from '@/lib/utils/kb-articles'
+import { ArrowLeft } from 'lucide-react'
 import { RelatedArticleLink } from './RelatedArticleLink'
 import Link from 'next/link'
 
 interface RelatedArticlesSidebarProps {
   relatedArticles: Pick<Article, 'slug' | 'title' | 'category' | 'readingTime'>[]
   currentSlug: string
-  categories: { name: string; count: number }[]
+  categories: CategoryCount[]
   currentCategory: string
 }
 
@@ -45,9 +47,10 @@ export function RelatedArticlesSidebar({
           ))}
           <Link
             href="/knowledge-base"
-            className="flex items-center px-3 py-2 text-sm text-primary-600 font-semibold hover:text-primary-700 border-t border-slate-100 mt-1 pt-3"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-primary-600 font-semibold hover:text-primary-700 border-t border-slate-100 mt-1 pt-3"
           >
-            ← All Articles
+            <ArrowLeft className="h-3 w-3" />
+            All Articles
           </Link>
         </div>
       </div>
