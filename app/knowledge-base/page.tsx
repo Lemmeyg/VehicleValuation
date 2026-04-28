@@ -1,3 +1,10 @@
+/**
+ * Knowledge Base Page
+ *
+ * Displays knowledge base articles with search and category filtering.
+ * Filtering is server-side via URL params: ?q= for search, ?category= for category.
+ */
+
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { BookOpen, Clock, Tag } from 'lucide-react'
@@ -39,16 +46,19 @@ interface Props {
 export default async function KnowledgeBasePage({ searchParams }: Props) {
   const { q, category } = await searchParams
 
-  const allArticles = await getAllArticles()
+  const [allArticles, searchResults] = await Promise.all([
+    getAllArticles(),
+    q ? searchArticles(q) : Promise.resolve([] as Awaited<ReturnType<typeof searchArticles>>),
+  ])
+
   const categoryNames = deriveCategories(allArticles).map(c => c.name)
   const totalCount = allArticles.length
 
   let articles = allArticles
   if (q && category) {
-    const searchResults = await searchArticles(q)
     articles = filterArticlesByCategory(searchResults, category)
   } else if (q) {
-    articles = await searchArticles(q)
+    articles = searchResults
   } else if (category) {
     articles = await getArticlesByCategory(category)
   }
