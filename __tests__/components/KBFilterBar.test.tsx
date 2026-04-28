@@ -60,7 +60,7 @@ describe('KBFilterBar', () => {
     render(<KBFilterBar categories={categories} />)
     expect(screen.getByRole('link', { name: 'Insurance Claims' })).toHaveAttribute(
       'href',
-      '/knowledge-base?category=Insurance+Claims'
+      '/knowledge-base?category=Insurance%20Claims'
     )
   })
 
@@ -68,7 +68,7 @@ describe('KBFilterBar', () => {
     render(<KBFilterBar categories={categories} activeQuery="dispute" />)
     const pill = screen.getByRole('link', { name: 'Insurance Claims' })
     expect(pill).toHaveAttribute('href', expect.stringContaining('q=dispute'))
-    expect(pill).toHaveAttribute('href', expect.stringContaining('category=Insurance+Claims'))
+    expect(pill).toHaveAttribute('href', expect.stringContaining('category=Insurance%20Claims'))
   })
 
   it('includes a hidden category input when activeCategory is set', () => {

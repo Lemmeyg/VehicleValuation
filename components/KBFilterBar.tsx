@@ -9,11 +9,10 @@ interface KBFilterBarProps {
 
 export function KBFilterBar({ categories, activeCategory, activeQuery }: KBFilterBarProps) {
   function pillHref(category: string | null): string {
-    const params = new URLSearchParams()
-    if (category) params.set('category', category)
-    if (activeQuery) params.set('q', activeQuery)
-    const qs = params.toString()
-    return qs ? `/knowledge-base?${qs}` : '/knowledge-base'
+    const parts: string[] = []
+    if (category) parts.push(`category=${encodeURIComponent(category)}`)
+    if (activeQuery) parts.push(`q=${encodeURIComponent(activeQuery)}`)
+    return parts.length > 0 ? `/knowledge-base?${parts.join('&')}` : '/knowledge-base'
   }
 
   return (
