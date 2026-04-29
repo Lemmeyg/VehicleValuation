@@ -1,5 +1,6 @@
 import { getArticleBySlugStatic, getAllArticles, getAllArticleSlugs } from '@/lib/knowledge-base-db'
 import { getRelatedArticles } from '@/lib/utils/related-articles'
+import { deriveCategories } from '@/lib/utils/kb-articles'
 import { splitArticleHtml } from '@/lib/utils/split-article-html'
 import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
@@ -70,6 +71,7 @@ export default async function ArticlePage({ params }: Props) {
   }
 
   const relatedArticles = getRelatedArticles(slug, allArticles)
+  const categories = deriveCategories(allArticles)
 
   return (
     <div className="min-h-screen bg-white">
@@ -122,7 +124,12 @@ export default async function ArticlePage({ params }: Props) {
 
             {/* Sidebar — desktop only */}
             <aside className="hidden lg:block">
-              <RelatedArticlesSidebar relatedArticles={relatedArticles} currentSlug={slug} />
+              <RelatedArticlesSidebar
+                relatedArticles={relatedArticles}
+                currentSlug={slug}
+                categories={categories}
+                currentCategory={article.category}
+              />
             </aside>
           </div>
         </div>
