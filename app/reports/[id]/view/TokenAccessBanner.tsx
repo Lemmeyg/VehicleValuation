@@ -41,10 +41,10 @@ export function TokenAccessBanner({ reportId, token: _token }: Props) {
         <div className="flex-1 text-sm text-amber-900">
           <span className="font-semibold">This link expires in 24 hours.</span> After that,{' '}
           <Link
-            href={`/auth?mode=signup&redirect=/reports/${reportId}/view`}
+            href={`/auth?redirect=/reports/${reportId}/view`}
             className="underline font-medium hover:text-amber-700"
           >
-            create a free account
+            sign in or create an account
           </Link>{' '}
           to access your report anytime.{' '}
           <span className="text-amber-700">Tip: export to PDF using the button above.</span>
