@@ -1,9 +1,3 @@
-/**
- * ContactUsDialog Component
- *
- * Client-side component for general service requests (not tied to specific supplier)
- */
-
 'use client'
 
 import { useState } from 'react'
@@ -16,24 +10,18 @@ interface ContactUsDialogProps {
   userEmail: string
 }
 
-export default function ContactUsDialog({
-  isAuthenticated,
-  userName,
-  userEmail,
-}: ContactUsDialogProps) {
+export default function ContactUsDialog({ userName, userEmail }: ContactUsDialogProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [name, setName] = useState(userName)
+  const [email, setEmail] = useState(userEmail)
   const [message, setMessage] = useState('')
 
   const handleOpen = () => {
-    if (!isAuthenticated) {
-      router.push('/login?redirect=/directory')
-      return
-    }
     setIsOpen(true)
   }
 
@@ -47,8 +35,8 @@ export default function ContactUsDialog({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contactName: userName,
-          contactEmail: userEmail,
+          contactName: name,
+          contactEmail: email,
           message,
           serviceNeeded: 'Service Required',
         }),
@@ -75,7 +63,6 @@ export default function ContactUsDialog({
 
   return (
     <>
-      {/* Trigger Button */}
       <button
         onClick={handleOpen}
         className="text-white underline hover:text-slate-100 font-semibold transition-colors"
@@ -83,16 +70,11 @@ export default function ContactUsDialog({
         contact us
       </button>
 
-      {/* Dialog */}
       {isOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          {/* Backdrop */}
           <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsOpen(false)} />
-
-          {/* Dialog */}
           <div className="flex min-h-full items-center justify-center p-4">
             <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
-              {/* Close Button */}
               <button
                 onClick={() => setIsOpen(false)}
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
@@ -100,7 +82,6 @@ export default function ContactUsDialog({
                 <X className="h-6 w-6" />
               </button>
 
-              {/* Success State */}
               {isSuccess ? (
                 <div className="text-center py-8">
                   <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
@@ -114,7 +95,6 @@ export default function ContactUsDialog({
                 </div>
               ) : (
                 <>
-                  {/* Header */}
                   <div className="mb-6">
                     <h2 className="text-2xl font-bold text-slate-900 mb-2">Request a Service</h2>
                     <p className="text-sm text-slate-600">
@@ -122,31 +102,43 @@ export default function ContactUsDialog({
                     </p>
                   </div>
 
-                  {/* Form */}
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Name (prepopulated, read-only) */}
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                      <label
+                        htmlFor="contact-name"
+                        className="block text-sm font-medium text-slate-700 mb-1"
+                      >
+                        Name
+                      </label>
                       <input
+                        id="contact-name"
                         type="text"
-                        value={userName}
-                        readOnly
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-600"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        required
+                        placeholder="Your name"
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       />
                     </div>
 
-                    {/* Email (prepopulated, read-only) */}
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                      <label
+                        htmlFor="contact-email"
+                        className="block text-sm font-medium text-slate-700 mb-1"
+                      >
+                        Email
+                      </label>
                       <input
+                        id="contact-email"
                         type="email"
-                        value={userEmail}
-                        readOnly
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-600"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        required
+                        placeholder="your@email.com"
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       />
                     </div>
 
-                    {/* Subject (prepopulated, read-only) */}
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Subject
@@ -159,12 +151,15 @@ export default function ContactUsDialog({
                       />
                     </div>
 
-                    {/* Message */}
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label
+                        htmlFor="contact-message"
+                        className="block text-sm font-medium text-slate-700 mb-1"
+                      >
                         What service do you need? <span className="text-red-500">*</span>
                       </label>
                       <textarea
+                        id="contact-message"
                         value={message}
                         onChange={e => setMessage(e.target.value)}
                         required
@@ -174,7 +169,6 @@ export default function ContactUsDialog({
                       />
                     </div>
 
-                    {/* Error Message */}
                     {error && (
                       <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                         <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
@@ -182,7 +176,6 @@ export default function ContactUsDialog({
                       </div>
                     )}
 
-                    {/* Submit Button */}
                     <button
                       type="submit"
                       disabled={isSubmitting}
