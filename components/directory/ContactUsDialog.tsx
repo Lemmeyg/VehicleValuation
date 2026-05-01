@@ -1,11 +1,16 @@
 'use client'
 
+/**
+ * ContactUsDialog Component
+ *
+ * Client-side component for general service requests (not tied to specific supplier)
+ */
+
 import { useState } from 'react'
 import { X, CheckCircle, AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface ContactUsDialogProps {
-  isAuthenticated: boolean
   userName: string
   userEmail: string
 }
@@ -77,6 +82,7 @@ export default function ContactUsDialog({ userName, userEmail }: ContactUsDialog
             <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
               <button
                 onClick={() => setIsOpen(false)}
+                aria-label="Close"
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X className="h-6 w-6" />

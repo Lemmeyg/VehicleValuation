@@ -194,13 +194,8 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
           <div className="mt-16 bg-gradient-to-br from-primary-600 to-emerald-600 rounded-2xl p-8 md:p-12 text-white text-center">
             <h2 className="text-3xl font-bold mb-4">Don&apos;t see a provider for your need?</h2>
             <div className="text-lg text-white/90 mb-6 max-w-2xl mx-auto">
-              Please{' '}
-              <ContactUsDialog
-                isAuthenticated={isAuthenticated}
-                userName={userName}
-                userEmail={userEmail}
-              />{' '}
-              and let us know what service you&apos;re looking for.
+              Please <ContactUsDialog userName={userName} userEmail={userEmail} /> and let us know
+              what service you&apos;re looking for.
             </div>
           </div>
         </div>

@@ -14,20 +14,20 @@ beforeEach(() => {
 
 describe('ContactUsDialog — unauthenticated', () => {
   it('opens the dialog without redirecting', async () => {
-    render(<ContactUsDialog isAuthenticated={false} userName="" userEmail="" />)
+    render(<ContactUsDialog userName="" userEmail="" />)
     fireEvent.click(screen.getByText('contact us'))
     expect(screen.getByRole('heading', { name: 'Request a Service' })).toBeInTheDocument()
   })
 
   it('shows empty name and email fields', () => {
-    render(<ContactUsDialog isAuthenticated={false} userName="" userEmail="" />)
+    render(<ContactUsDialog userName="" userEmail="" />)
     fireEvent.click(screen.getByText('contact us'))
     expect(screen.getByLabelText('Name')).toHaveValue('')
     expect(screen.getByLabelText('Email')).toHaveValue('')
   })
 
   it('allows typing into name and email fields', () => {
-    render(<ContactUsDialog isAuthenticated={false} userName="" userEmail="" />)
+    render(<ContactUsDialog userName="" userEmail="" />)
     fireEvent.click(screen.getByText('contact us'))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Jane Doe' } })
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
@@ -38,18 +38,14 @@ describe('ContactUsDialog — unauthenticated', () => {
 
 describe('ContactUsDialog — authenticated', () => {
   it('pre-populates name and email from props', () => {
-    render(
-      <ContactUsDialog isAuthenticated={true} userName="Jane Doe" userEmail="jane@example.com" />
-    )
+    render(<ContactUsDialog userName="Jane Doe" userEmail="jane@example.com" />)
     fireEvent.click(screen.getByText('contact us'))
     expect(screen.getByLabelText('Name')).toHaveValue('Jane Doe')
     expect(screen.getByLabelText('Email')).toHaveValue('jane@example.com')
   })
 
   it('allows editing pre-populated fields', () => {
-    render(
-      <ContactUsDialog isAuthenticated={true} userName="Jane Doe" userEmail="jane@example.com" />
-    )
+    render(<ContactUsDialog userName="Jane Doe" userEmail="jane@example.com" />)
     fireEvent.click(screen.getByText('contact us'))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'John Doe' } })
     expect(screen.getByLabelText('Name')).toHaveValue('John Doe')
@@ -58,7 +54,7 @@ describe('ContactUsDialog — authenticated', () => {
 
 describe('ContactUsDialog — submission', () => {
   it('sends name and email typed by user in the request body', async () => {
-    render(<ContactUsDialog isAuthenticated={false} userName="" userEmail="" />)
+    render(<ContactUsDialog userName="" userEmail="" />)
     fireEvent.click(screen.getByText('contact us'))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Test User' } })
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'test@example.com' } })
