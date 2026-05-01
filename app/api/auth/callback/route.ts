@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import type { EmailOtpType } from '@supabase/supabase-js'
 import { createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import { supabaseAdmin } from '@/lib/db/supabase'
 
@@ -13,8 +14,9 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
 
   // Get parameters
-  const code = requestUrl.searchParams.get('code') // OAuth code
-  const type = requestUrl.searchParams.get('type') // Auth type (recovery, signup, etc.)
+  const token_hash = requestUrl.searchParams.get('token_hash')
+  const type = requestUrl.searchParams.get('type') as EmailOtpType | null
+  const code = requestUrl.searchParams.get('code') // OAuth PKCE code
   const reportId = requestUrl.searchParams.get('reportId')
   const next = requestUrl.searchParams.get('next')
 
@@ -23,6 +25,29 @@ export async function GET(request: Request) {
   console.log('Auth callback - Type:', type)
   console.log('Auth callback - ReportId:', reportId)
   console.log('Auth callback - Next:', next)
+
+  // Handle magic link / OTP token_hash flow (Supabase default for server-generated OTPs)
+  if (token_hash && type) {
+    console.log('Auth callback - token_hash flow, type:', type)
+    const supabase = await createRouteHandlerSupabaseClient()
+    const { data, error } = await supabase.auth.verifyOtp({ token_hash, type })
+
+    if (error) {
+      console.error('❌ OTP verification error:', error.message)
+      return NextResponse.redirect(new URL('/auth?error=auth_failed', requestUrl.origin))
+    }
+
+    if (data.session) {
+      const userId = data.session.user.id
+      const userEmail = data.session.user.email
+      console.log('✅ OTP verified, user authenticated:', userId, userEmail)
+      if (userEmail) await linkReportsToUser(userId, userEmail)
+      return redirectToReport(reportId, next, requestUrl.origin)
+    }
+
+    console.error('❌ OTP verification succeeded but no session returned')
+    return NextResponse.redirect(new URL('/auth?error=session_failed', requestUrl.origin))
+  }
 
   // Handle password reset flow - exchange code for session server-side
   // This ensures session cookies are properly set before redirecting to reset-password page

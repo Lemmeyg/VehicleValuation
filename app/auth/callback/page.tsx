@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
 
 /**
@@ -19,6 +20,7 @@ function AuthCallbackContent() {
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('Verifying your email...')
+  const [recoveryUrl, setRecoveryUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -41,6 +43,73 @@ function AuthCallbackContent() {
         const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
         const reportId = searchParams?.get('reportId')
         const nextUrl = searchParams?.get('next') // For OAuth redirects
+        const oauthError = searchParams?.get('error')
+        const tokenHash = searchParams?.get('token_hash')
+        const otpType = searchParams?.get('type')
+
+        // Handle OAuth errors (e.g. user cancelled Google sign-in)
+        if (oauthError) {
+          const authUrl = `/auth${nextUrl ? `?redirect=${encodeURIComponent(nextUrl)}` : ''}`
+          setRecoveryUrl(authUrl)
+          setStatus('error')
+          if (oauthError === 'access_denied') {
+            setMessage(
+              'Google sign-in was cancelled or failed. You can still access your report by entering your email and using the magic link option instead.'
+            )
+          } else {
+            setMessage('Sign-in failed. Please try again using your email address.')
+          }
+          return
+        }
+
+        // Handle token_hash OTP flow — used by Supabase server-side signInWithOtp
+        if (tokenHash && otpType) {
+          console.log('[auth-callback] token_hash OTP flow, type:', otpType)
+          const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: otpType as 'magiclink' | 'email' | 'recovery' | 'invite',
+          })
+
+          if (otpError || !otpData.session) {
+            console.error('[auth-callback] OTP verification failed:', otpError?.message)
+            setRecoveryUrl('/auth')
+            setStatus('error')
+            setMessage('Sign-in link is invalid or has expired. Please request a new one.')
+            return
+          }
+
+          console.log('[auth-callback] OTP verified for:', otpData.session.user.email)
+
+          if (otpData.session.user.email) {
+            try {
+              await fetch('/api/reports/link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: otpData.session.user.id,
+                  email: otpData.session.user.email,
+                }),
+              })
+            } catch {
+              // Non-fatal — continue to redirect
+            }
+          }
+
+          setStatus('success')
+          setMessage('Success! Redirecting...')
+          const storedRedirect = localStorage.getItem('auth_redirect_to')
+          let redirectUrl = '/pricing'
+          if (nextUrl) {
+            redirectUrl = decodeURIComponent(nextUrl)
+          } else if (storedRedirect) {
+            redirectUrl = storedRedirect
+          } else if (reportId) {
+            redirectUrl = `/reports/${reportId}/view`
+          }
+          localStorage.removeItem('auth_redirect_to')
+          setTimeout(() => router.push(redirectUrl), 1000)
+          return
+        }
 
         console.log('[auth-callback] Starting authentication callback')
         console.log('[auth-callback] Report ID from URL:', reportId)
@@ -148,9 +217,9 @@ function AuthCallbackContent() {
 
         if (!session) {
           console.log('No session found and no hash parameters')
+          setRecoveryUrl('/auth')
           setStatus('error')
-          setMessage('No active session. Please request a new magic link.')
-          setTimeout(() => router.push('/'), 3000)
+          setMessage('No active session found. Please request a new magic link.')
           return
         }
 
@@ -259,7 +328,19 @@ function AuthCallbackContent() {
               </svg>
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Verification Failed</h2>
-            <p className="text-gray-600">{message}</p>
+            <p className="text-gray-600 mb-4">{message}</p>
+            {recoveryUrl ? (
+              <Link
+                href={recoveryUrl}
+                className="inline-block px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Sign in with email instead
+              </Link>
+            ) : (
+              <Link href="/" className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+                Return to home
+              </Link>
+            )}
           </>
         )}
       </div>

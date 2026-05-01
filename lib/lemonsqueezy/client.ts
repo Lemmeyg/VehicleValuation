@@ -31,6 +31,7 @@ export async function createCheckout(
         attributes: {
           checkout_data: {
             custom: params.customData,
+            ...(params.discountCode ? { discount_code: params.discountCode } : {}),
           },
           checkout_options: {
             button_color: '#2563eb', // Blue color matching your design
