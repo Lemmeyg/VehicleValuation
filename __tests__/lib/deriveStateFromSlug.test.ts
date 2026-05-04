@@ -11,7 +11,9 @@ describe('deriveStateFromSlug', () => {
   })
 
   it('returns a three-word state name', () => {
-    expect(deriveStateFromSlug('north-carolina-total-loss-law-explained')).toBe('North Carolina')
+    expect(deriveStateFromSlug('district-of-columbia-total-loss-law-explained')).toBe(
+      'District of Columbia'
+    )
   })
 
   it('returns null for a non-state article slug', () => {
