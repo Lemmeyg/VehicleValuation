@@ -16,7 +16,12 @@ const config: Config = {
     // @react-pdf/renderer uses ESM and cannot be parsed by Jest's CommonJS transform.
     '^@react-pdf/renderer$': '<rootDir>/__tests__/__mocks__/@react-pdf/renderer.ts',
     // Mock Supabase DB client to avoid requiring real env vars in unit tests.
-    '^@/lib/db/supabase$': '<rootDir>/__tests__/__mocks__/lib/db/supabase.ts',
+    // Pattern covers both @/lib/db/supabase and relative ./db/supabase imports.
+    'db/supabase$': '<rootDir>/__tests__/__mocks__/lib/db/supabase.ts',
+    // Mock lib/markdown to avoid loading ESM-only unified/remark/rehype packages.
+    // Pattern covers both @/lib/markdown and relative ./markdown imports.
+    '^@/lib/markdown$': '<rootDir>/__tests__/__mocks__/lib/markdown.ts',
+    '^(.*[/\\\\])?markdown$': '<rootDir>/__tests__/__mocks__/lib/markdown.ts',
     // General @/ alias — must be last so specific overrides above are checked first.
     '^@/(.*)$': '<rootDir>/$1',
   },
