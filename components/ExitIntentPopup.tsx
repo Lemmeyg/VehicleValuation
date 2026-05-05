@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import { trackEvent } from '@/lib/analytics/events'
 
@@ -14,42 +15,68 @@ const DISCOUNT_CODE = process.env.NEXT_PUBLIC_EXIT_INTENT_DISCOUNT_CODE ?? 'STAY
 
 export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitIntentPopupProps) {
   const [visible, setVisible] = useState(false)
+  const pendingHrefRef = useRef<string | null>(null)
+  const isBackButtonRef = useRef(false)
   const hasTriggeredRef = useRef(false)
+  const router = useRouter()
 
   useEffect(() => {
-    const handleMouseLeave = async (e: MouseEvent) => {
-      if (e.clientY > 0) return
+    history.pushState(null, '', window.location.href)
+
+    const showPopup = () => {
       if (hasTriggeredRef.current) return
       if (sessionStorage.getItem('exit_popup_shown')) return
-
       hasTriggeredRef.current = true
-
-      try {
-        const res = await fetch(`/api/reports/check-vin-count?vin=${encodeURIComponent(vin)}`)
-        if (!res.ok) return
-        const data = await res.json()
-        if (data.count === 1) {
-          sessionStorage.setItem('exit_popup_shown', 'true')
-          setVisible(true)
-          trackEvent('exit_intent_popup_shown', { reportId, vin })
-        }
-      } catch {
-        // silently fail — never interrupt the user experience
-      }
+      sessionStorage.setItem('exit_popup_shown', 'true')
+      setVisible(true)
+      trackEvent('exit_intent_popup_shown', { reportId, vin })
     }
 
-    document.addEventListener('mouseleave', handleMouseLeave)
-    return () => document.removeEventListener('mouseleave', handleMouseLeave)
+    const handleClick = (e: MouseEvent) => {
+      let target = e.target as HTMLElement | null
+      while (target && target.tagName !== 'A') {
+        target = target.parentElement
+      }
+      if (!target) return
+      const anchor = target as HTMLAnchorElement
+      if (anchor.closest('[data-buy-cta]')) return
+      const href = anchor.getAttribute('href')
+      if (!href || href.startsWith('#')) return
+      e.preventDefault()
+      pendingHrefRef.current = href
+      isBackButtonRef.current = false
+      showPopup()
+    }
+
+    const handlePopState = () => {
+      isBackButtonRef.current = true
+      pendingHrefRef.current = null
+      history.pushState(null, '', window.location.href)
+      showPopup()
+    }
+
+    document.addEventListener('click', handleClick)
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      document.removeEventListener('click', handleClick)
+      window.removeEventListener('popstate', handlePopState)
+    }
   }, [vin, reportId])
 
   const handleDismiss = () => {
     setVisible(false)
     trackEvent('exit_intent_popup_dismissed', { reportId, vin })
+    if (isBackButtonRef.current) {
+      router.back()
+    } else if (pendingHrefRef.current) {
+      router.push(pendingHrefRef.current)
+    }
   }
 
   const handleCTA = () => {
     trackEvent('exit_intent_popup_converted', { reportId, vin })
     onSelectPlan(DISCOUNT_CODE)
+    setVisible(false)
   }
 
   if (!visible) return null
@@ -73,9 +100,11 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
 
         <div className="text-center">
           <h2 className="text-2xl font-bold text-slate-900 mb-2">
-            Wait — get your report for $19 today
+            Before you go — your insurance company doesn&apos;t want you to have this.
           </h2>
-          <p className="text-slate-500 text-sm mb-6">One-time offer. This session only.</p>
+          <p className="text-slate-500 text-sm mb-6">
+            The average settlement gap is $2,800. Don&apos;t leave without the data to fight back.
+          </p>
 
           <button
             onClick={handleCTA}
