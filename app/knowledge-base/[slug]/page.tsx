@@ -10,6 +10,7 @@ import { ArticleCTA } from '@/components/ArticleCTA'
 import { ArticleReportBar } from '@/components/ArticleReportBar'
 import { RelatedArticlesSidebar } from '@/components/RelatedArticlesSidebar'
 import { RelatedArticlesMobile } from '@/components/RelatedArticlesMobile'
+import StateDirectorySection from './StateDirectorySection'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -117,6 +118,8 @@ export default async function ArticlePage({ params }: Props) {
               )}
 
               <ArticleCTA articleSlug={article.slug} />
+
+              <StateDirectorySection slug={article.slug} category={article.category} />
 
               {/* Mobile related articles — hidden on desktop */}
               <RelatedArticlesMobile relatedArticles={relatedArticles} currentSlug={slug} />
