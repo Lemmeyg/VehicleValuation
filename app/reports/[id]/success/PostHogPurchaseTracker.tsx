@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import posthog from 'posthog-js'
 import { trackReportWorkflow, trackPaymentSuccess } from '@/lib/analytics/events'
 
 interface Props {
@@ -8,9 +9,18 @@ interface Props {
   planType: 'basic' | 'premium'
   amountCents: number
   transactionId?: string
+  email?: string
+  vin?: string
 }
 
-export function PostHogPurchaseTracker({ reportId, planType, amountCents, transactionId }: Props) {
+export function PostHogPurchaseTracker({
+  reportId,
+  planType,
+  amountCents,
+  transactionId,
+  email,
+  vin,
+}: Props) {
   const tracked = useRef(false)
 
   useEffect(() => {
@@ -29,8 +39,14 @@ export function PostHogPurchaseTracker({ reportId, planType, amountCents, transa
       currency: 'USD',
       paymentProcessor: 'lemonsqueezy',
       variantId: transactionId,
+      email,
+      vin,
     })
-  }, [reportId, planType, amountCents, transactionId])
+
+    if (email && typeof window !== 'undefined' && posthog.__loaded) {
+      posthog.identify(email, { email, vin, plan: planType })
+    }
+  }, [reportId, planType, amountCents, transactionId, email, vin])
 
   return null
 }
