@@ -1,20 +1,14 @@
 import React from 'react'
 import { render } from '@testing-library/react'
-import posthog from 'posthog-js'
 import * as events from '@/lib/analytics/events'
 import { PostHogPurchaseTracker } from '@/app/reports/[id]/success/PostHogPurchaseTracker'
-
-jest.mock('posthog-js', () => ({
-  __loaded: true,
-  identify: jest.fn(),
-}))
 
 jest.mock('@/lib/analytics/events', () => ({
   trackReportWorkflow: jest.fn(),
   trackPaymentSuccess: jest.fn(),
+  identifyUser: jest.fn(),
 }))
 
-const mockPosthog = posthog as jest.Mocked<typeof posthog>
 const mockEvents = events as jest.Mocked<typeof events>
 
 beforeEach(() => jest.clearAllMocks())
@@ -43,7 +37,7 @@ describe('PostHogPurchaseTracker', () => {
     )
   })
 
-  it('calls posthog.identify with email, vin, and plan when email is provided', () => {
+  it('calls identifyUser with email, vin, and plan when email is provided', () => {
     render(
       <PostHogPurchaseTracker
         reportId="rpt-1"
@@ -54,17 +48,17 @@ describe('PostHogPurchaseTracker', () => {
       />
     )
 
-    expect(mockPosthog.identify).toHaveBeenCalledWith('buyer@example.com', {
+    expect(mockEvents.identifyUser).toHaveBeenCalledWith('buyer@example.com', {
       email: 'buyer@example.com',
       vin: '2T1BURHE0JC123456',
       plan: 'premium',
     })
   })
 
-  it('does not call posthog.identify when email is not provided', () => {
+  it('does not call identifyUser when email is not provided', () => {
     render(<PostHogPurchaseTracker reportId="rpt-1" planType="basic" amountCents={2900} />)
 
-    expect(mockPosthog.identify).not.toHaveBeenCalled()
+    expect(mockEvents.identifyUser).not.toHaveBeenCalled()
   })
 
   it('does not double-fire tracking on re-render', () => {
@@ -89,6 +83,6 @@ describe('PostHogPurchaseTracker', () => {
     )
 
     expect(mockEvents.trackPaymentSuccess).toHaveBeenCalledTimes(1)
-    expect(mockPosthog.identify).toHaveBeenCalledTimes(1)
+    expect(mockEvents.identifyUser).toHaveBeenCalledTimes(1)
   })
 })

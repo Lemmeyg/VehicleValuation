@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import posthog from 'posthog-js'
-import { trackReportWorkflow, trackPaymentSuccess } from '@/lib/analytics/events'
+import { trackReportWorkflow, trackPaymentSuccess, identifyUser } from '@/lib/analytics/events'
 
 interface Props {
   reportId: string
@@ -43,10 +42,11 @@ export function PostHogPurchaseTracker({
       vin,
     })
 
-    if (email && typeof window !== 'undefined' && posthog.__loaded) {
-      posthog.identify(email, { email, vin, plan: planType })
+    if (email) {
+      identifyUser(email, { email, vin, plan: planType })
     }
-  }, [reportId, planType, amountCents, transactionId, email, vin])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // fires once — tracked.current prevents double-fire; props are stable on a success page
 
   return null
 }
