@@ -11,7 +11,7 @@ const mockPosthog = posthog as jest.Mocked<typeof posthog>
 beforeEach(() => jest.clearAllMocks())
 
 describe('trackPaymentSuccess with identity fields', () => {
-  it('includes email in the captured event when provided', () => {
+  it('includes email and vin in the captured event when both are provided', () => {
     trackPaymentSuccess({
       plan: 'basic',
       amount: 29,
@@ -42,7 +42,7 @@ describe('trackPaymentSuccess with identity fields', () => {
 
     expect(mockPosthog.capture).toHaveBeenCalledWith(
       'payment_success',
-      expect.objectContaining({ plan: 'premium', amount: 49 })
+      expect.not.objectContaining({ email: expect.anything(), vin: expect.anything() })
     )
   })
 })
