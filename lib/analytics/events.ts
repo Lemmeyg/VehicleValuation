@@ -35,6 +35,8 @@ export type PaymentEvent = {
   currency: string
   paymentProcessor: 'lemonsqueezy' | 'stripe'
   variantId?: string
+  email?: string
+  vin?: string
 }
 
 export type UserIdentificationEvent = {

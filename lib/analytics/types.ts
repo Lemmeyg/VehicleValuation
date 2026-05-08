@@ -32,6 +32,8 @@ export interface PaymentEvent extends BaseEventProperties {
   currency: string
   paymentProcessor: 'lemonsqueezy' | 'stripe'
   variantId?: string
+  email?: string
+  vin?: string
 }
 
 export interface UserIdentificationEvent extends BaseEventProperties {

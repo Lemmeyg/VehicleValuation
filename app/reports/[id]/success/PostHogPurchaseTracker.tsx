@@ -1,16 +1,27 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { trackReportWorkflow, trackPaymentSuccess } from '@/lib/analytics/events'
+import { trackReportWorkflow, trackPaymentSuccess, identifyUser } from '@/lib/analytics/events'
 
 interface Props {
   reportId: string
   planType: 'basic' | 'premium'
   amountCents: number
   transactionId?: string
+  email?: string
+  vin?: string
+  userId?: string
 }
 
-export function PostHogPurchaseTracker({ reportId, planType, amountCents, transactionId }: Props) {
+export function PostHogPurchaseTracker({
+  reportId,
+  planType,
+  amountCents,
+  transactionId,
+  email,
+  vin,
+  userId,
+}: Props) {
   const tracked = useRef(false)
 
   useEffect(() => {
@@ -29,8 +40,15 @@ export function PostHogPurchaseTracker({ reportId, planType, amountCents, transa
       currency: 'USD',
       paymentProcessor: 'lemonsqueezy',
       variantId: transactionId,
+      email,
+      vin,
     })
-  }, [reportId, planType, amountCents, transactionId])
+
+    if (userId) {
+      identifyUser(userId, { email, vin, plan: planType })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // fires once — tracked.current prevents double-fire; props are stable on a success page
 
   return null
 }
