@@ -143,6 +143,14 @@ describe('cleanAndFilterComparables', () => {
       const result = cleanAndFilterComparables(listings)
       expect(result).toHaveLength(5)
     })
+
+    it('caps listings identified only by dealer_id when dealer_name is absent', () => {
+      const listings = Array.from({ length: 5 }, (_, i) =>
+        makeListing({ dealer_name: undefined, dealer_id: 42, price: 18000 + i * 100 })
+      )
+      const result = cleanAndFilterComparables(listings)
+      expect(result).toHaveLength(3)
+    })
   })
 
   describe('empty and trivial inputs', () => {

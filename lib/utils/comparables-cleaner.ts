@@ -9,8 +9,8 @@ const MIN_YEAR_BELOW_SUBJECT = 5
  * Apply to any listings array before storing or displaying.
  *
  * Filters (in order):
- * 1. Drop miles === 0 (new/unlisted inventory — not comparable to a used vehicle)
- * 2. Drop price === 0 / missing price
+ * 1. Drop miles === 0 or missing (new/unlisted inventory — not comparable to a used vehicle)
+ * 2. Drop price === 0 or missing
  * 3. Drop duplicate VINs — keep first occurrence
  * 4. Year range: subjectYear-5 → subjectYear+2 (skipped when subjectYear undefined)
  * 5. Dealer cap: max MAX_DEALER_LISTINGS per named dealer
@@ -19,9 +19,9 @@ export function cleanAndFilterComparables(
   listings: MarketCheckComparable[],
   subjectYear?: number
 ): MarketCheckComparable[] {
-  let result = listings.filter(l => (l.miles ?? 0) > 0)
+  let result = listings.filter(l => l.miles != null && l.miles > 0)
 
-  result = result.filter(l => (l.price ?? 0) > 0)
+  result = result.filter(l => l.price != null && l.price > 0)
 
   const seenVins = new Set<string>()
   result = result.filter(l => {
@@ -31,7 +31,7 @@ export function cleanAndFilterComparables(
     return true
   })
 
-  if (subjectYear) {
+  if (subjectYear !== undefined) {
     const minYear = subjectYear - MIN_YEAR_BELOW_SUBJECT
     const maxYear = subjectYear + MAX_YEAR_ABOVE_SUBJECT
     result = result.filter(l => l.year >= minYear && l.year <= maxYear)
