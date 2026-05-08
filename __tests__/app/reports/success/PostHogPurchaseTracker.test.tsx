@@ -37,7 +37,7 @@ describe('PostHogPurchaseTracker', () => {
     )
   })
 
-  it('calls identifyUser with email, vin, and plan when email is provided', () => {
+  it('calls identifyUser with userId, email, vin, and plan when userId is provided', () => {
     render(
       <PostHogPurchaseTracker
         reportId="rpt-1"
@@ -45,17 +45,18 @@ describe('PostHogPurchaseTracker', () => {
         amountCents={4900}
         email="buyer@example.com"
         vin="2T1BURHE0JC123456"
+        userId="user-uuid-123"
       />
     )
 
-    expect(mockEvents.identifyUser).toHaveBeenCalledWith('buyer@example.com', {
+    expect(mockEvents.identifyUser).toHaveBeenCalledWith('user-uuid-123', {
       email: 'buyer@example.com',
       vin: '2T1BURHE0JC123456',
       plan: 'premium',
     })
   })
 
-  it('does not call identifyUser when email is not provided', () => {
+  it('does not call identifyUser when userId is not provided', () => {
     render(<PostHogPurchaseTracker reportId="rpt-1" planType="basic" amountCents={2900} />)
 
     expect(mockEvents.identifyUser).not.toHaveBeenCalled()
@@ -69,6 +70,7 @@ describe('PostHogPurchaseTracker', () => {
         amountCents={2900}
         email="buyer@example.com"
         vin="1HGCM82633A123456"
+        userId="user-uuid-123"
       />
     )
 
@@ -79,6 +81,7 @@ describe('PostHogPurchaseTracker', () => {
         amountCents={2900}
         email="buyer@example.com"
         vin="1HGCM82633A123456"
+        userId="user-uuid-123"
       />
     )
 

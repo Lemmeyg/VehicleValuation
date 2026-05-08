@@ -10,6 +10,7 @@ interface Props {
   transactionId?: string
   email?: string
   vin?: string
+  userId?: string
 }
 
 export function PostHogPurchaseTracker({
@@ -19,6 +20,7 @@ export function PostHogPurchaseTracker({
   transactionId,
   email,
   vin,
+  userId,
 }: Props) {
   const tracked = useRef(false)
 
@@ -42,8 +44,8 @@ export function PostHogPurchaseTracker({
       vin,
     })
 
-    if (email) {
-      identifyUser(email, { email, vin, plan: planType })
+    if (userId) {
+      identifyUser(userId, { email, vin, plan: planType })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // fires once — tracked.current prevents double-fire; props are stable on a success page
