@@ -50,19 +50,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
 
-    // Extract subject vehicle info for filtering comparables.
-    // vehicle_data.year is stored as a string in Supabase JSONB — coerce to number.
-    // Only build subjectVehicle when year resolves to a valid number.
-    const vehicleYear = report.vehicle_data?.year ? Number(report.vehicle_data.year) : undefined
-    const subjectVehicle =
-      report.vehicle_data && vehicleYear
-        ? {
-            year: vehicleYear,
-            make: report.vehicle_data.make,
-            model: report.vehicle_data.model,
-            trim: report.vehicle_data.trim,
-          }
-        : undefined
+    // Extract subject vehicle info for filtering comparables
+    const subjectVehicle = report.vehicle_data
+      ? {
+          year: report.vehicle_data.year as number | undefined,
+          make: report.vehicle_data.make,
+          model: report.vehicle_data.model,
+          trim: report.vehicle_data.trim,
+        }
+      : undefined
 
     console.log(`[MarketCheck] Calling API`, { vin, mileage, zip_code, subjectVehicle })
 

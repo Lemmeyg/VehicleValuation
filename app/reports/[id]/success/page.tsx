@@ -77,6 +77,9 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
         planType={planType}
         amountCents={report.price_paid}
         transactionId={sessionId}
+        email={user.email ?? undefined}
+        vin={report.vin ?? undefined}
+        userId={user.id}
       />
       {/* Navigation */}
       <nav className="bg-white shadow-sm">
