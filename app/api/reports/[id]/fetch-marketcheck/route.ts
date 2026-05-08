@@ -51,6 +51,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Extract subject vehicle info for filtering comparables
     const subjectVehicle = report.vehicle_data
       ? {
+          year: report.vehicle_data.year as number | undefined,
           make: report.vehicle_data.make,
           model: report.vehicle_data.model,
           trim: report.vehicle_data.trim,
