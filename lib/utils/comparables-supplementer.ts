@@ -95,6 +95,8 @@ async function fetchAndValidatePage(
   const yearFiltered = applyYearFilter(listings, subjectVehicle.year)
   if (yearFiltered.length === 0) return null
 
+  // cleanAndFilterComparables also applies a hard year cap (subjectYear±5/+2),
+  // 0-mile/price filters, dedup, and dealer cap on the already year-narrowed set.
   const cleaned = cleanAndFilterComparables(yearFiltered, subjectVehicle.year)
   if (cleaned.length === 0) return null
 

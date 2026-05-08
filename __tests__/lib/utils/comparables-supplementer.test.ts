@@ -187,6 +187,39 @@ describe('supplementComparables — fallback API failures', () => {
     )
     expect(result.supplemented).toBe(false)
   })
+
+  it('returns unchanged when all fallback listings fail cleaning (0-mile inventory)', async () => {
+    // Fallback returns only 0-mile (new car) listings — all dropped by cleanAndFilterComparables
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 5,
+        listings: Array.from({ length: 5 }, (_, i) => ({
+          id: `NEW0000000000${i}`,
+          vin: `NEW0000000000${i}`,
+          price: 42000,
+          miles: 0,
+          seller_type: 'franchise',
+          build: { year: subjectVehicle.year, make: subjectVehicle.make, model: subjectVehicle.model },
+          vdp_url: `https://dealer.com/listing/NEW0000000000${i}`,
+          first_seen_at_date: '2025-01-01',
+        })),
+      }),
+    })
+
+    const prediction = makePrediction([])
+    const result = await supplementComparables(
+      prediction,
+      0, // validCount — primary has no valid listings
+      subjectVehicle,
+      'VIN0',
+      50000,
+      '90210'
+    )
+
+    expect(result.supplemented).toBe(false)
+    expect(result.prediction.recentComparables?.listings).toHaveLength(0)
+  })
 })
 
 // ─── Merge logic ───────────────────────────────────────────────────────────────
