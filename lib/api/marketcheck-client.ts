@@ -8,13 +8,14 @@
  * IMPORTANT: This is the PRIMARY valuation source (replaces CarsXE)
  *
  * DATA STORAGE:
- * - Stores ALL listings from recent_comparables without filtering
- * - No make/model/trim filtering applied (removed to maximize data capture)
- * - Filtering happens on frontend using lib/utils/listing-filters.ts
+ * - Cleans listings via cleanAndFilterComparables (removes new/zero-mile, dedupes VINs, caps per-dealer)
+ * - Filtered by year range relative to the subject vehicle when year is provided
  * - Sorted by price (highest first) for consistency
  *
  * @see https://docs.marketcheck.com/docs/api/cars/market-insights/marketcheck-price
  */
+
+import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
 
 // Retry configuration interface
 interface RetryConfig {
@@ -502,11 +503,11 @@ export async function fetchMarketCheckData(
         comparablesStats: data.comparables?.stats,
 
         // Recent comparables (Premium API - actual sales data)
-        // IMPORTANT: Store ALL listings - filtering happens on frontend
+        // Cleaned via cleanAndFilterComparables before storage
         recentComparables: data.recent_comparables
           ? {
               num_found: data.recent_comparables.num_found || 0,
-              listings:
+              listings: cleanAndFilterComparables(
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 ((data.recent_comparables.listings || []) as any[])
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -551,13 +552,11 @@ export async function fetchMarketCheckData(
                     listing_date: listing.first_seen_at || listing.created_at,
                     mc_website_id: listing.mc_website_id,
                     source: 'marketcheck',
-                    vdp_url: listing.vdp_url, // Vehicle Details Page URL
+                    vdp_url: listing.vdp_url,
                     dealer_name: listing.dealer_name,
-                  }))
-                  // NO FILTERING - Store ALL listings exactly as API returns them
-                  // Filtering happens on frontend for maximum flexibility
-                  // Sort by price descending (highest first)
-                  .sort((a, b) => b.price - a.price),
+                  })),
+                subjectVehicle?.year
+              ).sort((a, b) => b.price - a.price),
               stats: data.recent_comparables.stats,
             }
           : undefined,
