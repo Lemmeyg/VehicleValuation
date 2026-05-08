@@ -17,6 +17,7 @@ import {
   type MarketCheckComparable,
 } from '@/lib/api/marketcheck-client'
 import { validateListingUrls } from '@/lib/utils/url-validator'
+import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
 
 const MIN_VALID = 10
 
@@ -94,11 +95,14 @@ async function fetchAndValidatePage(
   const yearFiltered = applyYearFilter(listings, subjectVehicle.year)
   if (yearFiltered.length === 0) return null
 
+  const cleaned = cleanAndFilterComparables(yearFiltered, subjectVehicle.year)
+  if (cleaned.length === 0) return null
+
   const predictionForValidation: MarketCheckPrediction = {
     ...fallbackResult.data,
     recentComparables: {
       ...fallbackResult.data.recentComparables!,
-      listings: yearFiltered,
+      listings: cleaned,
     },
   }
 

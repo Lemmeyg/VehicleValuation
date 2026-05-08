@@ -253,7 +253,7 @@ describe('supplementComparables — merge logic', () => {
             id: 'SHARED_VIN',
             vin: 'SHARED_VIN',
             price: 999,
-            miles: 0,
+            miles: 35000,
             seller_type: 'franchise',
             build: { year: 2020, make: 'Honda', model: 'Civic' },
             dos_active: 1,
