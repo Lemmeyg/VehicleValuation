@@ -48,10 +48,9 @@ export async function POST(request: NextRequest) {
     console.error('[dispute-letter] DB upsert error:', dbError)
   }
 
-  const { data, error: storageError } = await supabaseAdmin.storage.createSignedUrl(
-    'lead-magnets/dispute-letter/total-loss-dispute-letter.docx',
-    60
-  )
+  const { data, error: storageError } = await supabaseAdmin.storage
+    .from('lead-magnets')
+    .createSignedUrl('dispute-letter/total-loss-dispute-letter.docx', 60)
 
   if (storageError || !data?.signedUrl) {
     console.error('[dispute-letter] Storage error:', storageError)

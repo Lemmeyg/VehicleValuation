@@ -22,10 +22,15 @@ beforeEach(() => {
 
   const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: null })
   ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ upsert: mockUpsert })
-  ;(supabaseAdmin.storage.createSignedUrl as jest.Mock).mockResolvedValue({
+
+  const mockCreateSignedUrl = jest.fn().mockResolvedValue({
     data: { signedUrl: 'https://signed.url/file.docx' },
     error: null,
   })
+  ;(supabaseAdmin.storage as any).from = jest.fn().mockReturnValue({
+    createSignedUrl: mockCreateSignedUrl,
+  })
+  ;(supabaseAdmin as any)._mockCreateSignedUrl = mockCreateSignedUrl
 })
 
 describe('POST /api/dispute-letter', () => {
@@ -82,9 +87,12 @@ describe('POST /api/dispute-letter', () => {
   })
 
   it('returns 500 when storage signed URL fails', async () => {
-    ;(supabaseAdmin.storage.createSignedUrl as jest.Mock).mockResolvedValueOnce({
+    const mockCreateSignedUrl = jest.fn().mockResolvedValue({
       data: null,
       error: { message: 'Storage error' },
+    })
+    ;(supabaseAdmin.storage as any).from = jest.fn().mockReturnValue({
+      createSignedUrl: mockCreateSignedUrl,
     })
     const res = await POST(makeRequest({ email: 'user@example.com' }))
     expect(res.status).toBe(500)
