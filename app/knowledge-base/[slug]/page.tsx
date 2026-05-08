@@ -1,5 +1,6 @@
 import { getArticleBySlugStatic, getAllArticles, getAllArticleSlugs } from '@/lib/knowledge-base-db'
 import { getRelatedArticles } from '@/lib/utils/related-articles'
+import { deriveCategories } from '@/lib/utils/kb-articles'
 import { splitArticleHtml } from '@/lib/utils/split-article-html'
 import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
@@ -70,6 +71,7 @@ export default async function ArticlePage({ params }: Props) {
   }
 
   const relatedArticles = getRelatedArticles(slug, allArticles)
+  const categories = deriveCategories(allArticles)
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
@@ -122,68 +124,63 @@ export default async function ArticlePage({ params }: Props) {
   }
 
   return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
-      />
-      <div className="min-h-screen bg-white">
-        <ArticlePageTracker slug={article.slug} title={article.title} category={article.category} />
-        <Navbar />
-        <main className="pt-24 pb-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-12">
-              {/* Main article column */}
-              <article>
-                <header className="mb-8">
-                  <div className="mb-4">
-                    <span className="inline-block px-3 py-1 text-sm font-semibold text-primary-600 bg-primary-50 rounded-full">
-                      {article.category}
-                    </span>
-                  </div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-                    {article.title}
-                  </h1>
-                  <div className="flex items-center text-sm text-slate-600 space-x-4">
-                    <span>{article.author}</span>
-                    <span>•</span>
-                    <time>{new Date(article.datePublished).toLocaleDateString()}</time>
-                    <span>•</span>
-                    <span>{article.readingTime}</span>
-                  </div>
-                </header>
+    <div className="min-h-screen bg-white">
+      <ArticlePageTracker slug={article.slug} title={article.title} category={article.category} />
+      <Navbar />
+      <main className="pt-24 pb-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-12">
+            {/* Main article column */}
+            <article>
+              <header className="mb-8">
+                <div className="mb-4">
+                  <span className="inline-block px-3 py-1 text-sm font-semibold text-primary-600 bg-primary-50 rounded-full">
+                    {article.category}
+                  </span>
+                </div>
+                <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
+                  {article.title}
+                </h1>
+                <div className="flex items-center text-sm text-slate-600 space-x-4">
+                  <span>{article.author}</span>
+                  <span>•</span>
+                  <time>{new Date(article.datePublished).toLocaleDateString()}</time>
+                  <span>•</span>
+                  <span>{article.readingTime}</span>
+                </div>
+              </header>
 
-                {splitArticleHtml(article.htmlContent!).map((segment, i) =>
-                  segment.type === 'html' ? (
-                    <div
-                      key={i}
-                      className="prose prose-lg max-w-none"
-                      dangerouslySetInnerHTML={{ __html: segment.content }}
-                    />
-                  ) : (
-                    <ArticleReportBar
-                      key={i}
-                      articleSlug={article.slug}
-                      placement={segment.placement}
-                    />
-                  )
-                )}
+              {splitArticleHtml(article.htmlContent!).map((segment, i) =>
+                segment.type === 'html' ? (
+                  <div
+                    key={i}
+                    className="prose prose-lg max-w-none"
+                    dangerouslySetInnerHTML={{ __html: segment.content }}
+                  />
+                ) : (
+                  <ArticleReportBar
+                    key={i}
+                    articleSlug={article.slug}
+                    placement={segment.placement}
+                  />
+                )
+              )}
 
-                <ArticleCTA articleSlug={article.slug} />
+              <ArticleCTA articleSlug={article.slug} />
 
-                {/* Mobile related articles — hidden on desktop */}
-                <RelatedArticlesMobile relatedArticles={relatedArticles} currentSlug={slug} />
-              </article>
+              {/* Mobile related articles — hidden on desktop */}
+              <RelatedArticlesMobile relatedArticles={relatedArticles} currentSlug={slug} />
+            </article>
 
-              {/* Sidebar — desktop only */}
-              <aside className="hidden lg:block">
-                <RelatedArticlesSidebar relatedArticles={relatedArticles} currentSlug={slug} />
-              </aside>
-            </div>
+            {/* Sidebar — desktop only */}
+            <aside className="hidden lg:block">
+              <RelatedArticlesSidebar
+                relatedArticles={relatedArticles}
+                currentSlug={slug}
+                categories={categories}
+                currentCategory={article.category}
+              />
+            </aside>
           </div>
         </main>
         <Footer />

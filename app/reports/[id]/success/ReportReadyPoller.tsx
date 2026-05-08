@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
+import { trackReportWorkflow, trackPaymentSuccess } from '@/lib/analytics/events'
 
 interface Props {
   reportId: string
   checkoutEmail: string | null
+  pricePaid: number | null
 }
 
 type PollerState = 'polling' | 'setup' | 'magic-link-sent' | 'timedOut'
@@ -13,9 +15,10 @@ type PollerState = 'polling' | 'setup' | 'magic-link-sent' | 'timedOut'
 const MAX_POLLS = 30
 const POLL_INTERVAL_MS = 2000
 
-export function ReportReadyPoller({ reportId, checkoutEmail }: Props) {
+export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props) {
   const attemptsRef = useRef(0)
   const [pollerState, setPollerState] = useState<PollerState>('polling')
+  const purchaseTracked = useRef(false)
 
   // Account setup form state
   const [email, setEmail] = useState(checkoutEmail ?? '')
@@ -39,6 +42,17 @@ export function ReportReadyPoller({ reportId, checkoutEmail }: Props) {
         if (data.ready) {
           // ReportReadyPoller is only rendered for unauthenticated users — always
           // show the account setup form so the buyer can claim their report.
+          if (!purchaseTracked.current && pricePaid) {
+            purchaseTracked.current = true
+            const planType = pricePaid === 2900 ? 'basic' : 'premium'
+            trackReportWorkflow({ step: 'report_created', reportId, planType })
+            trackPaymentSuccess({
+              plan: planType,
+              amount: pricePaid / 100,
+              currency: 'USD',
+              paymentProcessor: 'lemonsqueezy',
+            })
+          }
           setPollerState('setup')
           return
         }

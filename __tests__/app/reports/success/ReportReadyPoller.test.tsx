@@ -31,7 +31,7 @@ describe('ReportReadyPoller', () => {
       json: async () => ({ ready: false }),
     })
 
-    render(<ReportReadyPoller reportId="test-report-id" checkoutEmail={null} />)
+    render(<ReportReadyPoller reportId="test-report-id" checkoutEmail={null} pricePaid={null} />)
 
     expect(screen.getByText(/Processing|Fetching|valuation/i)).toBeInTheDocument()
   })
@@ -42,7 +42,7 @@ describe('ReportReadyPoller', () => {
       json: async () => ({ ready: true }),
     })
 
-    render(<ReportReadyPoller reportId="report-abc" checkoutEmail={null} />)
+    render(<ReportReadyPoller reportId="report-abc" checkoutEmail={null} pricePaid={null} />)
 
     await act(async () => {
       jest.advanceTimersByTime(100)
@@ -59,7 +59,9 @@ describe('ReportReadyPoller', () => {
       json: async () => ({ ready: true }),
     })
 
-    render(<ReportReadyPoller reportId="report-abc" checkoutEmail="buyer@example.com" />)
+    render(
+      <ReportReadyPoller reportId="report-abc" checkoutEmail="buyer@example.com" pricePaid={4900} />
+    )
 
     await act(async () => {
       jest.advanceTimersByTime(100)
@@ -82,7 +84,7 @@ describe('ReportReadyPoller', () => {
       }
     })
 
-    render(<ReportReadyPoller reportId="report-abc" checkoutEmail={null} />)
+    render(<ReportReadyPoller reportId="report-abc" checkoutEmail={null} pricePaid={null} />)
 
     await act(async () => {
       jest.advanceTimersByTime(2000)
@@ -105,7 +107,7 @@ describe('ReportReadyPoller', () => {
       json: async () => ({ ready: false }),
     })
 
-    render(<ReportReadyPoller reportId="report-abc" checkoutEmail={null} />)
+    render(<ReportReadyPoller reportId="report-abc" checkoutEmail={null} pricePaid={null} />)
 
     await act(async () => {
       jest.advanceTimersByTime(62000)
@@ -121,7 +123,9 @@ describe('ReportReadyPoller', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({ ready: true }) }) // poll
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) }) // magic-link request
 
-    render(<ReportReadyPoller reportId="report-abc" checkoutEmail="buyer@example.com" />)
+    render(
+      <ReportReadyPoller reportId="report-abc" checkoutEmail="buyer@example.com" pricePaid={4900} />
+    )
 
     await act(async () => {
       jest.advanceTimersByTime(100)
