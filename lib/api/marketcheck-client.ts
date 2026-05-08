@@ -314,11 +314,10 @@ export async function fetchMarketCheckSearchFallback(
  * @param zipCode - ZIP code for location-based pricing
  * @param isCertified - Whether vehicle is certified pre-owned (default: false)
  * @param retryConfig - Retry configuration (optional)
- * @param subjectVehicle - NOT USED - kept for backward compatibility only
- * @returns Price prediction with ALL comparables (no filtering)
- *
- * NOTE: All listings from recent_comparables are stored without filtering.
- *       Filtering happens on the frontend for maximum flexibility.
+ * @param subjectVehicle - Subject vehicle info used to filter comparables. The `year` field
+ *   drives year-range filtering inside `cleanAndFilterComparables`; `make`, `model`, and
+ *   `trim` are used as a VIN-decode fallback when the MarketCheck response is incomplete.
+ * @returns Price prediction with comparables filtered by `cleanAndFilterComparables`
  */
 export async function fetchMarketCheckData(
   vin: string,
