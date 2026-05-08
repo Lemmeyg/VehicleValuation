@@ -177,19 +177,20 @@ export async function fetchMarketCheckSearchFallback(
   zip: string,
   start: number = 0
 ): Promise<MarketCheckResponse> {
-  // Year is omitted — the search index only covers up to 2022 so year filtering
-  // is done post-query by the caller (comparables-supplementer) using progressive widening.
   // zip is omitted — passing zip without radius returns 0 results (API treats it as 0-mile
   // radius). The search endpoint also never returns a distance field, so geo-sorting is
   // not possible here; year-closeness sort is applied post-fetch instead.
+  // NOTE: year IS passed — without it the API returns new-inventory (2026+) exclusively,
+  // which is all 0-mile stock that the year-filter and usedOnly-filter then drop entirely.
   const url = new URL('https://api.marketcheck.com/v2/search/car/active')
   url.searchParams.append('api_key', apiKey)
   url.searchParams.append('make', make)
   url.searchParams.append('model', model)
+  url.searchParams.append('year', year.toString())
   url.searchParams.append('rows', '50')
   url.searchParams.append('start', start.toString())
 
-  console.log('[MarketCheck Fallback] Trying search endpoint', { make, model, start })
+  console.log('[MarketCheck Fallback] Trying search endpoint', { make, model, year, start })
 
   try {
     const response = await fetch(url.toString(), {
