@@ -28,10 +28,12 @@ export async function POST(request: NextRequest) {
   let email: string
   try {
     const body = await request.json()
-    email = body?.email
+    email = String(body?.email ?? '')
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
+
+  email = email.toLowerCase().trim()
 
   if (!email || !EMAIL_REGEX.test(email)) {
     return NextResponse.json({ error: 'Valid email is required' }, { status: 400 })

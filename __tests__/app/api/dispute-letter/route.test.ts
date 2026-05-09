@@ -83,7 +83,7 @@ describe('POST /api/dispute-letter', () => {
     const res = await POST(makeRequest({ email: 'user@example.com' }))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.downloadUrl).toBeDefined()
+    expect(body.downloadUrl).toBe('https://signed.url/file.docx')
   })
 
   it('returns 500 when storage signed URL fails', async () => {
