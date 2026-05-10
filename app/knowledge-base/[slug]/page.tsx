@@ -10,6 +10,7 @@ import { ArticleCTA } from '@/components/ArticleCTA'
 import { ArticleReportBar } from '@/components/ArticleReportBar'
 import { RelatedArticlesSidebar } from '@/components/RelatedArticlesSidebar'
 import { RelatedArticlesMobile } from '@/components/RelatedArticlesMobile'
+import { DisputeLetterCTA } from '@/components/DisputeLetterCTA'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -176,6 +177,10 @@ export default async function ArticlePage({ params }: Props) {
                 )}
 
                 <ArticleCTA articleSlug={article.slug} />
+                {(article.category === 'State Guides' ||
+                  ['dispute', 'valuation', 'challenge', 'settlement'].some(kw =>
+                    article.slug.includes(kw)
+                  )) && <DisputeLetterCTA />}
 
                 {/* Mobile related articles — hidden on desktop */}
                 <RelatedArticlesMobile relatedArticles={relatedArticles} currentSlug={slug} />
