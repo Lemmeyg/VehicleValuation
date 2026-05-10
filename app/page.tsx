@@ -9,6 +9,7 @@ import { Suspense } from 'react'
 import Navbar from '@/components/Navbar'
 import Hero from '@/components/Hero'
 import ProblemStatement from '@/components/ProblemStatement'
+import DisputeLetterBanner from '@/components/DisputeLetterBanner'
 import KnowledgeBase from '@/components/KnowledgeBase'
 import Directory from '@/components/Directory'
 import Testimonials from '@/components/Testimonials'
@@ -37,6 +38,9 @@ export default function Home() {
 
       {/* Problem Statement Section */}
       <ProblemStatement />
+
+      {/* Dispute Letter Banner — secondary offer, sits between problem agitation and KB */}
+      <DisputeLetterBanner />
 
       {/* Knowledge Base Section with Rotating Articles */}
       <KnowledgeBase />
