@@ -5,6 +5,7 @@ import { createServerSupabaseClient, supabaseAdmin } from '@/lib/db/supabase'
 import { RedditPurchaseTracker } from './RedditPurchaseTracker'
 import { PostHogPurchaseTracker } from './PostHogPurchaseTracker'
 import { ReportReadyPoller } from './ReportReadyPoller'
+import { AuthenticatedPaymentPoller } from './AuthenticatedPaymentPoller'
 
 /**
  * Payment Success Page
@@ -58,9 +59,9 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
     redirect('/dashboard')
   }
 
-  // Check if payment was actually completed
+  // Webhook hasn't processed yet — poll until price_paid is set
   if (!report.price_paid || report.price_paid === 0) {
-    redirect(`/reports/${reportId}`)
+    return <AuthenticatedPaymentPoller reportId={reportId} />
   }
 
   const planType = report.price_paid === 2900 ? 'basic' : 'premium'
