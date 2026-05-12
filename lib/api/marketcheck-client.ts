@@ -8,13 +8,14 @@
  * IMPORTANT: This is the PRIMARY valuation source (replaces CarsXE)
  *
  * DATA STORAGE:
- * - Stores ALL listings from recent_comparables without filtering
- * - No make/model/trim filtering applied (removed to maximize data capture)
- * - Filtering happens on frontend using lib/utils/listing-filters.ts
+ * - Cleans listings via cleanAndFilterComparables (removes new/zero-mile, dedupes VINs, caps per-dealer)
+ * - Filtered by year range relative to the subject vehicle when year is provided
  * - Sorted by price (highest first) for consistency
  *
  * @see https://docs.marketcheck.com/docs/api/cars/market-insights/marketcheck-price
  */
+
+import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
 
 // Retry configuration interface
 interface RetryConfig {
@@ -176,19 +177,20 @@ export async function fetchMarketCheckSearchFallback(
   zip: string,
   start: number = 0
 ): Promise<MarketCheckResponse> {
-  // Year is omitted — the search index only covers up to 2022 so year filtering
-  // is done post-query by the caller (comparables-supplementer) using progressive widening.
   // zip is omitted — passing zip without radius returns 0 results (API treats it as 0-mile
   // radius). The search endpoint also never returns a distance field, so geo-sorting is
   // not possible here; year-closeness sort is applied post-fetch instead.
+  // NOTE: year IS passed — without it the API returns new-inventory (2026+) exclusively,
+  // which is all 0-mile stock that the year-filter and usedOnly-filter then drop entirely.
   const url = new URL('https://api.marketcheck.com/v2/search/car/active')
   url.searchParams.append('api_key', apiKey)
   url.searchParams.append('make', make)
   url.searchParams.append('model', model)
+  url.searchParams.append('year', year.toString())
   url.searchParams.append('rows', '50')
   url.searchParams.append('start', start.toString())
 
-  console.log('[MarketCheck Fallback] Trying search endpoint', { make, model, start })
+  console.log('[MarketCheck Fallback] Trying search endpoint', { make, model, year, start })
 
   try {
     const response = await fetch(url.toString(), {
@@ -313,11 +315,10 @@ export async function fetchMarketCheckSearchFallback(
  * @param zipCode - ZIP code for location-based pricing
  * @param isCertified - Whether vehicle is certified pre-owned (default: false)
  * @param retryConfig - Retry configuration (optional)
- * @param subjectVehicle - NOT USED - kept for backward compatibility only
- * @returns Price prediction with ALL comparables (no filtering)
- *
- * NOTE: All listings from recent_comparables are stored without filtering.
- *       Filtering happens on the frontend for maximum flexibility.
+ * @param subjectVehicle - Subject vehicle info used to filter comparables. The `year` field
+ *   drives year-range filtering inside `cleanAndFilterComparables`; `make`, `model`, and
+ *   `trim` are used as a VIN-decode fallback when the MarketCheck response is incomplete.
+ * @returns Price prediction with comparables filtered by `cleanAndFilterComparables`
  */
 export async function fetchMarketCheckData(
   vin: string,
@@ -502,11 +503,11 @@ export async function fetchMarketCheckData(
         comparablesStats: data.comparables?.stats,
 
         // Recent comparables (Premium API - actual sales data)
-        // IMPORTANT: Store ALL listings - filtering happens on frontend
+        // Cleaned via cleanAndFilterComparables before storage
         recentComparables: data.recent_comparables
           ? {
               num_found: data.recent_comparables.num_found || 0,
-              listings:
+              listings: cleanAndFilterComparables(
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 ((data.recent_comparables.listings || []) as any[])
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -551,13 +552,11 @@ export async function fetchMarketCheckData(
                     listing_date: listing.first_seen_at || listing.created_at,
                     mc_website_id: listing.mc_website_id,
                     source: 'marketcheck',
-                    vdp_url: listing.vdp_url, // Vehicle Details Page URL
+                    vdp_url: listing.vdp_url,
                     dealer_name: listing.dealer_name,
-                  }))
-                  // NO FILTERING - Store ALL listings exactly as API returns them
-                  // Filtering happens on frontend for maximum flexibility
-                  // Sort by price descending (highest first)
-                  .sort((a, b) => b.price - a.price),
+                  })),
+                subjectVehicle?.year
+              ).sort((a, b) => b.price - a.price),
               stats: data.recent_comparables.stats,
             }
           : undefined,

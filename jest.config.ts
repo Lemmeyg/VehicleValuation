@@ -15,14 +15,10 @@ const config: Config = {
     // Specific mocks must come before the general @/ catch-all — Jest uses first match.
     // @react-pdf/renderer uses ESM and cannot be parsed by Jest's CommonJS transform.
     '^@react-pdf/renderer$': '<rootDir>/__tests__/__mocks__/@react-pdf/renderer.ts',
-    // Mock Supabase DB client to avoid requiring real env vars in unit tests.
-    // Pattern covers both @/lib/db/supabase and relative ./db/supabase imports.
-    'db/supabase$': '<rootDir>/__tests__/__mocks__/lib/db/supabase.ts',
-    // Mock lib/markdown to avoid loading ESM-only unified/remark/rehype packages.
-    // Pattern covers both @/lib/markdown and relative ./markdown imports.
-    '^@/lib/markdown$': '<rootDir>/__tests__/__mocks__/lib/markdown.ts',
-    '^(.*[/\\\\])?markdown$': '<rootDir>/__tests__/__mocks__/lib/markdown.ts',
     // General @/ alias — must be last so specific overrides above are checked first.
+    // Note: @/lib/db/supabase is mocked via lib/db/__mocks__/supabase.ts (manual mock).
+    // When tests call jest.mock('@/lib/db/supabase'), Jest resolves via the @/ alias below
+    // to lib/db/supabase.ts, then picks up lib/db/__mocks__/supabase.ts automatically.
     '^@/(.*)$': '<rootDir>/$1',
   },
   testPathIgnorePatterns: [

@@ -1,5 +1,6 @@
-// Jest mock for @/lib/db/supabase.
-// Prevents real Supabase client initialisation (which requires env vars) during unit tests.
+// Jest manual mock for @/lib/db/supabase.
+// Located at lib/db/__mocks__/supabase.ts so jest.mock('@/lib/db/supabase') picks it up
+// automatically without a factory function.
 
 export const supabase = {
   from: jest.fn().mockReturnThis(),

@@ -64,7 +64,7 @@ describe('GET /api/reports/[id]/status', () => {
     expect(data.ready).toBe(false)
   })
 
-  it('returns ready: true when both price_paid and marketcheck_valuation are set', async () => {
+  it('returns ready: true with pricePaid, vin, and email when report is complete', async () => {
     mockAdmin.from = jest.fn().mockReturnValue({
       select: jest.fn().mockReturnThis(),
       eq: jest.fn().mockReturnThis(),
@@ -72,6 +72,8 @@ describe('GET /api/reports/[id]/status', () => {
         data: {
           price_paid: 2900,
           marketcheck_valuation: { predictedPrice: 25000 },
+          vin: '1HGCM82633A004352',
+          email: 'buyer@example.com',
         },
         error: null,
       }),
@@ -82,6 +84,8 @@ describe('GET /api/reports/[id]/status', () => {
 
     expect(data.ready).toBe(true)
     expect(data.pricePaid).toBe(2900)
+    expect(data.vin).toBe('1HGCM82633A004352')
+    expect(data.email).toBe('buyer@example.com')
   })
 
   it('returns 404 when report not found', async () => {

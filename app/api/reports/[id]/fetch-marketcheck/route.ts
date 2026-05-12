@@ -12,6 +12,8 @@ import { validateBeforeMarketCheckCall } from '@/lib/security/report-validation'
 import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
 import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import { logApiCall } from '@/lib/api/api-call-logger'
+import { validateListingUrls } from '@/lib/utils/url-validator'
+import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -48,14 +50,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
 
-    // Extract subject vehicle info for filtering comparables
-    const subjectVehicle = report.vehicle_data
-      ? {
-          make: report.vehicle_data.make,
-          model: report.vehicle_data.model,
-          trim: report.vehicle_data.trim,
-        }
-      : undefined
+    // Extract subject vehicle info for filtering comparables.
+    // vehicle_data.year is stored as a string in Supabase JSONB. Number() always returns
+    // `number` (never undefined), so year is typed as number and the > 0 guard handles
+    // missing/NaN values at runtime without introducing number | undefined.
+    const vehicleYear = Number(report.vehicle_data?.year)
+    const subjectVehicle =
+      report.vehicle_data && vehicleYear > 0
+        ? {
+            year: vehicleYear,
+            make: report.vehicle_data.make as string,
+            model: report.vehicle_data.model as string,
+            trim: report.vehicle_data.trim as string | undefined,
+          }
+        : undefined
 
     console.log(`[MarketCheck] Calling API`, { vin, mileage, zip_code, subjectVehicle })
 
@@ -78,23 +86,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         predictedPrice: marketcheckResult.data.predictedPrice,
         totalComparables: marketcheckResult.data.totalComparablesFound,
         recentComparablesFound: marketcheckResult.data.recentComparables?.num_found,
-        listingsStoredCount: marketcheckResult.data.recentComparables?.listings?.length,
+        listingsFromPrimary: marketcheckResult.data.recentComparables?.listings?.length,
         responseTimeMs: apiResponseTime,
       })
 
-      // DEBUG: Log the listings array structure (first 3 only to avoid log spam)
-      if (marketcheckResult.data.recentComparables?.listings) {
-        const totalListings = marketcheckResult.data.recentComparables.listings.length
-        console.log(
-          `[MarketCheck] Storing ${totalListings} listings in database (all recent comparables, no artificial limit)`
-        )
-        console.log(
-          `[MarketCheck] Sample listings (first 3 of ${totalListings}):`,
-          JSON.stringify(marketcheckResult.data.recentComparables.listings.slice(0, 3), null, 2)
-        )
-      } else {
-        console.warn(`[MarketCheck] WARNING: No recentComparables.listings found in response`)
-      }
+      // ========================================
+      // URL Validation + Supplementation
+      // ========================================
+      const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
+        marketcheckResult.data
+      )
+
+      const supplementResult = await supplementComparables(
+        validatedPrediction,
+        urlStats.validatedUrls.length,
+        subjectVehicle,
+        vin,
+        mileage,
+        zip_code
+      )
+      const finalPrediction = supplementResult.prediction
+
+      console.log(`[MarketCheck] Pipeline complete`, {
+        primaryListings: marketcheckResult.data.recentComparables?.listings?.length ?? 0,
+        urlValidated: urlStats.validatedUrls.length,
+        urlFailed: urlStats.failedCount,
+        supplemented: supplementResult.supplemented,
+        finalListings: finalPrediction.recentComparables?.listings?.length ?? 0,
+      })
 
       // ========================================
       // Fetch Auto.dev VIN Decode Data
@@ -163,32 +182,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const { error: mcUpdateError } = await supabase
         .from('reports')
         .update({
-          // Main JSONB data (includes recent comparables + all stats)
-          marketcheck_valuation: marketcheckResult.data,
-          autodev_vin_data: autodevVinData, // NEW: Store VIN decode data
+          // Main JSONB data — use supplemented prediction so listings are populated
+          marketcheck_valuation: finalPrediction,
+          autodev_vin_data: autodevVinData,
 
-          // NEW: Dedicated columns for faster queries (cached from JSONB)
-          marketcheck_predicted_price: marketcheckResult.data.predictedPrice,
-          marketcheck_msrp: marketcheckResult.data.msrp || null,
-          marketcheck_price_range_min: marketcheckResult.data.priceRange?.min || null,
-          marketcheck_price_range_max: marketcheckResult.data.priceRange?.max || null,
-          marketcheck_confidence: marketcheckResult.data.confidence,
-          marketcheck_total_comparables_found: marketcheckResult.data.totalComparablesFound,
+          // Dedicated columns for faster queries (cached from JSONB)
+          marketcheck_predicted_price: finalPrediction.predictedPrice,
+          marketcheck_msrp: finalPrediction.msrp || null,
+          marketcheck_price_range_min: finalPrediction.priceRange?.min || null,
+          marketcheck_price_range_max: finalPrediction.priceRange?.max || null,
+          marketcheck_confidence: finalPrediction.confidence,
+          marketcheck_total_comparables_found: finalPrediction.totalComparablesFound,
           marketcheck_recent_comparables_found:
-            marketcheckResult.data.recentComparables?.num_found || 0,
+            finalPrediction.recentComparables?.listings?.length || 0,
 
-          // IMPORTANT: Also update valuation_result to MarketCheck (replaces CarsXE)
+          // URL validation stats
+          url_validation_failed_count: urlStats.failedCount,
+          url_validation_failed_urls: urlStats.failedUrls,
+          validated_listing_urls: urlStats.validatedUrls,
+          comparables_supplemented: supplementResult.supplemented,
+
+          // Also update valuation_result (replaces CarsXE)
           valuation_result: {
-            predictedPrice: marketcheckResult.data.predictedPrice,
+            predictedPrice: finalPrediction.predictedPrice,
             lowValue:
-              marketcheckResult.data.priceRange?.min ||
-              Math.round(marketcheckResult.data.predictedPrice * 0.9),
-            averageValue: marketcheckResult.data.predictedPrice,
+              finalPrediction.priceRange?.min ||
+              Math.round(finalPrediction.predictedPrice * 0.9),
+            averageValue: finalPrediction.predictedPrice,
             highValue:
-              marketcheckResult.data.priceRange?.max ||
-              Math.round(marketcheckResult.data.predictedPrice * 1.1),
-            confidence: marketcheckResult.data.confidence,
-            dataPoints: marketcheckResult.data.totalComparablesFound,
+              finalPrediction.priceRange?.max ||
+              Math.round(finalPrediction.predictedPrice * 1.1),
+            confidence: finalPrediction.confidence,
+            dataPoints: finalPrediction.totalComparablesFound,
             dataSource: 'marketcheck',
           },
         })
@@ -209,15 +234,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         cost: 0.09,
         requestData: { vin, mileage, zip_code, dealer_type: 'franchise' },
         responseData: {
-          predicted_price: marketcheckResult.data.predictedPrice,
-          total_comparables_found: marketcheckResult.data.totalComparablesFound,
-          recent_comparables_found: marketcheckResult.data.recentComparables?.num_found ?? 0,
+          predicted_price: finalPrediction.predictedPrice,
+          total_comparables_found: finalPrediction.totalComparablesFound,
+          recent_comparables_found: finalPrediction.recentComparables?.listings?.length ?? 0,
+          supplemented: supplementResult.supplemented,
         },
       })
 
       return NextResponse.json({
         success: true,
-        data: marketcheckResult.data,
+        data: finalPrediction,
       })
     } else {
       console.error(`[MarketCheck] API failed:`, marketcheckResult.error)

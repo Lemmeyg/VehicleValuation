@@ -10,7 +10,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const { data: report, error } = await supabaseAdmin
     .from('reports')
-    .select('price_paid, marketcheck_valuation')
+    .select('price_paid, marketcheck_valuation, vin, email')
     .eq('id', id)
     .single()
 
@@ -23,6 +23,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   return NextResponse.json({
     ready,
-    ...(ready ? { pricePaid: report.price_paid } : {}),
+    ...(ready
+      ? {
+          pricePaid: report.price_paid,
+          vin: report.vin ?? undefined,
+          email: report.email ?? undefined,
+        }
+      : {}),
   })
 }

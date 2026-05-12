@@ -42,15 +42,19 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
         if (data.ready) {
           // ReportReadyPoller is only rendered for unauthenticated users — always
           // show the account setup form so the buyer can claim their report.
-          if (!purchaseTracked.current && pricePaid) {
+          // Use data.pricePaid from the API (fresh) — the pricePaid prop may be
+          // stale (0) if the webhook processed after the server rendered this page.
+          if (!purchaseTracked.current && data.pricePaid) {
             purchaseTracked.current = true
-            const planType = pricePaid === 2900 ? 'basic' : 'premium'
+            const planType = data.pricePaid === 2900 ? 'basic' : 'premium'
             trackReportWorkflow({ step: 'report_created', reportId, planType })
             trackPaymentSuccess({
               plan: planType,
-              amount: pricePaid / 100,
+              amount: data.pricePaid / 100,
               currency: 'USD',
               paymentProcessor: 'lemonsqueezy',
+              email: data.email ?? checkoutEmail ?? undefined,
+              vin: data.vin ?? undefined,
             })
           }
           setPollerState('setup')
