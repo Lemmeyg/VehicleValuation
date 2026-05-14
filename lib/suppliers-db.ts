@@ -385,6 +385,42 @@ export async function searchSuppliers(
   }))
 }
 
+export async function getStateDirectorySuppliers(state: string): Promise<Supplier[]> {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('*')
+    .eq('state', state)
+    .in('service_type', ['appraiser', 'advocate'])
+    .eq('published', true)
+    .order('featured', { ascending: false })
+    .order('verified', { ascending: false })
+    .limit(4)
+
+  if (error || !data) return []
+
+  return data.map(supplier => ({
+    slug: supplier.slug,
+    businessName: supplier.business_name,
+    contactName: supplier.contact_name || undefined,
+    email: supplier.contact_email,
+    phone: supplier.contact_phone || undefined,
+    websiteUrl: supplier.website_url || undefined,
+    city: supplier.city,
+    state: supplier.state,
+    zipCode: supplier.zip_code || undefined,
+    serviceType: supplier.service_type,
+    specialties: supplier.specialties || [],
+    valueProposition: supplier.value_proposition || '',
+    yearsInBusiness: supplier.years_in_business || undefined,
+    certifications: supplier.certifications || [],
+    insuranceAccepted: supplier.insurance_accepted || [],
+    featured: supplier.featured || false,
+    verified: supplier.verified || false,
+    published: supplier.published !== false,
+    content: supplier.content || '',
+  }))
+}
+
 // ============================================================================
 // STATIC GENERATION HELPERS
 // These functions use the simple supabase client (no cookies)
