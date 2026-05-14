@@ -2,11 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/hooks/useAuth'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
 import { trackEvent, trackFormSubmission, trackReportWorkflow } from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
-import AuthModal from './AuthModal'
 
 interface ArticleReportBarProps {
   articleSlug: string
@@ -25,21 +23,13 @@ const TICKER_INTERVAL = 3500
 
 export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarProps) {
   const router = useRouter()
-  const { user } = useAuth()
 
   const [vin, setVin] = useState('')
   const [mileage, setMileage] = useState('')
   const [zipCode, setZipCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showAuthModal, setShowAuthModal] = useState(false)
   const [tickerIndex, setTickerIndex] = useState(0)
-
-  // Keep form values accessible inside the auth success callback
-  const formRef = useRef({ vin, mileage, zipCode })
-  useEffect(() => {
-    formRef.current = { vin, mileage, zipCode }
-  }, [vin, mileage, zipCode])
 
   const hasTrackedFormStart = useRef(false)
 
@@ -86,14 +76,7 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
     e?.preventDefault()
     setError('')
 
-    if (!user) {
-      setShowAuthModal(true)
-      return
-    }
-
-    const { vin: currentVin, mileage: currentMileage, zipCode: currentZip } = formRef.current
-
-    const sanitized = sanitizeVin(currentVin)
+    const sanitized = sanitizeVin(vin)
     const vinError = getVinValidationError(sanitized)
     if (vinError) {
       setError(vinError)
@@ -101,14 +84,14 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
       return
     }
 
-    const mileageNum = parseInt(currentMileage)
+    const mileageNum = parseInt(mileage)
     if (isNaN(mileageNum) || mileageNum < 0 || mileageNum > 999999) {
       setError('Please enter a valid mileage between 0 and 999,999')
       trackFormSubmission('article_report_bar', { success: false, error: 'invalid_mileage' })
       return
     }
 
-    if (currentZip.length !== 5) {
+    if (zipCode.length !== 5) {
       setError('Please enter a valid 5-digit ZIP code')
       trackFormSubmission('article_report_bar', { success: false, error: 'invalid_zip' })
       return
@@ -121,50 +104,23 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
       placement,
     })
 
-    try {
-      const response = await fetch('/api/reports/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vin: sanitized, mileage: mileageNum, zipCode: currentZip }),
-      })
+    const kbAttr = getKBAttribution()
+    trackFormSubmission('article_report_bar', { success: true })
+    trackReportWorkflow({
+      step: 'article_bar_form_submitted',
+      kb_source_slug: articleSlug,
+      ...(kbAttr && {
+        kb_source_title: kbAttr.title,
+        kb_source_visited_at: kbAttr.visited_at,
+      }),
+    })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to create report')
-        trackFormSubmission('article_report_bar', {
-          success: false,
-          error: data.error || 'api_error',
-        })
-        return
-      }
-
-      const kbAttr = getKBAttribution()
-      trackFormSubmission('article_report_bar', { success: true })
-      trackReportWorkflow({
-        step: 'article_bar_form_submitted',
-        kb_source_slug: articleSlug,
-        ...(kbAttr && {
-          kb_source_title: kbAttr.title,
-          kb_source_visited_at: kbAttr.visited_at,
-        }),
-      })
-
-      router.push(`/pricing?reportId=${data.report.id}`)
-    } catch {
-      setError('An unexpected error occurred')
-      trackFormSubmission('article_report_bar', { success: false, error: 'unexpected_error' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleAuthSuccess = () => {
-    setShowAuthModal(false)
-    const { vin: v, mileage: m, zipCode: z } = formRef.current
-    if (v.length === 17 && m && z.length === 5) {
-      handleSubmit()
-    }
+    // Store form data for pricing page — same pattern as Hero form, no auth required before purchase
+    localStorage.setItem(
+      'hero_form_data',
+      JSON.stringify({ vin: sanitized, mileage: mileageNum, zipCode })
+    )
+    router.push('/pricing')
   }
 
   const isSubmittable = vin.length === 17 && mileage.length > 0 && zipCode.length === 5
@@ -256,15 +212,6 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
       <p className="mt-2.5 text-[11px] text-white/55">
         Takes 60 seconds &bull; Independent of your insurer &bull; Professional PDF report
       </p>
-
-      {/* Auth modal */}
-      {showAuthModal && (
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          onSuccess={handleAuthSuccess}
-        />
-      )}
     </div>
   )
 }
