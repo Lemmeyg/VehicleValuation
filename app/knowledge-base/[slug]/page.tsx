@@ -178,6 +178,7 @@ export default async function ArticlePage({ params }: Props) {
 
                 <ArticleCTA articleSlug={article.slug} />
                 {(article.category === 'State Guides' ||
+                  article.category === 'Owner Guides' ||
                   ['dispute', 'valuation', 'challenge', 'settlement'].some(kw =>
                     article.slug.includes(kw)
                   )) && <DisputeLetterCTA />}
