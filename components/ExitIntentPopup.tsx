@@ -33,6 +33,7 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
     }
 
     const handleClick = (e: MouseEvent) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
       let target = e.target as HTMLElement | null
       while (target && target.tagName !== 'A') {
         target = target.parentElement
