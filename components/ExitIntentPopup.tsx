@@ -55,10 +55,10 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
       showPopup()
     }
 
-    document.addEventListener('click', handleClick)
+    document.addEventListener('click', handleClick, { capture: true })
     window.addEventListener('popstate', handlePopState)
     return () => {
-      document.removeEventListener('click', handleClick)
+      document.removeEventListener('click', handleClick, { capture: true })
       window.removeEventListener('popstate', handlePopState)
     }
   }, [vin, reportId])
@@ -84,7 +84,7 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={handleDismiss}
+      data-testid="popup-backdrop"
     >
       <div
         className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8"

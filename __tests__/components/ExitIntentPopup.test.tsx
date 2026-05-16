@@ -128,6 +128,39 @@ describe('ExitIntentPopup — CTA action', () => {
   })
 })
 
+describe('ExitIntentPopup — dismiss behaviour', () => {
+  it('does NOT dismiss when the backdrop overlay is clicked', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    // Trigger popup
+    fireEvent.click(screen.getByText('Home'))
+    expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+
+    // Click the backdrop (outside the card)
+    fireEvent.click(screen.getByTestId('popup-backdrop'))
+    // Popup must still be visible
+    expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+  })
+
+  it('dismisses when the X button is clicked', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+    expect(screen.queryByText(/insurance company/i)).not.toBeInTheDocument()
+  })
+})
+
 describe('ExitIntentPopup — back button trigger', () => {
   it('shows the popup when popstate fires', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
