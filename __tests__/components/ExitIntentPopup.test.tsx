@@ -2,8 +2,11 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import ExitIntentPopup from '@/components/ExitIntentPopup'
 
+const mockPush = jest.fn()
+const mockBack = jest.fn()
+
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  useRouter: () => ({ push: mockPush, back: mockBack }),
 }))
 
 jest.mock('@/lib/analytics/events', () => ({
@@ -15,6 +18,8 @@ const pushStateSpy = jest.spyOn(window.history, 'pushState').mockImplementation(
 afterEach(() => {
   sessionStorage.clear()
   pushStateSpy.mockClear()
+  mockPush.mockClear()
+  mockBack.mockClear()
 })
 
 describe('ExitIntentPopup — initial state', () => {
@@ -142,8 +147,9 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
 
     // Click the backdrop (outside the card)
     fireEvent.click(screen.getByTestId('popup-backdrop'))
-    // Popup must still be visible
+    // Popup must still be visible — and no navigation should have fired
     expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+    expect(mockPush).not.toHaveBeenCalled()
   })
 
   it('dismisses when the X button is clicked', () => {
@@ -158,6 +164,7 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(screen.queryByText(/insurance company/i)).not.toBeInTheDocument()
+    expect(mockPush).toHaveBeenCalledWith('/home')
   })
 })
 
