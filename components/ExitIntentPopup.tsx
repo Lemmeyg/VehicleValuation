@@ -44,6 +44,9 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
       const href = anchor.getAttribute('href')
       if (!href || href.startsWith('#')) return
       e.preventDefault()
+      // stopPropagation in capture phase prevents the event reaching React entirely,
+      // so Next.js Link's onClick (which calls router.push()) never fires.
+      e.stopPropagation()
       pendingHrefRef.current = href
       isBackButtonRef.current = false
       showPopup()
