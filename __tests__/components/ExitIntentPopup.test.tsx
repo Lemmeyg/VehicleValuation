@@ -2,8 +2,11 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import ExitIntentPopup from '@/components/ExitIntentPopup'
 
+const mockPush = jest.fn()
+const mockBack = jest.fn()
+
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  useRouter: () => ({ push: mockPush, back: mockBack }),
 }))
 
 jest.mock('@/lib/analytics/events', () => ({
@@ -15,6 +18,8 @@ const pushStateSpy = jest.spyOn(window.history, 'pushState').mockImplementation(
 afterEach(() => {
   sessionStorage.clear()
   pushStateSpy.mockClear()
+  mockPush.mockClear()
+  mockBack.mockClear()
 })
 
 describe('ExitIntentPopup — initial state', () => {
@@ -125,6 +130,41 @@ describe('ExitIntentPopup — CTA action', () => {
     fireEvent.click(screen.getByText('Home'))
     fireEvent.click(screen.getByRole('button', { name: /get my report/i }))
     expect(mockSelectPlan).toHaveBeenCalledWith('STAY19')
+  })
+})
+
+describe('ExitIntentPopup — dismiss behaviour', () => {
+  it('does NOT dismiss when the backdrop overlay is clicked', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    // Trigger popup
+    fireEvent.click(screen.getByText('Home'))
+    expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+
+    // Click the backdrop (outside the card)
+    fireEvent.click(screen.getByTestId('popup-backdrop'))
+    // Popup must still be visible — and no navigation should have fired
+    expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+    expect(mockPush).not.toHaveBeenCalled()
+  })
+
+  it('dismisses when the X button is clicked', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+    expect(screen.queryByText(/insurance company/i)).not.toBeInTheDocument()
+    expect(mockPush).toHaveBeenCalledWith('/home')
   })
 })
 

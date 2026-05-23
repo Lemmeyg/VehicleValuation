@@ -33,6 +33,7 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
     }
 
     const handleClick = (e: MouseEvent) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
       let target = e.target as HTMLElement | null
       while (target && target.tagName !== 'A') {
         target = target.parentElement
@@ -43,6 +44,9 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
       const href = anchor.getAttribute('href')
       if (!href || href.startsWith('#')) return
       e.preventDefault()
+      // stopPropagation in capture phase prevents the event reaching React entirely,
+      // so Next.js Link's onClick (which calls router.push()) never fires.
+      e.stopPropagation()
       pendingHrefRef.current = href
       isBackButtonRef.current = false
       showPopup()
@@ -55,10 +59,10 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
       showPopup()
     }
 
-    document.addEventListener('click', handleClick)
+    document.addEventListener('click', handleClick, { capture: true })
     window.addEventListener('popstate', handlePopState)
     return () => {
-      document.removeEventListener('click', handleClick)
+      document.removeEventListener('click', handleClick, { capture: true })
       window.removeEventListener('popstate', handlePopState)
     }
   }, [vin, reportId])
@@ -84,7 +88,7 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={handleDismiss}
+      data-testid="popup-backdrop"
     >
       <div
         className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8"
