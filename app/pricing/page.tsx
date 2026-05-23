@@ -32,14 +32,14 @@ const PRICING_TIERS = [
   {
     id: 'BASIC',
     name: 'Basic Report',
-    price: 23,
+    price: 19,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID!,
     features: CORE_FEATURES,
   },
   {
     id: 'PREMIUM',
     name: 'Premium Report',
-    price: 29,
+    price: 25,
     variantId: process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID!,
     features: [
       ...CORE_FEATURES,
