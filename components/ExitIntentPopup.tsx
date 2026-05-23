@@ -11,7 +11,7 @@ interface ExitIntentPopupProps {
   onSelectPlan: (discountCode: string) => void
 }
 
-const DISCOUNT_CODE = process.env.NEXT_PUBLIC_EXIT_INTENT_DISCOUNT_CODE ?? 'STAY19'
+const DISCOUNT_CODE = process.env.NEXT_PUBLIC_EXIT_INTENT_DISCOUNT_CODE ?? 'STAY15'
 
 export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitIntentPopupProps) {
   const [visible, setVisible] = useState(false)
@@ -110,7 +110,7 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
             onClick={handleCTA}
             className="w-full py-4 px-6 bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 text-white rounded-xl font-semibold text-base transition-all shadow-lg"
           >
-            Get My Report — $19
+            Get My Report — $15
           </button>
         </div>
       </div>
