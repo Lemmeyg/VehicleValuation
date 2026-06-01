@@ -211,6 +211,17 @@ export function trackAPICall(
 }
 
 /**
+ * Track dispute letter download (lead magnet)
+ */
+export function trackDisputeLetterDownload() {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('dispute_letter_downloaded', {
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
  * Track report download
  */
 export function trackReportDownload(format: 'pdf' | 'json', reportId?: string) {

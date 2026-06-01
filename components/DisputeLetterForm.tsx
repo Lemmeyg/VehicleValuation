@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { FileDown, Loader2, CheckCircle2 } from 'lucide-react'
+import { trackDisputeLetterDownload } from '@/lib/analytics/events'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -47,6 +48,7 @@ export default function DisputeLetterForm() {
       document.body.removeChild(a)
 
       setState('success')
+      trackDisputeLetterDownload()
     } catch {
       setErrorMessage('Something went wrong. Please try again.')
       setState('error')
