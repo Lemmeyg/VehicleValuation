@@ -1,4 +1,4 @@
-import type { Article } from '@/lib/knowledge-base-db'
+import type { ArticleListItem } from '@/lib/knowledge-base-db'
 
 /**
  * Returns up to `limit` related articles for the given slug.
@@ -12,9 +12,9 @@ import type { Article } from '@/lib/knowledge-base-db'
  */
 export function getRelatedArticles(
   currentSlug: string,
-  allArticles: Article[],
+  allArticles: ArticleListItem[],
   limit: number = 3
-): Article[] {
+): ArticleListItem[] {
   const current = allArticles.find(a => a.slug === currentSlug)
   if (!current) return []
 

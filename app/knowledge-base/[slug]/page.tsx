@@ -1,4 +1,8 @@
-import { getArticleBySlugStatic, getAllArticles, getAllArticleSlugs } from '@/lib/knowledge-base-db'
+import {
+  getArticleBySlugStatic,
+  getArticleListMetadata,
+  getAllArticleSlugs,
+} from '@/lib/knowledge-base-db'
 import { getRelatedArticles } from '@/lib/utils/related-articles'
 import { deriveCategories } from '@/lib/utils/kb-articles'
 import { splitArticleHtml } from '@/lib/utils/split-article-html'
@@ -65,7 +69,10 @@ export async function generateMetadata({ params }: Props) {
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params
 
-  const [article, allArticles] = await Promise.all([getArticleBySlugStatic(slug), getAllArticles()])
+  const [article, allArticles] = await Promise.all([
+    getArticleBySlugStatic(slug),
+    getArticleListMetadata(),
+  ])
 
   if (!article) {
     notFound()

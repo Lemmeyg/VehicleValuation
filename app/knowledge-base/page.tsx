@@ -8,13 +8,19 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { BookOpen, Clock, Tag } from 'lucide-react'
-import { getAllArticles, searchArticles, getArticlesByCategory } from '@/lib/knowledge-base-db'
+import {
+  getArticleListMetadata,
+  searchArticles,
+  getArticlesByCategory,
+} from '@/lib/knowledge-base-db'
 import Link from 'next/link'
 import { KnowledgeBasePageTracker, ArticleLinkTracker } from '@/components/KnowledgeBaseTracker'
 import { KBFilterBar } from '@/components/KBFilterBar'
 import { deriveCategories, filterArticlesByCategory } from '@/lib/utils/kb-articles'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
+
+export const revalidate = 3600
 
 export const metadata = {
   title: 'Knowledge Base | TotalLossToolKit.com',
@@ -47,7 +53,7 @@ export default async function KnowledgeBasePage({ searchParams }: Props) {
   const { q, category } = await searchParams
 
   const [allArticles, searchResults] = await Promise.all([
-    getAllArticles(),
+    getArticleListMetadata(),
     q ? searchArticles(q) : Promise.resolve([] as Awaited<ReturnType<typeof searchArticles>>),
   ])
 
