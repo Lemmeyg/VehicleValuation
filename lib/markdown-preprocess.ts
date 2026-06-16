@@ -13,8 +13,13 @@ export function preprocessMarkdown(markdown: string): string {
   // Normalize CRLF to LF so gray-matter works correctly on Windows-generated content
   const normalized = markdown.replace(/\r\n/g, '\n').trimStart()
 
-  // Strip YAML frontmatter if present
-  const { content } = matter(normalized)
+  // Strip YAML frontmatter if present — fall back to raw content if YAML is malformed
+  let content: string
+  try {
+    content = matter(normalized).content
+  } catch {
+    content = normalized.replace(/^---[\s\S]*?---\n?/, '')
+  }
 
   // Strip any <hyperlink>...</hyperlink> tags left by the KB creator
   const stripped = content.replace(/<hyperlink>[^<]*<\/hyperlink>/g, '')
