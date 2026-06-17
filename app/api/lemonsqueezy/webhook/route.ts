@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/lemonsqueezy/client'
 import { supabaseAdmin } from '@/lib/db/supabase'
-import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
 import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
 import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import { logApiCall } from '@/lib/api/api-call-logger'
@@ -9,6 +8,10 @@ import type { LemonSqueezyWebhookEvent } from '@/lib/lemonsqueezy/types'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import type { ValidationStats } from '@/lib/utils/url-validator'
+
+// after() keeps the Lambda alive during async PDF generation post-response.
+// 60s is the Hobby plan maximum and is needed for large PDFs.
+export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   try {
@@ -496,6 +499,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
     after(async () => {
       try {
         console.log(`[Webhook] PDF generation starting for report ${reportId}`)
+        const { generateAndUploadPDF } = await import('@/lib/services/pdf-generator')
         await generateAndUploadPDF({ reportId })
         console.log(`[Webhook] PDF generation completed for report ${reportId}`)
       } catch (error) {

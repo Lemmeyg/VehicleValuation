@@ -7,7 +7,9 @@
 import { NextResponse } from 'next/server'
 import { getUser } from '@/lib/db/auth'
 import { createServerSupabaseClient } from '@/lib/db/supabase'
-import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
+
+// PDF generation is slow; 60s is the Hobby plan maximum.
+export const maxDuration = 60
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -59,7 +61,9 @@ export async function POST(request: Request, { params }: RouteParams) {
       console.warn('Signed URL failed for stored path, regenerating:', signedUrlError)
     }
 
-    // No stored path — generate the PDF for the first time (or re-generate after failure)
+    // No stored path — generate the PDF for the first time (or re-generate after failure).
+    // Dynamic import keeps @react-pdf/renderer off the cold-start bundle for the fast path above.
+    const { generateAndUploadPDF } = await import('@/lib/services/pdf-generator')
     const result = await generateAndUploadPDF({ reportId })
 
     if (!result.success) {
