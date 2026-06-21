@@ -93,6 +93,11 @@ export type CheckoutEvent = {
   kb_source_visited_at?: string
 }
 
+export type EmailCaptureEvent = {
+  form: 'hero' | 'bottom'
+  action: 'shown' | 'submitted' | 'skipped'
+}
+
 // ============================================
 // Core Analytics Functions
 // ============================================
@@ -377,6 +382,18 @@ export function trackCheckoutAbandoned(
 ) {
   if (typeof window !== 'undefined' && posthog.__loaded) {
     posthog.capture('checkout_abandoned', {
+      ...properties,
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
+ * Track email capture field events on VIN forms
+ */
+export function trackEmailCapture(properties: EmailCaptureEvent) {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('email_capture', {
       ...properties,
       timestamp: new Date().toISOString(),
     })
