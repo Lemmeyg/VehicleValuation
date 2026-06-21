@@ -323,8 +323,10 @@ export default function Hero() {
             onSubmit={handleSubmit}
             className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-2xl"
           >
-            {/* Three-column grid for form fields (VIN, Mileage, ZIP) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* Form fields grid — 4 cols when email capture enabled, 3 cols otherwise */}
+            <div
+              className={`grid grid-cols-1 gap-4 mb-6 ${emailCaptureEnabled ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}
+            >
               {/* VIN Field */}
               <div className="relative">
                 <div className="flex items-center justify-between mb-2">
@@ -432,28 +434,28 @@ export default function Hero() {
                   </p>
                 )}
               </div>
-            </div>
 
-            {/* Email capture — feature flagged */}
-            {emailCaptureEnabled && (
-              <div className="mt-4">
-                <label
-                  htmlFor="hero-email"
-                  className="block text-sm font-semibold text-slate-900 mb-2"
-                >
-                  Email Address <span className="text-slate-500 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="email"
-                  id="hero-email"
-                  value={email}
-                  onChange={handleEmailChange}
-                  placeholder="your@email.com"
-                  autoComplete="email"
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-slate-900"
-                />
-              </div>
-            )}
+              {/* Email capture — feature flagged, 4th column */}
+              {emailCaptureEnabled && (
+                <div>
+                  <label
+                    htmlFor="hero-email"
+                    className="block text-sm font-semibold text-slate-900 mb-2"
+                  >
+                    Email <span className="text-slate-500 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="email"
+                    id="hero-email"
+                    value={email}
+                    onChange={handleEmailChange}
+                    placeholder="your@email.com"
+                    autoComplete="email"
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-slate-900"
+                  />
+                </div>
+              )}
+            </div>
 
             {/* Submit Error */}
             {errors.submit && (
