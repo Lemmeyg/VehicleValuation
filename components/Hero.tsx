@@ -466,25 +466,27 @@ export default function Hero() {
 
             {/* Submit Button Row */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <p className="text-sm text-slate-600">
+              <p className="text-base text-slate-600">
                 Takes 60 seconds • Instant results
                 {emailCaptureEnabled && ' • Reports from $19'}
               </p>
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full md:w-auto px-8 group"
-                disabled={loading || vin.length !== 17 || !mileage || zipCode.length !== 5}
-              >
-                {loading ? 'Processing...' : 'Get My Independent Valuation'}
-                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-              </Button>
+              <div className="flex flex-col items-center w-full md:w-auto">
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full md:w-auto px-8 group"
+                  disabled={loading || vin.length !== 17 || !mileage || zipCode.length !== 5}
+                >
+                  {loading ? 'Processing...' : 'Get My Independent Valuation'}
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+                {emailCaptureEnabled && (
+                  <p className="text-xs text-slate-500 mt-2 text-center">
+                    By submitting, you agree to receive occasional emails from TotalLossToolkit.com
+                  </p>
+                )}
+              </div>
             </div>
-            {emailCaptureEnabled && (
-              <p className="text-xs text-slate-500 mt-3 text-center">
-                By submitting, you agree to receive occasional emails from TotalLossToolkit.com
-              </p>
-            )}
           </form>
         </div>
       </div>
