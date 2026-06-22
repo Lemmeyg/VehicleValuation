@@ -49,6 +49,7 @@ interface MarketChartsProps {
     make?: string
     model?: string
   }
+  printMode?: boolean
 }
 
 export function MarketCharts({
@@ -58,6 +59,7 @@ export function MarketCharts({
   lowRange,
   highRange,
   subjectVehicle,
+  printMode,
 }: MarketChartsProps) {
   // Prepare data for price distribution histogram
   const priceDistribution = createPriceDistribution(listings, lowRange, highRange)
@@ -105,60 +107,117 @@ export function MarketCharts({
         <p className="text-sm text-slate-600 mb-4">
           Distribution of {listings.length} comparable vehicle prices
         </p>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={priceDistribution}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis
-              dataKey="range"
-              tick={{ fontSize: 12, fill: '#64748b' }}
-              label={{
-                value: 'Price Range',
-                position: 'insideBottom',
-                offset: -5,
-                style: { fontSize: 13, fill: '#475569' },
-              }}
-            />
-            <YAxis
-              tick={{ fontSize: 12, fill: '#64748b' }}
-              label={{
-                value: 'Number of Vehicles',
-                angle: -90,
-                position: 'insideLeft',
-                style: { fontSize: 13, fill: '#475569' },
-              }}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#fff',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                fontSize: 12,
-              }}
-              formatter={(value: number | undefined) => [`${value || 0} vehicles`, 'Count']}
-            />
-            <ReferenceLine
-              x={findClosestBin(priceDistribution, estimatedValue)}
-              stroke="#10b981"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              label={{
-                value: 'Your Vehicle',
-                position: 'top',
-                fill: '#10b981',
-                fontSize: 11,
-                fontWeight: 600,
-              }}
-            />
-            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-              {priceDistribution.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={getBinColor(entry.midpoint, estimatedValue, lowRange, highRange)}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        {printMode ? (
+          <div data-print-chart style={{ width: 520, height: 280 }}>
+            <BarChart width={520} height={280} data={priceDistribution}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis
+                dataKey="range"
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                label={{
+                  value: 'Price Range',
+                  position: 'insideBottom',
+                  offset: -5,
+                  style: { fontSize: 13, fill: '#475569' },
+                }}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                label={{
+                  value: 'Number of Vehicles',
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: { fontSize: 13, fill: '#475569' },
+                }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: 12,
+                }}
+                formatter={(value: number | undefined) => [`${value || 0} vehicles`, 'Count']}
+              />
+              <ReferenceLine
+                x={findClosestBin(priceDistribution, estimatedValue)}
+                stroke="#10b981"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                label={{
+                  value: 'Your Vehicle',
+                  position: 'top',
+                  fill: '#10b981',
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                {priceDistribution.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={getBinColor(entry.midpoint, estimatedValue, lowRange, highRange)}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={priceDistribution}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis
+                dataKey="range"
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                label={{
+                  value: 'Price Range',
+                  position: 'insideBottom',
+                  offset: -5,
+                  style: { fontSize: 13, fill: '#475569' },
+                }}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                label={{
+                  value: 'Number of Vehicles',
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: { fontSize: 13, fill: '#475569' },
+                }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: 12,
+                }}
+                formatter={(value: number | undefined) => [`${value || 0} vehicles`, 'Count']}
+              />
+              <ReferenceLine
+                x={findClosestBin(priceDistribution, estimatedValue)}
+                stroke="#10b981"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                label={{
+                  value: 'Your Vehicle',
+                  position: 'top',
+                  fill: '#10b981',
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                {priceDistribution.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={getBinColor(entry.midpoint, estimatedValue, lowRange, highRange)}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
         <div className="mt-4 flex items-center justify-center gap-6 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded bg-slate-400"></div>
@@ -181,89 +240,176 @@ export function MarketCharts({
         <p className="text-sm text-slate-600 mb-4">
           Relationship between mileage and pricing for comparable vehicles
         </p>
-        <ResponsiveContainer width="100%" height={300}>
-          <ScatterChart margin={{ top: 30, right: 10, bottom: 20, left: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis
-              type="number"
-              dataKey="mileage"
-              domain={mileageExtent}
-              tick={{ fontSize: 12, fill: '#64748b' }}
-              tickFormatter={value => `${(value / 1000).toFixed(0)}k`}
-              label={{
-                value: 'Mileage (miles)',
-                position: 'insideBottom',
-                offset: -10,
-                style: { fontSize: 13, fill: '#475569' },
-              }}
-            />
-            <YAxis
-              type="number"
-              dataKey="price"
-              domain={priceExtent}
-              tick={{ fontSize: 12, fill: '#64748b' }}
-              tickFormatter={value => `$${(value / 1000).toFixed(0)}k`}
-              label={{
-                value: 'Price',
-                angle: -90,
-                position: 'insideLeft',
-                style: { fontSize: 13, fill: '#475569' },
-              }}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#fff',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                fontSize: 12,
-              }}
-              formatter={(value: number | undefined, name: string | undefined) => {
-                const val = value || 0
-                if (name === 'price') return [`$${val.toLocaleString()}`, 'Price']
-                if (name === 'mileage') return [`${val.toLocaleString()} mi`, 'Mileage']
-                return [val, name || '']
-              }}
-              labelFormatter={(label, payload) => {
-                if (payload && payload[0]) {
-                  return payload[0].payload.name || 'Vehicle'
-                }
-                return 'Vehicle'
-              }}
-            />
-            {/* Reference line for average mileage */}
-            <ReferenceLine
-              x={averageMileage}
-              stroke="#10b981"
-              strokeWidth={2}
-              strokeDasharray="5 5"
+        {printMode ? (
+          <div data-print-chart style={{ width: 520, height: 280 }}>
+            <ScatterChart
+              width={520}
+              height={280}
+              margin={{ top: 30, right: 10, bottom: 20, left: 20 }}
             >
-              <Label
-                value={`Avg Mileage: ${(averageMileage / 1000).toFixed(0)}k mi`}
-                position="top"
-                fill="#10b981"
-                fontSize={11}
-                fontWeight={600}
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis
+                type="number"
+                dataKey="mileage"
+                domain={mileageExtent}
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                tickFormatter={value => `${(value / 1000).toFixed(0)}k`}
+                label={{
+                  value: 'Mileage (miles)',
+                  position: 'insideBottom',
+                  offset: -10,
+                  style: { fontSize: 13, fill: '#475569' },
+                }}
               />
-            </ReferenceLine>
-            {/* Comparable vehicles scatter */}
-            <Scatter data={scatterData} fill="#3b82f6">
-              {scatterData.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={getScatterColor(
-                    entry.price,
-                    estimatedValue,
-                    lowRange,
-                    highRange,
-                    entry.isDisplayed
-                  )}
+              <YAxis
+                type="number"
+                dataKey="price"
+                domain={priceExtent}
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                tickFormatter={value => `$${(value / 1000).toFixed(0)}k`}
+                label={{
+                  value: 'Price',
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: { fontSize: 13, fill: '#475569' },
+                }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: 12,
+                }}
+                formatter={(value: number | undefined, name: string | undefined) => {
+                  const val = value || 0
+                  if (name === 'price') return [`$${val.toLocaleString()}`, 'Price']
+                  if (name === 'mileage') return [`${val.toLocaleString()} mi`, 'Mileage']
+                  return [val, name || '']
+                }}
+                labelFormatter={(label, payload) => {
+                  if (payload && payload[0]) {
+                    return payload[0].payload.name || 'Vehicle'
+                  }
+                  return 'Vehicle'
+                }}
+              />
+              {/* Reference line for average mileage */}
+              <ReferenceLine
+                x={averageMileage}
+                stroke="#10b981"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+              >
+                <Label
+                  value={`Avg Mileage: ${(averageMileage / 1000).toFixed(0)}k mi`}
+                  position="top"
+                  fill="#10b981"
+                  fontSize={11}
+                  fontWeight={600}
                 />
-              ))}
-            </Scatter>
-            {/* Subject vehicle - larger yellow dot */}
-            <Scatter data={[subjectVehicleData]} fill="#fbbf24" shape="diamond" />
-          </ScatterChart>
-        </ResponsiveContainer>
+              </ReferenceLine>
+              {/* Comparable vehicles scatter */}
+              <Scatter data={scatterData} fill="#3b82f6">
+                {scatterData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={getScatterColor(
+                      entry.price,
+                      estimatedValue,
+                      lowRange,
+                      highRange,
+                      entry.isDisplayed
+                    )}
+                  />
+                ))}
+              </Scatter>
+              {/* Subject vehicle - larger yellow dot */}
+              <Scatter data={[subjectVehicleData]} fill="#fbbf24" shape="diamond" />
+            </ScatterChart>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <ScatterChart margin={{ top: 30, right: 10, bottom: 20, left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis
+                type="number"
+                dataKey="mileage"
+                domain={mileageExtent}
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                tickFormatter={value => `${(value / 1000).toFixed(0)}k`}
+                label={{
+                  value: 'Mileage (miles)',
+                  position: 'insideBottom',
+                  offset: -10,
+                  style: { fontSize: 13, fill: '#475569' },
+                }}
+              />
+              <YAxis
+                type="number"
+                dataKey="price"
+                domain={priceExtent}
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                tickFormatter={value => `$${(value / 1000).toFixed(0)}k`}
+                label={{
+                  value: 'Price',
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: { fontSize: 13, fill: '#475569' },
+                }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: 12,
+                }}
+                formatter={(value: number | undefined, name: string | undefined) => {
+                  const val = value || 0
+                  if (name === 'price') return [`$${val.toLocaleString()}`, 'Price']
+                  if (name === 'mileage') return [`${val.toLocaleString()} mi`, 'Mileage']
+                  return [val, name || '']
+                }}
+                labelFormatter={(label, payload) => {
+                  if (payload && payload[0]) {
+                    return payload[0].payload.name || 'Vehicle'
+                  }
+                  return 'Vehicle'
+                }}
+              />
+              <ReferenceLine
+                x={averageMileage}
+                stroke="#10b981"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+              >
+                <Label
+                  value={`Avg Mileage: ${(averageMileage / 1000).toFixed(0)}k mi`}
+                  position="top"
+                  fill="#10b981"
+                  fontSize={11}
+                  fontWeight={600}
+                />
+              </ReferenceLine>
+              <Scatter data={scatterData} fill="#3b82f6">
+                {scatterData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={getScatterColor(
+                      entry.price,
+                      estimatedValue,
+                      lowRange,
+                      highRange,
+                      entry.isDisplayed
+                    )}
+                  />
+                ))}
+              </Scatter>
+              <Scatter data={[subjectVehicleData]} fill="#fbbf24" shape="diamond" />
+            </ScatterChart>
+          </ResponsiveContainer>
+        )}
         <div className="mt-4 flex items-center justify-center gap-4 text-xs flex-wrap">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rotate-45 bg-amber-400"></div>
