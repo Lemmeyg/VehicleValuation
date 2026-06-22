@@ -289,7 +289,7 @@ export default function VehicleValuation() {
                   htmlFor="vc-email"
                   className="block text-sm font-semibold text-slate-700 mb-2"
                 >
-                  Email <span className="text-slate-500 font-normal">(optional)</span>
+                  Email
                 </label>
                 <input
                   type="email"
