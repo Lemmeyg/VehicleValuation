@@ -756,11 +756,11 @@ function PricingContent() {
               </div>
               <div className="flex-grow">
                 <h3 className="font-bold text-slate-900 text-base mb-1">
-                  Premium Report — Money-Back Guarantee
+                  90-Day Money-Back Guarantee — Premium Report
                 </h3>
                 <p className="text-sm text-slate-600">
-                  If our Premium Report doesn&apos;t help increase your settlement by more than $25,
-                  we&apos;ll refund you. No questions asked.
+                  If your settlement offer doesn&apos;t increase after using our Premium Report,
+                  we&apos;ll refund you in full — no questions asked within 90 days.
                 </p>
               </div>
               <a
