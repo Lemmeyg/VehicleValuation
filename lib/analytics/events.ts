@@ -72,6 +72,7 @@ export type ReportWorkflowEvent = {
     | 'report_created'
     | 'report_viewed'
     | 'pdf_downloaded'
+    | 'print_dialog_opened'
     | 'report_shared'
   reportId?: string
   planType?: 'basic' | 'premium'

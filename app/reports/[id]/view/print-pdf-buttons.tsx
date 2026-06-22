@@ -1,79 +1,41 @@
 'use client'
 
-import { useState } from 'react'
-import { Download, Loader2, Share2 } from 'lucide-react'
-import { trackReportDownload, trackReportWorkflow, trackButtonClick } from '@/lib/analytics/events'
+import { useRouter } from 'next/navigation'
+import { Download, Share2 } from 'lucide-react'
+import { trackReportWorkflow, trackButtonClick } from '@/lib/analytics/events'
 
 interface PrintPdfButtonsProps {
   reportId: string
+  token?: string
 }
 
-export function PrintPdfButtons({ reportId }: PrintPdfButtonsProps) {
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
-  const [pdfError, setPdfError] = useState<string | null>(null)
+export function PrintPdfButtons({ reportId, token }: PrintPdfButtonsProps) {
+  const router = useRouter()
 
-  const handleDownloadPdf = async () => {
-    try {
-      setIsGeneratingPdf(true)
-      setPdfError(null)
-
-      // Call the PDF generation API
-      const response = await fetch(`/api/reports/${reportId}/generate-pdf`, {
-        method: 'POST',
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        // Show user-friendly error messages
-        if (response.status === 400 && data.error?.includes('not been paid')) {
-          setPdfError(
-            'PDF download is only available for paid reports. Please complete payment to download.'
-          )
-        } else {
-          throw new Error(data.error || 'Failed to generate PDF')
-        }
-        return
-      }
-
-      if (data.pdfUrl) {
-        // Track successful PDF download
-        trackReportDownload('pdf', reportId)
-        trackReportWorkflow({ step: 'pdf_downloaded', reportId })
-        // Open PDF in new tab for viewing/downloading
-        window.open(data.pdfUrl, '_blank')
-      }
-    } catch (error) {
-      console.error('Error generating PDF:', error)
-      setPdfError(error instanceof Error ? error.message : 'Failed to generate PDF')
-    } finally {
-      setIsGeneratingPdf(false)
-    }
+  const handleSaveAsPdf = () => {
+    trackReportWorkflow({ step: 'print_dialog_opened', reportId })
+    const href = token ? `/reports/${reportId}/print?token=${token}` : `/reports/${reportId}/print`
+    router.push(href)
   }
 
   const handleShare = async () => {
     const url = window.location.href
-
-    // Track share button click
     trackButtonClick('share_report', { reportId })
     trackReportWorkflow({ step: 'report_shared', reportId })
 
-    // Use Web Share API if available
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'TotalLossToolKit Report',
           text: 'Check out this report from TotalLossToolKit',
-          url: url,
+          url,
         })
       } catch (err) {
-        // User cancelled or share failed, fallback to clipboard
         if (err instanceof Error && err.name !== 'AbortError') {
           await copyToClipboard(url)
         }
       }
     } else {
-      // Fallback to clipboard copy
       await copyToClipboard(url)
     }
   }
@@ -82,36 +44,20 @@ export function PrintPdfButtons({ reportId }: PrintPdfButtonsProps) {
     try {
       await navigator.clipboard.writeText(text)
       alert('Link copied to clipboard!')
-    } catch (err) {
-      console.error('Failed to copy:', err)
+    } catch {
+      console.error('Failed to copy link')
     }
   }
 
   return (
     <div className="flex items-center space-x-4">
-      {pdfError && (
-        <div className="mr-4 max-w-xs">
-          <p className="text-sm text-red-600">{pdfError}</p>
-        </div>
-      )}
-
       <button
-        onClick={handleDownloadPdf}
-        disabled={isGeneratingPdf}
-        className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed print:hidden"
-        title="Download as PDF"
+        onClick={handleSaveAsPdf}
+        className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors print:hidden"
+        title="Save as PDF"
       >
-        {isGeneratingPdf ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Generating...
-          </>
-        ) : (
-          <>
-            <Download className="h-4 w-4 mr-2" />
-            Download PDF
-          </>
-        )}
+        <Download className="h-4 w-4 mr-2" />
+        Save as PDF
       </button>
 
       <button
