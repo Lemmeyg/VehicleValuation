@@ -32,29 +32,35 @@ export async function POST(request: Request) {
 
     // Validate email
     if (!normalizedEmail) {
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(normalizedEmail)) {
-      return NextResponse.json(
-        { error: 'Invalid email address' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
     }
 
     // FIRST: Check if user exists in Supabase Auth (primary check)
-    // This determines whether user should login or signup
+    // This determines whether user should login or signup.
+    // Query user_profiles (synced from auth.users via trigger) rather than listUsers(),
+    // which is paginated and misses users beyond the first page.
     let hasUser = false
     try {
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers()
+      const { data: profileData, error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .maybeSingle()
 
-      if (!authError && authData?.users) {
-        hasUser = authData.users.some(user => user.email?.toLowerCase() === normalizedEmail)
+      if (profileError) {
+        console.error('[check-email] Error checking user_profiles:', profileError)
+        return NextResponse.json(
+          { error: 'Failed to check user authentication status' },
+          { status: 500 }
+        )
       }
+
+      hasUser = !!profileData
     } catch (authCheckError) {
       console.error('[check-email] Error checking auth status:', authCheckError)
       return NextResponse.json(
@@ -84,7 +90,7 @@ export async function POST(request: Request) {
       email: normalizedEmail,
       hasReports,
       reportCount,
-      reportIds: reports?.map(r => r.id)
+      reportIds: reports?.map(r => r.id),
     })
 
     return NextResponse.json({
@@ -92,16 +98,10 @@ export async function POST(request: Request) {
       hasUser,
       hasReports,
       reportCount,
-      message: hasUser
-        ? 'User account exists - please login'
-        : 'New user - please create account',
+      message: hasUser ? 'User account exists - please login' : 'New user - please create account',
     })
-
   } catch (error) {
     console.error('[check-email] Unexpected error:', error)
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 })
   }
 }
