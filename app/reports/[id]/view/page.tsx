@@ -185,7 +185,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
                 {user ? '← Back to Dashboard' : '← Home'}
               </Link>
             </div>
-            <PrintPdfButtons reportId={id} />
+            <PrintPdfButtons reportId={id} token={token ?? undefined} />
           </div>
         </div>
       </nav>
