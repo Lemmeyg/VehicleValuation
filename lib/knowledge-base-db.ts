@@ -7,6 +7,7 @@
 
 import { createServerSupabaseClient, supabase } from './db/supabase'
 import { markdownToHtml } from './markdown'
+import { unstable_cache } from 'next/cache'
 
 export interface Article {
   slug: string
@@ -23,6 +24,44 @@ export interface Article {
   htmlContent?: string
   readingTime: string
 }
+
+export type ArticleListItem = Omit<Article, 'content' | 'htmlContent'>
+
+const ARTICLE_LIST_SELECT =
+  'slug, title, description, category, tags, author, date_published, date_modified, featured, published, reading_time'
+
+// Uses plain supabase anon client (not createServerSupabaseClient) — unstable_cache
+// persists across requests and cannot hold request-scoped cookie state.
+export const getArticleListMetadata = unstable_cache(
+  async (): Promise<ArticleListItem[]> => {
+    const { data: articles, error } = await supabase
+      .from('articles')
+      .select(ARTICLE_LIST_SELECT)
+      .eq('published', true)
+      .order('date_published', { ascending: false })
+
+    if (error || !articles) {
+      console.error('Error fetching article list metadata:', error)
+      return []
+    }
+
+    return articles.map(article => ({
+      slug: article.slug,
+      title: article.title,
+      description: article.description,
+      category: article.category,
+      tags: article.tags || [],
+      author: article.author,
+      datePublished: article.date_published,
+      dateModified: article.date_modified,
+      featured: article.featured || false,
+      published: true,
+      readingTime: article.reading_time || '5 min read',
+    }))
+  },
+  ['article-list-metadata'],
+  { revalidate: 3600, tags: ['article-list-metadata'] }
+)
 
 /**
  * Get all articles from database
@@ -169,12 +208,12 @@ export async function searchArticles(query: string): Promise<Article[]> {
 /**
  * Get articles by category
  */
-export async function getArticlesByCategory(category: string): Promise<Article[]> {
+export async function getArticlesByCategory(category: string): Promise<ArticleListItem[]> {
   const supabase = await createServerSupabaseClient()
 
   const { data: articles, error } = await supabase
     .from('articles')
-    .select('*')
+    .select(ARTICLE_LIST_SELECT)
     .eq('category', category)
     .eq('published', true)
     .order('date_published', { ascending: false })
@@ -194,8 +233,7 @@ export async function getArticlesByCategory(category: string): Promise<Article[]
     datePublished: article.date_published,
     dateModified: article.date_modified,
     featured: article.featured || false,
-    published: article.published !== false,
-    content: article.content,
+    published: true,
     readingTime: article.reading_time || '5 min read',
   }))
 }
