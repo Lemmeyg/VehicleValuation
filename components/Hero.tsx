@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from './ui/Button'
 import { ArrowRight, CheckCircle2, HelpCircle } from 'lucide-react'
@@ -14,6 +14,8 @@ import {
 } from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import { trackRedditLead } from '@/lib/analytics/reddit-events'
+import { isEmailCaptureEnabled } from '@/lib/feature-flags'
+import { trackEmailCapture } from '@/lib/analytics/events'
 
 export default function Hero() {
   const router = useRouter()
@@ -28,8 +30,17 @@ export default function Hero() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showVinTooltip, setShowVinTooltip] = useState(false)
 
+  const emailCaptureEnabled = isEmailCaptureEnabled()
+  const [email, setEmail] = useState('')
+
   // Track form engagement
   const hasTrackedFormStart = useRef(false)
+
+  useEffect(() => {
+    if (isEmailCaptureEnabled()) {
+      trackEmailCapture({ form: 'hero', action: 'shown' })
+    }
+  }, [])
 
   // Track when user starts filling out the form (first field interaction)
   const trackFormStart = () => {
@@ -94,6 +105,10 @@ export default function Hero() {
     }
   }
 
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value)
+  }
+
   // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -149,6 +164,18 @@ export default function Hero() {
 
     // Reddit Pixel: track as Lead conversion
     trackRedditLead()
+
+    // Email capture — fire and forget, non-blocking
+    if (emailCaptureEnabled && email.trim()) {
+      fetch('/api/leads/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      }).catch(() => {})
+      trackEmailCapture({ form: 'hero', action: 'submitted' })
+    } else if (emailCaptureEnabled) {
+      trackEmailCapture({ form: 'hero', action: 'skipped' })
+    }
 
     // Store form data in localStorage for pricing page
     const formData = {
@@ -296,8 +323,10 @@ export default function Hero() {
             onSubmit={handleSubmit}
             className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-2xl"
           >
-            {/* Three-column grid for form fields (VIN, Mileage, ZIP) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* Form fields grid — 4 cols when email capture enabled, 3 cols otherwise */}
+            <div
+              className={`grid grid-cols-1 gap-4 mb-6 ${emailCaptureEnabled ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}
+            >
               {/* VIN Field */}
               <div className="relative">
                 <div className="flex items-center justify-between mb-2">
@@ -405,6 +434,27 @@ export default function Hero() {
                   </p>
                 )}
               </div>
+
+              {/* Email capture — feature flagged, 4th column */}
+              {emailCaptureEnabled && (
+                <div>
+                  <label
+                    htmlFor="hero-email"
+                    className="block text-sm font-semibold text-slate-900 mb-2"
+                  >
+                    Email <span className="text-slate-500 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="email"
+                    id="hero-email"
+                    value={email}
+                    onChange={handleEmailChange}
+                    placeholder="your@email.com"
+                    autoComplete="email"
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-slate-900"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Submit Error */}
@@ -416,16 +466,26 @@ export default function Hero() {
 
             {/* Submit Button Row */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <p className="text-sm text-slate-600">Takes 60 seconds • Instant results</p>
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full md:w-auto px-8 group"
-                disabled={loading || vin.length !== 17 || !mileage || zipCode.length !== 5}
-              >
-                {loading ? 'Processing...' : 'Get My Independent Valuation'}
-                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-              </Button>
+              <p className="text-base text-slate-600">
+                Takes 60 seconds • Instant results
+                {emailCaptureEnabled && ' • Reports from $19'}
+              </p>
+              <div className="flex flex-col items-center w-full md:w-auto">
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full md:w-auto px-8 group"
+                  disabled={loading || vin.length !== 17 || !mileage || zipCode.length !== 5}
+                >
+                  {loading ? 'Processing...' : 'Get My Independent Valuation'}
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+                {emailCaptureEnabled && (
+                  <p className="text-xs text-slate-500 mt-2 text-center">
+                    By submitting, you agree to receive occasional emails from TotalLossToolkit.com
+                  </p>
+                )}
+              </div>
             </div>
           </form>
         </div>

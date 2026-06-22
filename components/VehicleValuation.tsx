@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2 } from 'lucide-react'
 import { Button } from './ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
 import AuthModal from './AuthModal'
-import { trackFormSubmission, trackReportWorkflow } from '@/lib/analytics/events'
+import { trackFormSubmission, trackReportWorkflow, trackEmailCapture } from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
+import { isEmailCaptureEnabled } from '@/lib/feature-flags'
 
 const PRICING_TIERS = [
   {
@@ -48,6 +49,8 @@ export default function VehicleValuation() {
   const [vin, setVin] = useState('')
   const [mileage, setMileage] = useState('')
   const [zipCode, setZipCode] = useState('')
+  const emailCaptureEnabled = isEmailCaptureEnabled()
+  const [email, setEmail] = useState('')
 
   // UI state
   const [loading, setLoading] = useState(false)
@@ -55,6 +58,12 @@ export default function VehicleValuation() {
   const [showAuthModal, setShowAuthModal] = useState(false)
 
   const hasTrackedFormStart = useRef(false)
+
+  useEffect(() => {
+    if (isEmailCaptureEnabled()) {
+      trackEmailCapture({ form: 'bottom', action: 'shown' })
+    }
+  }, [])
 
   const trackFormStart = () => {
     if (!hasTrackedFormStart.current) {
@@ -84,6 +93,10 @@ export default function VehicleValuation() {
     const value = e.target.value.replace(/\D/g, '').slice(0, 5) // Only digits, max 5
     setZipCode(value)
     setError('')
+  }
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -155,6 +168,18 @@ export default function VehicleValuation() {
         }),
       })
 
+      // Email capture — fire and forget, does not block navigation
+      if (emailCaptureEnabled && email.trim()) {
+        fetch('/api/leads/capture', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim() }),
+        }).catch(() => {})
+        trackEmailCapture({ form: 'bottom', action: 'submitted' })
+      } else if (emailCaptureEnabled) {
+        trackEmailCapture({ form: 'bottom', action: 'skipped' })
+      }
+
       router.push(`/pricing?reportId=${data.report.id}`)
     } catch (err) {
       console.error('Error creating report:', err)
@@ -191,7 +216,9 @@ export default function VehicleValuation() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto mb-16">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div
+            className={`grid grid-cols-1 gap-4 mb-4 ${emailCaptureEnabled ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}
+          >
             {/* VIN Input */}
             <div className="flex-1">
               <label htmlFor="vin" className="block text-sm font-semibold text-slate-700 mb-2">
@@ -254,6 +281,27 @@ export default function VehicleValuation() {
                 {zipCode.length}/5 digits
               </p>
             </div>
+
+            {/* Email capture — feature flagged, 4th column */}
+            {emailCaptureEnabled && (
+              <div>
+                <label
+                  htmlFor="vc-email"
+                  className="block text-sm font-semibold text-slate-700 mb-2"
+                >
+                  Email <span className="text-slate-500 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="email"
+                  id="vc-email"
+                  value={email}
+                  onChange={handleEmailChange}
+                  placeholder="your@email.com"
+                  autoComplete="email"
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm"
+                />
+              </div>
+            )}
           </div>
 
           {/* Error Message */}
@@ -264,7 +312,12 @@ export default function VehicleValuation() {
           )}
 
           {/* Submit Button */}
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center">
+            {emailCaptureEnabled && (
+              <p className="text-sm text-slate-600 mb-3 text-center">
+                Reports from $19 — instant access, 90-day money-back guarantee
+              </p>
+            )}
             <Button
               type="submit"
               size="lg"
@@ -273,6 +326,11 @@ export default function VehicleValuation() {
             >
               {loading ? 'Creating Report...' : 'Get Your Valuation'}
             </Button>
+            {emailCaptureEnabled && (
+              <p className="text-xs text-slate-500 mt-3 text-center">
+                By submitting, you agree to receive occasional emails from TotalLossToolkit.com
+              </p>
+            )}
           </div>
         </form>
 

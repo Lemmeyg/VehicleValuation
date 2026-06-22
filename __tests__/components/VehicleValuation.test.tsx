@@ -26,6 +26,12 @@ jest.mock('@/components/AuthModal', () => ({
     ) : null,
 }))
 
+jest.mock('@/lib/feature-flags', () => ({
+  isEmailCaptureEnabled: jest.fn().mockReturnValue(false),
+}))
+import { isEmailCaptureEnabled } from '@/lib/feature-flags'
+const mockIsEmailCaptureEnabled = isEmailCaptureEnabled as jest.Mock
+
 const mockPush = jest.fn()
 const mockPosthog = posthog as jest.Mocked<typeof posthog>
 
@@ -117,5 +123,56 @@ describe('VehicleValuation analytics tracking', () => {
       'form_submitted',
       expect.objectContaining({ form: 'bottom_vehicle_form', success: false })
     )
+  })
+})
+
+describe('VehicleValuation — email capture disabled', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockIsEmailCaptureEnabled.mockReturnValue(false)
+    setupMocks()
+  })
+
+  it('does not render email field when feature is off', () => {
+    render(<VehicleValuation />)
+    expect(screen.queryByLabelText(/email address/i)).not.toBeInTheDocument()
+  })
+
+  it('does not render price mention when feature is off', () => {
+    render(<VehicleValuation />)
+    expect(screen.queryByText(/reports from \$19/i)).not.toBeInTheDocument()
+  })
+
+  it('does not render permission text when feature is off', () => {
+    render(<VehicleValuation />)
+    expect(screen.queryByText(/agree to receive/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('VehicleValuation — email capture enabled', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockIsEmailCaptureEnabled.mockReturnValue(true)
+    setupMocks()
+  })
+
+  it('renders the email field', () => {
+    render(<VehicleValuation />)
+    expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
+  })
+
+  it('marks the email field as optional', () => {
+    render(<VehicleValuation />)
+    expect(screen.getByText(/optional/i)).toBeInTheDocument()
+  })
+
+  it('renders price mention text', () => {
+    render(<VehicleValuation />)
+    expect(screen.getByText(/reports from \$19/i)).toBeInTheDocument()
+  })
+
+  it('renders permission text', () => {
+    render(<VehicleValuation />)
+    expect(screen.getByText(/agree to receive occasional emails/i)).toBeInTheDocument()
   })
 })
