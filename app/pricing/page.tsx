@@ -65,6 +65,15 @@ const TESTIMONIALS = [
   },
 ]
 
+const WHATS_INCLUDED = [
+  { label: 'Accurate market value from 450M+ real listings' },
+  { label: '10 verified comparable vehicles with prices and locations' },
+  { label: 'High/low value range with confidence score' },
+  { label: 'VIN-decoded equipment and trim-level precision' },
+  { label: 'Regional pricing factors specific to your ZIP code' },
+  { label: 'Negotiation-ready PDF format with professional layout' },
+]
+
 interface Report {
   id: string
   vin: string
@@ -649,6 +658,24 @@ function PricingContent() {
                 </div>
               </blockquote>
             ))}
+          </div>
+
+          {/* What's Included */}
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-slate-900 mb-4 text-center">
+              What&apos;s in your report
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {WHATS_INCLUDED.map((item, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 bg-white rounded-xl border border-slate-100 px-4 py-3 shadow-sm"
+                >
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm text-slate-700">{item.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Pricing Cards */}
