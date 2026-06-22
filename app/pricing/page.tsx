@@ -50,6 +50,30 @@ const PRICING_TIERS = [
   },
 ]
 
+const TESTIMONIALS = [
+  {
+    quote:
+      'First offer was $23.5K. I provided an updated list of comparable sales from the report and ended up receiving $28K — a $4,500 increase.',
+    attribution: 'M.R., California — 2020 Honda Civic',
+    outcome: '+$4,500',
+  },
+  {
+    quote:
+      'They initially tried to offer $9,800 for my car. The independent vehicle evaluation pegged it at $23,000. They cut me a check a week later.',
+    attribution: 'T.K., Texas — 2018 Toyota Camry',
+    outcome: '+$13,200',
+  },
+]
+
+const WHATS_INCLUDED = [
+  { label: 'Accurate market value from 450M+ real listings' },
+  { label: '10 verified comparable vehicles with prices and locations' },
+  { label: 'High/low value range with confidence score' },
+  { label: 'VIN-decoded equipment and trim-level precision' },
+  { label: 'Regional pricing factors specific to your ZIP code' },
+  { label: 'Negotiation-ready PDF format with professional layout' },
+]
+
 interface Report {
   id: string
   vin: string
@@ -613,25 +637,45 @@ function PricingContent() {
 
           {/* Social Proof Quotes */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <blockquote className="bg-white border-l-4 border-primary-500 pl-5 py-4 pr-5 rounded-r-xl shadow-sm">
-              <div className="flex items-start gap-3">
-                <Quote className="h-5 w-5 text-primary-400 flex-shrink-0 mt-0.5" />
-                <p className="text-slate-700 italic text-sm leading-relaxed">
-                  &ldquo;First offer was $23.5K... sent an updated list of comps and ended up
-                  receiving <strong className="text-primary-600 not-italic">$28K</strong>.&rdquo;
-                </p>
-              </div>
-            </blockquote>
-            <blockquote className="bg-white border-l-4 border-primary-500 pl-5 py-4 pr-5 rounded-r-xl shadow-sm">
-              <div className="flex items-start gap-3">
-                <Quote className="h-5 w-5 text-primary-400 flex-shrink-0 mt-0.5" />
-                <p className="text-slate-700 italic text-sm leading-relaxed">
-                  &ldquo;They initially tried to offer $9,800... The independent vehicle evaluator
-                  pegged it at <strong className="text-primary-600 not-italic">$23,000</strong>.
-                  They cut me a check a week later.&rdquo;
-                </p>
-              </div>
-            </blockquote>
+            {TESTIMONIALS.map((t, i) => (
+              <blockquote
+                key={i}
+                className="bg-white border-l-4 border-primary-500 pl-5 py-4 pr-5 rounded-r-xl shadow-sm"
+              >
+                <div className="flex items-start gap-3">
+                  <Quote className="h-5 w-5 text-primary-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-slate-700 italic text-sm leading-relaxed mb-2">
+                      &ldquo;{t.quote}&rdquo;
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-slate-500 not-italic">{t.attribution}</p>
+                      <span className="text-sm font-bold text-emerald-600 not-italic ml-3 whitespace-nowrap">
+                        {t.outcome}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </blockquote>
+            ))}
+          </div>
+
+          {/* What's Included */}
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-slate-900 mb-4 text-center">
+              What&apos;s in your report
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {WHATS_INCLUDED.map((item, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 bg-white rounded-xl border border-slate-100 px-4 py-3 shadow-sm"
+                >
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm text-slate-700">{item.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Pricing Cards */}
@@ -739,11 +783,11 @@ function PricingContent() {
               </div>
               <div className="flex-grow">
                 <h3 className="font-bold text-slate-900 text-base mb-1">
-                  Premium Report — Money-Back Guarantee
+                  90-Day Money-Back Guarantee — Premium Report
                 </h3>
                 <p className="text-sm text-slate-600">
-                  If our Premium Report doesn&apos;t help increase your settlement by more than $25,
-                  we&apos;ll refund you. No questions asked.
+                  If your settlement offer doesn&apos;t increase after using our Premium Report,
+                  we&apos;ll refund you in full — no questions asked within 90 days.
                 </p>
               </div>
               <a
