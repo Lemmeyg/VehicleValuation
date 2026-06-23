@@ -9,6 +9,7 @@ export const supabase = {
   update: jest.fn().mockReturnThis(),
   eq: jest.fn().mockReturnThis(),
   single: jest.fn().mockResolvedValue({ data: null, error: null }),
+  rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
   storage: {
     from: jest.fn().mockReturnThis(),
     upload: jest.fn().mockResolvedValue({ error: null }),
@@ -26,6 +27,7 @@ export const supabaseAdmin = {
   update: jest.fn().mockReturnThis(),
   eq: jest.fn().mockReturnThis(),
   single: jest.fn().mockResolvedValue({ data: null, error: null }),
+  rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
   storage: {
     from: jest.fn().mockReturnThis(),
     upload: jest.fn().mockResolvedValue({ error: null }),
