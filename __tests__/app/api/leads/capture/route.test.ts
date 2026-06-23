@@ -19,9 +19,7 @@ function makeRequest(body: unknown, ip = '1.2.3.4') {
 beforeEach(() => {
   jest.clearAllMocks()
   _rateLimitMap.clear()
-
-  const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: null })
-  ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ upsert: mockUpsert })
+  ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
 })
 
 describe('POST /api/leads/capture', () => {
@@ -54,34 +52,26 @@ describe('POST /api/leads/capture', () => {
     expect(body.ok).toBe(true)
   })
 
-  it('upserts to leads table with source "report"', async () => {
-    const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: null })
-    ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ upsert: mockUpsert })
-
+  it('calls upsert_lead RPC with form_submitted lead type', async () => {
     await POST(makeRequest({ email: 'user@example.com' }))
-
-    expect((supabaseAdmin as any).from).toHaveBeenCalledWith('leads')
-    expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'user@example.com', source: 'report' }),
-      { onConflict: 'email,source' }
-    )
+    expect((supabaseAdmin as any).rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'user@example.com',
+      p_lead_type: 'form_submitted',
+    })
   })
 
   it('normalises email to lowercase before saving', async () => {
-    const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: null })
-    ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ upsert: mockUpsert })
-
     await POST(makeRequest({ email: 'User@Example.COM' }))
-
-    expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'user@example.com' }),
-      expect.anything()
-    )
+    expect((supabaseAdmin as any).rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'user@example.com',
+      p_lead_type: 'form_submitted',
+    })
   })
 
-  it('returns 500 when DB upsert fails', async () => {
-    const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } })
-    ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ upsert: mockUpsert })
+  it('returns 500 when RPC fails', async () => {
+    ;(supabaseAdmin as any).rpc = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'DB error' } })
 
     const res = await POST(makeRequest({ email: 'user@example.com' }))
     expect(res.status).toBe(500)
