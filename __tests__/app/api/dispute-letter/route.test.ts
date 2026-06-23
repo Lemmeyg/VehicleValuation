@@ -19,9 +19,7 @@ function makeRequest(body: unknown, ip = '1.2.3.4') {
 beforeEach(() => {
   jest.clearAllMocks()
   _rateLimitMap.clear()
-
-  const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: null })
-  ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ upsert: mockUpsert })
+  ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
 
   const mockCreateSignedUrl = jest.fn().mockResolvedValue({
     data: { signedUrl: 'https://signed.url/file.docx' },
@@ -63,22 +61,18 @@ describe('POST /api/dispute-letter', () => {
     expect(body.downloadUrl).toBe('https://signed.url/file.docx')
   })
 
-  it('upserts lead with correct email and source', async () => {
-    const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: null })
-    ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ upsert: mockUpsert })
-
+  it('calls upsert_lead RPC with dispute_letter lead type', async () => {
     await POST(makeRequest({ email: 'user@example.com' }))
-
-    expect((supabaseAdmin as any).from).toHaveBeenCalledWith('leads')
-    expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'user@example.com', source: 'dispute-letter' }),
-      { onConflict: 'email,source' }
-    )
+    expect((supabaseAdmin as any).rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'user@example.com',
+      p_lead_type: 'dispute_letter',
+    })
   })
 
-  it('still returns 200 even when DB upsert fails', async () => {
-    const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } })
-    ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ upsert: mockUpsert })
+  it('still returns 200 even when lead RPC fails', async () => {
+    ;(supabaseAdmin as any).rpc = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'DB error' } })
 
     const res = await POST(makeRequest({ email: 'user@example.com' }))
     expect(res.status).toBe(200)

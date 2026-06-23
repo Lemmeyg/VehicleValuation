@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db/supabase'
+import { upsertLead } from '@/lib/leads'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const RATE_LIMIT_MAX = 20
@@ -39,15 +40,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Valid email is required' }, { status: 400 })
   }
 
-  const { error: dbError } = await supabaseAdmin
-    .from('leads')
-    .upsert(
-      { email, source: 'dispute-letter', created_at: new Date().toISOString() },
-      { onConflict: 'email,source' }
-    )
-
-  if (dbError) {
-    console.error('[dispute-letter] DB upsert error:', dbError)
+  // Lead capture — non-fatal: the user can still download even if this fails
+  try {
+    await upsertLead(supabaseAdmin, email, 'dispute_letter')
+  } catch (err) {
+    console.error('[dispute-letter] Lead capture failed (non-fatal):', err)
   }
 
   const { data, error: storageError } = await supabaseAdmin.storage

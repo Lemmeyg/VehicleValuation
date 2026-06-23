@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin, createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
+import { upsertLead } from '@/lib/leads'
 
 /**
  * Create Anonymous Report Endpoint
@@ -156,10 +157,10 @@ export async function POST(request: Request) {
         status: 'pending', // Reports start as pending until payment received
         vehicle_data: null, // Populated by webhook after payment
         user_id: authenticatedUserId, // Link to user if authenticated, otherwise null
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(isAnonymous
           ? { access_token: accessToken, access_token_expires_at: accessTokenExpiresAt }
-          : ({} as any)),
+          : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ({} as any)),
       })
       .select()
       .single()
@@ -173,6 +174,15 @@ export async function POST(request: Request) {
         },
         { status: 500 }
       )
+    }
+
+    // Capture form_submitted lead — non-fatal
+    if (normalizedEmail) {
+      try {
+        await upsertLead(supabaseAdmin, normalizedEmail, 'form_submitted')
+      } catch (leadErr) {
+        console.error('[create-anonymous] Lead capture failed (non-fatal):', leadErr)
+      }
     }
 
     console.log('[create-anonymous] Report created successfully:', {

@@ -20,6 +20,7 @@ const mockLogApiCall = logApiCall as jest.MockedFunction<typeof logApiCall>
 jest.mock('@/lib/db/supabase', () => ({
   supabaseAdmin: {
     from: jest.fn(),
+    rpc: jest.fn(),
     auth: {
       admin: {
         createUser: jest.fn(),
@@ -103,6 +104,8 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ;(client.verifyWebhookSignature as jest.Mock).mockReturnValue(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
 
     // Mock report fetch
     const mockFrom = jest.fn().mockReturnValue({
@@ -438,6 +441,8 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
   beforeEach(() => {
     jest.clearAllMocks()
     ;(client.verifyWebhookSignature as jest.Mock).mockReturnValue(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
 
     // Default report mock: no pre-existing marketcheck_valuation
     const mockFrom = jest.fn().mockReturnValue({
@@ -680,5 +685,104 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
     // comparables_supplemented should be false
     expect(capturedUpdateArg).not.toBeNull()
     expect(capturedUpdateArg).toMatchObject({ comparables_supplemented: false })
+  })
+})
+
+describe('POST /api/lemonsqueezy/webhook — Lead capture on successful payment', () => {
+  function makePaidOrderRequest(overrides: { customerEmail?: string } = {}) {
+    const body = makeOrderCreatedBody({
+      user_email: overrides.customerEmail ?? 'buyer@example.com',
+      status: 'paid',
+    })
+    return new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body,
+    })
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(client.verifyWebhookSignature as jest.Mock).mockReturnValue(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
+
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: jest.fn().mockReturnValue({
+        eq: jest.fn().mockResolvedValue({ error: null }),
+      }),
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+    ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
+      success: true,
+      fallbackUsed: false,
+      data: {
+        predictedPrice: 25000,
+        confidence: 'high',
+        totalComparablesFound: 10,
+        recentComparables: { num_found: 5, listings: [] },
+      },
+    })
+    ;(autodev.fetchAutoDevVinDecode as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { make: 'Honda', model: 'Accord', vehicle: { year: 2021 }, vinValid: true },
+    })
+    mockLogApiCall.mockResolvedValue(undefined)
+    ;(pdfGenerator.generateAndUploadPDF as jest.Mock).mockResolvedValue(undefined)
+    ;(mockAdmin.auth.admin.createUser as jest.Mock).mockResolvedValue({
+      data: { user: { id: 'new-user-id' } },
+      error: null,
+    })
+
+    mockValidateListingUrls.mockImplementation(async prediction => ({
+      prediction,
+      stats: { checkedCount: 0, failedCount: 0, failedUrls: [], validatedUrls: [], batchesUsed: 0 },
+    }))
+    mockSupplementComparables.mockImplementation(async prediction => ({
+      prediction,
+      supplemented: false,
+    }))
+  })
+
+  it('calls upsert_lead with purchased lead type after payment confirmed', async () => {
+    await POST(makePaidOrderRequest({ customerEmail: 'buyer@example.com' }))
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((supabaseAdmin as any).rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'buyer@example.com',
+      p_lead_type: 'purchased',
+    })
+  })
+
+  it('continues processing if lead capture fails', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabaseAdmin as any).rpc = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'RPC error' } })
+
+    const res = await POST(makePaidOrderRequest({ customerEmail: 'buyer@example.com' }))
+    // Webhook should still return 200
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.received).toBe(true)
   })
 })
