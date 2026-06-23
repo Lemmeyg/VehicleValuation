@@ -9,6 +9,7 @@ import type { LemonSqueezyWebhookEvent } from '@/lib/lemonsqueezy/types'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import type { ValidationStats } from '@/lib/utils/url-validator'
+import { upsertLead } from '@/lib/leads'
 
 export async function POST(request: NextRequest) {
   try {
@@ -180,6 +181,16 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
       success: true,
       requestData: { reportId, resolvedUserId, orderId, amount },
     })
+
+    // Capture purchased lead — non-fatal: webhook continues regardless
+    if (customerEmail) {
+      try {
+        await upsertLead(supabaseAdmin, customerEmail, 'purchased')
+        console.log('[WH-5b] Lead captured as purchased for:', customerEmail)
+      } catch (leadErr) {
+        console.error('[WH-5b] Lead capture failed (non-fatal):', leadErr)
+      }
+    }
 
     // Fetch the report to get VIN, mileage, ZIP for API calls
     const { data: report, error: fetchError } = await supabase
