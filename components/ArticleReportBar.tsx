@@ -3,8 +3,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
-import { trackEvent, trackFormSubmission, trackReportWorkflow } from '@/lib/analytics/events'
+import {
+  trackEvent,
+  trackFormSubmission,
+  trackReportWorkflow,
+  trackEmailCapture,
+} from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
+import { isEmailCaptureEnabled } from '@/lib/feature-flags'
 
 interface ArticleReportBarProps {
   articleSlug: string
@@ -24,9 +30,12 @@ const TICKER_INTERVAL = 3500
 export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarProps) {
   const router = useRouter()
 
+  const emailCaptureEnabled = isEmailCaptureEnabled()
+
   const [vin, setVin] = useState('')
   const [mileage, setMileage] = useState('')
   const [zipCode, setZipCode] = useState('')
+  const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [tickerIndex, setTickerIndex] = useState(0)
@@ -72,6 +81,10 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
     setError('')
   }
 
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value)
+  }
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     setError('')
@@ -114,6 +127,18 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
         kb_source_visited_at: kbAttr.visited_at,
       }),
     })
+
+    // Email capture — fire and forget, non-blocking
+    if (emailCaptureEnabled && email.trim()) {
+      fetch('/api/leads/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), source: 'KB report form' }),
+      })
+      trackEmailCapture({ form: 'kb_article_bar', action: 'submitted' })
+    } else if (emailCaptureEnabled) {
+      trackEmailCapture({ form: 'kb_article_bar', action: 'skipped' })
+    }
 
     // Store form data for pricing page — same pattern as Hero form, no auth required before purchase
     localStorage.setItem(
@@ -196,6 +221,21 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
             className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
           />
         </div>
+        {emailCaptureEnabled && (
+          <div className="min-w-[140px] flex-1">
+            <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={handleEmailChange}
+              placeholder="your@email.com"
+              autoComplete="email"
+              className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+            />
+          </div>
+        )}
         <button
           type="submit"
           disabled={!isSubmittable || loading}
@@ -212,6 +252,11 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
       <p className="mt-2.5 text-[11px] text-white/55">
         Takes 60 seconds &bull; Independent of your insurer &bull; Professional PDF report
       </p>
+      {emailCaptureEnabled && (
+        <p className="mt-1 text-[11px] text-white/55">
+          By submitting, you agree to receive occasional emails from TotalLossToolkit.com
+        </p>
+      )}
     </div>
   )
 }
