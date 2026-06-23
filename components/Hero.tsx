@@ -442,7 +442,7 @@ export default function Hero() {
                     htmlFor="hero-email"
                     className="block text-sm font-semibold text-slate-900 mb-2"
                   >
-                    Email <span className="text-slate-500 font-normal">(optional)</span>
+                    Email
                   </label>
                   <input
                     type="email"
