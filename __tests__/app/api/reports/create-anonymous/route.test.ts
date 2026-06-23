@@ -77,6 +77,7 @@ beforeEach(() => {
 
   mockFetchAutoDevVinDecode.mockResolvedValue({ success: true, data: mockAutoDevData })
   mockLogApiCall.mockResolvedValue(undefined)
+  ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
 })
 
 function makeRequest(body: object) {
@@ -131,4 +132,59 @@ it('does not call fetch() for marketcheck/valuation', async () => {
   const marketCheckCalls = fetchSpy.mock.calls.filter(c => String(c[0]).includes('marketcheck'))
   expect(marketCheckCalls).toHaveLength(0)
   fetchSpy.mockRestore()
+})
+
+describe('Lead capture', () => {
+  it('calls upsert_lead RPC with form_submitted when email is provided', async () => {
+    const req = new Request('http://localhost/api/reports/create-anonymous', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vin: '1HGCM82633A004352',
+        mileage: 50000,
+        zipCode: '90210',
+        email: 'user@example.com',
+      }),
+    })
+    await POST(req)
+    expect((supabaseAdmin as any).rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'user@example.com',
+      p_lead_type: 'form_submitted',
+    })
+  })
+
+  it('does NOT call upsert_lead when no email is provided', async () => {
+    const req = new Request('http://localhost/api/reports/create-anonymous', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vin: '1HGCM82633A004352',
+        mileage: 50000,
+        zipCode: '90210',
+      }),
+    })
+    await POST(req)
+    expect((supabaseAdmin as any).rpc).not.toHaveBeenCalledWith('upsert_lead', expect.anything())
+  })
+
+  it('still creates the report even if lead capture fails', async () => {
+    ;(supabaseAdmin as any).rpc = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'RPC error' } })
+
+    const req = new Request('http://localhost/api/reports/create-anonymous', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vin: '1HGCM82633A004352',
+        mileage: 50000,
+        zipCode: '90210',
+        email: 'user@example.com',
+      }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.success).toBe(true)
+  })
 })
