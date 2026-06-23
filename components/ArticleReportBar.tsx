@@ -180,83 +180,85 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2.5">
-        <div className="min-w-[110px] flex-1">
-          <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
-            VIN
-          </label>
-          <input
-            type="text"
-            value={vin}
-            onChange={handleVinChange}
-            placeholder="1HGCM82633A123456"
-            maxLength={17}
-            className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-          />
-        </div>
-        <div className="min-w-[110px] flex-1">
-          <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
-            Mileage
-          </label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={mileage}
-            onChange={handleMileageChange}
-            placeholder="e.g., 42,000"
-            className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-          />
-        </div>
-        <div className="min-w-[110px] flex-1">
-          <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
-            ZIP Code
-          </label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={zipCode}
-            onChange={handleZipCodeChange}
-            placeholder="e.g., 90210"
-            maxLength={5}
-            className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-          />
-        </div>
-        {emailCaptureEnabled && (
-          <div className="min-w-[140px] flex-1">
+      <form onSubmit={handleSubmit}>
+        {/* Input fields row */}
+        <div className="flex flex-wrap gap-2.5 mb-2.5">
+          <div className="min-w-[110px] flex-1">
             <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
-              Email
+              VIN
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={handleEmailChange}
-              placeholder="your@email.com"
-              autoComplete="email"
+              type="text"
+              value={vin}
+              onChange={handleVinChange}
+              placeholder="1HGCM82633A123456"
+              maxLength={17}
               className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
             />
           </div>
-        )}
-        <button
-          type="submit"
-          disabled={!isSubmittable || loading}
-          className="flex h-[38px] flex-shrink-0 items-center gap-1.5 self-end rounded-lg bg-white px-5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? 'Starting...' : 'Get My Independent Valuation →'}
-        </button>
+          <div className="min-w-[110px] flex-1">
+            <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
+              Mileage
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={mileage}
+              onChange={handleMileageChange}
+              placeholder="e.g., 42,000"
+              className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+            />
+          </div>
+          <div className="min-w-[110px] flex-1">
+            <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
+              ZIP Code
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={zipCode}
+              onChange={handleZipCodeChange}
+              placeholder="e.g., 90210"
+              maxLength={5}
+              className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+            />
+          </div>
+          {emailCaptureEnabled && (
+            <div className="min-w-[140px] flex-1">
+              <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={handleEmailChange}
+                placeholder="your@email.com"
+                autoComplete="email"
+                className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Button + disclaimer row */}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            disabled={!isSubmittable || loading}
+            className="flex h-[38px] flex-shrink-0 items-center gap-1.5 rounded-lg bg-white px-5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? 'Starting...' : 'Get My Independent Valuation →'}
+          </button>
+          {emailCaptureEnabled && (
+            <p className="text-[11px] text-white/55">
+              By submitting, you agree to receive occasional emails from TotalLossToolkit.com
+            </p>
+          )}
+        </div>
       </form>
 
       {/* Error */}
       {error && <p className="mt-2 text-sm font-medium text-white/90">{error}</p>}
-
-      {/* Footnote */}
-      <p className="mt-2.5 text-[11px] text-white/55">
-        Takes 60 seconds &bull; Independent of your insurer &bull; Professional PDF report
-      </p>
-      {emailCaptureEnabled && (
-        <p className="mt-1 text-[11px] text-white/55">
-          By submitting, you agree to receive occasional emails from TotalLossToolkit.com
-        </p>
-      )}
     </div>
   )
 }
