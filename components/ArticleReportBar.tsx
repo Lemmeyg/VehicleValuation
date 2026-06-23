@@ -241,7 +241,12 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
         </div>
 
         {/* Button + disclaimer row */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {emailCaptureEnabled && (
+            <p className="text-[11px] text-white/55">
+              By submitting, you agree to receive occasional emails from TotalLossToolkit.com
+            </p>
+          )}
           <button
             type="submit"
             disabled={!isSubmittable || loading}
@@ -249,11 +254,6 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
           >
             {loading ? 'Starting...' : 'Get My Independent Valuation →'}
           </button>
-          {emailCaptureEnabled && (
-            <p className="text-[11px] text-white/55">
-              By submitting, you agree to receive occasional emails from TotalLossToolkit.com
-            </p>
-          )}
         </div>
       </form>
 
