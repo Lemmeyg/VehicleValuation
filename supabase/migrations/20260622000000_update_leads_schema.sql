@@ -77,7 +77,8 @@ BEGIN
 
   IF NOT FOUND THEN
     INSERT INTO public.leads (email, lead_type)
-    VALUES (p_email, p_lead_type);
+    VALUES (p_email, p_lead_type)
+    ON CONFLICT (email) DO NOTHING;
   ELSE
     v_existing_priority := CASE v_existing_type
       WHEN 'dispute_letter'  THEN 1
