@@ -95,7 +95,7 @@ export type CheckoutEvent = {
 }
 
 export type EmailCaptureEvent = {
-  form: 'hero' | 'bottom'
+  form: 'hero' | 'bottom' | 'kb_article_bar'
   action: 'shown' | 'submitted' | 'skipped'
 }
 

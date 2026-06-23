@@ -3,8 +3,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
-import { trackEvent, trackFormSubmission, trackReportWorkflow } from '@/lib/analytics/events'
+import {
+  trackEvent,
+  trackFormSubmission,
+  trackReportWorkflow,
+  trackEmailCapture,
+} from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
+import { isEmailCaptureEnabled } from '@/lib/feature-flags'
 
 interface ArticleReportBarProps {
   articleSlug: string
@@ -24,9 +30,12 @@ const TICKER_INTERVAL = 3500
 export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarProps) {
   const router = useRouter()
 
+  const emailCaptureEnabled = isEmailCaptureEnabled()
+
   const [vin, setVin] = useState('')
   const [mileage, setMileage] = useState('')
   const [zipCode, setZipCode] = useState('')
+  const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [tickerIndex, setTickerIndex] = useState(0)
@@ -72,6 +81,10 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
     setError('')
   }
 
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value)
+  }
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     setError('')
@@ -115,6 +128,18 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
       }),
     })
 
+    // Email capture — fire and forget, non-blocking
+    if (emailCaptureEnabled && email.trim()) {
+      fetch('/api/leads/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), source: 'KB report form' }),
+      })
+      trackEmailCapture({ form: 'kb_article_bar', action: 'submitted' })
+    } else if (emailCaptureEnabled) {
+      trackEmailCapture({ form: 'kb_article_bar', action: 'skipped' })
+    }
+
     // Store form data for pricing page — same pattern as Hero form, no auth required before purchase
     localStorage.setItem(
       'hero_form_data',
@@ -155,63 +180,85 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2.5">
-        <div className="min-w-[110px] flex-1">
-          <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
-            VIN
-          </label>
-          <input
-            type="text"
-            value={vin}
-            onChange={handleVinChange}
-            placeholder="1HGCM82633A123456"
-            maxLength={17}
-            className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-          />
+      <form onSubmit={handleSubmit}>
+        {/* Input fields row */}
+        <div className="flex flex-wrap gap-2.5 mb-2.5">
+          <div className="min-w-[110px] flex-1">
+            <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
+              VIN
+            </label>
+            <input
+              type="text"
+              value={vin}
+              onChange={handleVinChange}
+              placeholder="1HGCM82633A123456"
+              maxLength={17}
+              className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+            />
+          </div>
+          <div className="min-w-[110px] flex-1">
+            <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
+              Mileage
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={mileage}
+              onChange={handleMileageChange}
+              placeholder="e.g., 42,000"
+              className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+            />
+          </div>
+          <div className="min-w-[110px] flex-1">
+            <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
+              ZIP Code
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={zipCode}
+              onChange={handleZipCodeChange}
+              placeholder="e.g., 90210"
+              maxLength={5}
+              className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+            />
+          </div>
+          {emailCaptureEnabled && (
+            <div className="min-w-[140px] flex-1">
+              <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={handleEmailChange}
+                placeholder="your@email.com"
+                autoComplete="email"
+                className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+              />
+            </div>
+          )}
         </div>
-        <div className="min-w-[110px] flex-1">
-          <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
-            Mileage
-          </label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={mileage}
-            onChange={handleMileageChange}
-            placeholder="e.g., 42,000"
-            className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-          />
+
+        {/* Button + disclaimer row */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {emailCaptureEnabled && (
+            <p className="text-[11px] text-white/55">
+              By submitting, you agree to receive occasional emails from TotalLossToolkit.com
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={!isSubmittable || loading}
+            className="flex h-[38px] flex-shrink-0 items-center gap-1.5 rounded-lg bg-white px-5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? 'Starting...' : 'Get My Independent Valuation →'}
+          </button>
         </div>
-        <div className="min-w-[110px] flex-1">
-          <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-white/80">
-            ZIP Code
-          </label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={zipCode}
-            onChange={handleZipCodeChange}
-            placeholder="e.g., 90210"
-            maxLength={5}
-            className="w-full rounded-lg border-none bg-white/95 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={!isSubmittable || loading}
-          className="flex h-[38px] flex-shrink-0 items-center gap-1.5 self-end rounded-lg bg-white px-5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? 'Starting...' : 'Get My Independent Valuation →'}
-        </button>
       </form>
 
       {/* Error */}
       {error && <p className="mt-2 text-sm font-medium text-white/90">{error}</p>}
-
-      {/* Footnote */}
-      <p className="mt-2.5 text-[11px] text-white/55">
-        Takes 60 seconds &bull; Independent of your insurer &bull; Professional PDF report
-      </p>
     </div>
   )
 }

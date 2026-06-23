@@ -26,9 +26,11 @@ export async function POST(request: NextRequest) {
   }
 
   let email: string
+  let source: string
   try {
     const body = await request.json()
     email = String(body?.email ?? '')
+    source = String(body?.source ?? 'report')
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
@@ -41,10 +43,7 @@ export async function POST(request: NextRequest) {
 
   const { error: dbError } = await supabaseAdmin
     .from('leads')
-    .upsert(
-      { email, source: 'report', created_at: new Date().toISOString() },
-      { onConflict: 'email,source' }
-    )
+    .upsert({ email, source, created_at: new Date().toISOString() }, { onConflict: 'email,source' })
 
   if (dbError) {
     console.error('[leads/capture] DB upsert error:', dbError)
