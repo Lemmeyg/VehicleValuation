@@ -100,16 +100,24 @@ export function MarketCharts({
   const averageMileage = scatterData.reduce((sum, d) => sum + d.mileage, 0) / scatterData.length
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div className={printMode ? 'grid grid-cols-2 gap-4' : 'grid grid-cols-1 lg:grid-cols-2 gap-8'}>
       {/* Price Distribution Histogram */}
       <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Price Distribution</h3>
-        <p className="text-sm text-slate-600 mb-4">
+        <h3
+          className={
+            printMode
+              ? 'text-sm font-semibold text-slate-900 mb-2'
+              : 'text-lg font-semibold text-slate-900 mb-4'
+          }
+        >
+          Price Distribution
+        </h3>
+        <p className={printMode ? 'text-xs text-slate-600 mb-2' : 'text-sm text-slate-600 mb-4'}>
           Distribution of {listings.length} comparable vehicle prices
         </p>
         {printMode ? (
-          <div data-print-chart style={{ width: 520, height: 280 }}>
-            <BarChart width={520} height={280} data={priceDistribution}>
+          <div data-print-chart style={{ width: 290, height: 200 }}>
+            <BarChart width={290} height={200} data={priceDistribution}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
                 dataKey="range"
@@ -236,15 +244,23 @@ export function MarketCharts({
 
       {/* Price vs Mileage Scatter Plot */}
       <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Price vs. Mileage Analysis</h3>
-        <p className="text-sm text-slate-600 mb-4">
+        <h3
+          className={
+            printMode
+              ? 'text-sm font-semibold text-slate-900 mb-2'
+              : 'text-lg font-semibold text-slate-900 mb-4'
+          }
+        >
+          Price vs. Mileage Analysis
+        </h3>
+        <p className={printMode ? 'text-xs text-slate-600 mb-2' : 'text-sm text-slate-600 mb-4'}>
           Relationship between mileage and pricing for comparable vehicles
         </p>
         {printMode ? (
-          <div data-print-chart style={{ width: 520, height: 280 }}>
+          <div data-print-chart style={{ width: 290, height: 200 }}>
             <ScatterChart
-              width={520}
-              height={280}
+              width={290}
+              height={200}
               margin={{ top: 30, right: 10, bottom: 20, left: 20 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
