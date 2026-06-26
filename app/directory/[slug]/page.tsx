@@ -18,6 +18,8 @@ import { MapPin, BadgeCheck, Award, Briefcase, Phone, Mail, Globe } from 'lucide
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+export const revalidate = 86400
+
 interface Props {
   params: Promise<{ slug: string }>
 }

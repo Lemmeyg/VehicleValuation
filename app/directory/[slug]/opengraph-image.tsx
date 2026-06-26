@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og'
-import { getSupplierBySlugStatic } from '@/lib/suppliers-db'
+import { getSupplierBySlugStatic, getAllSupplierSlugs } from '@/lib/suppliers-db'
 
 export const alt = 'Provider Profile'
 export const size = {
@@ -7,6 +7,11 @@ export const size = {
   height: 630,
 }
 export const contentType = 'image/png'
+
+export async function generateStaticParams() {
+  const slugs = await getAllSupplierSlugs()
+  return slugs.map(slug => ({ slug }))
+}
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
