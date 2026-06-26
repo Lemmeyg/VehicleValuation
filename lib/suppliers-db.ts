@@ -7,6 +7,7 @@
 
 import { createServerSupabaseClient, supabase } from './db/supabase'
 import { markdownToHtml } from './markdown'
+import { unstable_cache } from 'next/cache'
 
 export interface Supplier {
   // Unique identifier
@@ -449,48 +450,58 @@ export async function getAllSupplierSlugs(): Promise<string[]> {
  * Get supplier by slug for static generation
  * Uses simple client (no cookies) - safe for generateMetadata
  */
-export async function getSupplierBySlugStatic(slug: string): Promise<Supplier | null> {
-  const { data: supplier, error } = await supabase
-    .from('suppliers')
-    .select('*')
-    .eq('slug', slug)
-    .eq('published', true)
-    .single()
+// Internal cached fetch — unstable_cache uses key + args as the cache key,
+// so each slug gets its own cache entry even with a shared keyParts array.
+// Uses plain supabase anon client (not createServerSupabaseClient) — unstable_cache
+// persists across requests and cannot hold request-scoped cookie state.
+const _getCachedSupplierBySlug = unstable_cache(
+  async (slug: string): Promise<Supplier | null> => {
+    const { data: supplier, error } = await supabase
+      .from('suppliers')
+      .select('*')
+      .eq('slug', slug)
+      .eq('published', true)
+      .single()
 
-  if (error || !supplier) {
-    console.error('Error fetching supplier:', error)
-    return null
-  }
+    if (error || !supplier) {
+      console.error('Error fetching supplier:', error)
+      return null
+    }
 
-  // Transform to Supplier interface
-  const transformedSupplier: Supplier = {
-    slug: supplier.slug,
-    businessName: supplier.business_name,
-    contactName: supplier.contact_name || undefined,
-    email: supplier.contact_email,
-    phone: supplier.contact_phone || undefined,
-    websiteUrl: supplier.website_url || undefined,
-    city: supplier.city,
-    state: supplier.state,
-    zipCode: supplier.zip_code || undefined,
-    serviceType: supplier.service_type,
-    specialties: supplier.specialties || [],
-    valueProposition: supplier.value_proposition || '',
-    yearsInBusiness: supplier.years_in_business || undefined,
-    certifications: supplier.certifications || [],
-    insuranceAccepted: supplier.insurance_accepted || [],
-    featured: supplier.featured || false,
-    verified: supplier.verified || false,
-    published: supplier.published !== false,
-    content: supplier.content || '',
-  }
+    const transformedSupplier: Supplier = {
+      slug: supplier.slug,
+      businessName: supplier.business_name,
+      contactName: supplier.contact_name || undefined,
+      email: supplier.contact_email,
+      phone: supplier.contact_phone || undefined,
+      websiteUrl: supplier.website_url || undefined,
+      city: supplier.city,
+      state: supplier.state,
+      zipCode: supplier.zip_code || undefined,
+      serviceType: supplier.service_type,
+      specialties: supplier.specialties || [],
+      valueProposition: supplier.value_proposition || '',
+      yearsInBusiness: supplier.years_in_business || undefined,
+      certifications: supplier.certifications || [],
+      insuranceAccepted: supplier.insurance_accepted || [],
+      featured: supplier.featured || false,
+      verified: supplier.verified || false,
+      published: supplier.published !== false,
+      content: supplier.content || '',
+    }
 
-  // Convert markdown to HTML
-  if (transformedSupplier.content) {
-    transformedSupplier.htmlContent = await markdownToHtml(transformedSupplier.content)
-  }
+    if (transformedSupplier.content) {
+      transformedSupplier.htmlContent = await markdownToHtml(transformedSupplier.content)
+    }
 
-  return transformedSupplier
+    return transformedSupplier
+  },
+  ['supplier-by-slug'],
+  { revalidate: 3600, tags: ['suppliers'] }
+)
+
+export function getSupplierBySlugStatic(slug: string): Promise<Supplier | null> {
+  return _getCachedSupplierBySlug(slug)
 }
 
 /**
