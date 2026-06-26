@@ -119,4 +119,28 @@ describe('KBFilterBar', () => {
       'settlement'
     )
   })
+
+  it('clears the search input when activeQuery prop changes to undefined', () => {
+    const { rerender } = render(
+      <KBFilterBar
+        categories={categories}
+        activeQuery="dispute"
+        onSearch={jest.fn()}
+        onCategoryChange={jest.fn()}
+      />
+    )
+    expect((screen.getByPlaceholderText('Search articles…') as HTMLInputElement).value).toBe(
+      'dispute'
+    )
+
+    rerender(
+      <KBFilterBar
+        categories={categories}
+        activeQuery={undefined}
+        onSearch={jest.fn()}
+        onCategoryChange={jest.fn()}
+      />
+    )
+    expect((screen.getByPlaceholderText('Search articles…') as HTMLInputElement).value).toBe('')
+  })
 })

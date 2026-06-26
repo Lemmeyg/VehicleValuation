@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search } from 'lucide-react'
 
 interface KBFilterBarProps {
@@ -19,6 +19,11 @@ export function KBFilterBar({
   onCategoryChange,
 }: KBFilterBarProps) {
   const [inputValue, setInputValue] = useState(activeQuery ?? '')
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInputValue(activeQuery ?? '')
+  }, [activeQuery])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
