@@ -301,37 +301,44 @@ export async function getAllArticleSlugs(): Promise<string[]> {
  * Get article by slug for static generation
  * Uses simple client (no cookies) - safe for generateMetadata
  */
-export async function getArticleBySlugStatic(slug: string): Promise<Article | null> {
-  const { data: article, error } = await supabase
-    .from('articles')
-    .select('*')
-    .eq('slug', slug)
-    .eq('published', true)
-    .single()
+// Internal cached fetch — unstable_cache uses key + args as the cache key,
+// so each slug gets its own cache entry.
+const _getCachedArticleBySlug = unstable_cache(
+  async (slug: string): Promise<Article | null> => {
+    const { data: article, error } = await supabase
+      .from('articles')
+      .select('*')
+      .eq('slug', slug)
+      .eq('published', true)
+      .single()
 
-  if (error || !article) {
-    console.error('Error fetching article:', error)
-    return null
-  }
+    if (error || !article) {
+      console.error('Error fetching article:', error)
+      return null
+    }
 
-  // Transform to Article interface
-  const transformedArticle: Article = {
-    slug: article.slug,
-    title: article.title,
-    description: article.description,
-    category: article.category,
-    tags: article.tags || [],
-    author: article.author,
-    datePublished: article.date_published,
-    dateModified: article.date_modified,
-    featured: article.featured || false,
-    published: article.published !== false,
-    content: article.content,
-    readingTime: article.reading_time || '5 min read',
-  }
+    const transformedArticle: Article = {
+      slug: article.slug,
+      title: article.title,
+      description: article.description,
+      category: article.category,
+      tags: article.tags || [],
+      author: article.author,
+      datePublished: article.date_published,
+      dateModified: article.date_modified,
+      featured: article.featured || false,
+      published: article.published !== false,
+      content: article.content,
+      readingTime: article.reading_time || '5 min read',
+    }
 
-  // Convert markdown to HTML
-  transformedArticle.htmlContent = await markdownToHtml(transformedArticle.content)
+    transformedArticle.htmlContent = await markdownToHtml(transformedArticle.content)
+    return transformedArticle
+  },
+  ['article-by-slug'],
+  { revalidate: 3600, tags: ['articles'] }
+)
 
-  return transformedArticle
+export function getArticleBySlugStatic(slug: string): Promise<Article | null> {
+  return _getCachedArticleBySlug(slug)
 }

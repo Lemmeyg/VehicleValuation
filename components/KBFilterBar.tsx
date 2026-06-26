@@ -1,30 +1,44 @@
-import Link from 'next/link'
+'use client'
+
+import { useState, useEffect } from 'react'
 import { Search } from 'lucide-react'
 
 interface KBFilterBarProps {
   categories: string[]
   activeCategory?: string
   activeQuery?: string
+  onSearch: (query: string) => void
+  onCategoryChange: (category: string | null) => void
 }
 
-export function KBFilterBar({ categories, activeCategory, activeQuery }: KBFilterBarProps) {
-  function pillHref(category: string | null): string {
-    const parts: string[] = []
-    if (category) parts.push(`category=${encodeURIComponent(category)}`)
-    if (activeQuery) parts.push(`q=${encodeURIComponent(activeQuery)}`)
-    return parts.length > 0 ? `/knowledge-base?${parts.join('&')}` : '/knowledge-base'
+export function KBFilterBar({
+  categories,
+  activeCategory,
+  activeQuery,
+  onSearch,
+  onCategoryChange,
+}: KBFilterBarProps) {
+  const [inputValue, setInputValue] = useState(activeQuery ?? '')
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInputValue(activeQuery ?? '')
+  }, [activeQuery])
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    onSearch(inputValue)
   }
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 mb-8">
-      <form method="get" action="/knowledge-base" className="flex gap-2 mb-4">
-        {activeCategory && <input type="hidden" name="category" value={activeCategory} />}
+      <form onSubmit={handleSubmit} className="flex gap-2 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            name="q"
-            defaultValue={activeQuery ?? ''}
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
             placeholder="Search articles…"
             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
@@ -41,8 +55,9 @@ export function KBFilterBar({ categories, activeCategory, activeQuery }: KBFilte
         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
           Topics:
         </span>
-        <Link
-          href={pillHref(null)}
+        <button
+          type="button"
+          onClick={() => onCategoryChange(null)}
           className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
             !activeCategory
               ? 'bg-primary-600 text-white'
@@ -50,11 +65,12 @@ export function KBFilterBar({ categories, activeCategory, activeQuery }: KBFilte
           }`}
         >
           All
-        </Link>
+        </button>
         {categories.map(category => (
-          <Link
+          <button
             key={category}
-            href={pillHref(category)}
+            type="button"
+            onClick={() => onCategoryChange(activeCategory === category ? null : category)}
             className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
               activeCategory === category
                 ? 'bg-primary-600 text-white'
@@ -62,7 +78,7 @@ export function KBFilterBar({ categories, activeCategory, activeQuery }: KBFilte
             }`}
           >
             {category}
-          </Link>
+          </button>
         ))}
       </div>
     </div>

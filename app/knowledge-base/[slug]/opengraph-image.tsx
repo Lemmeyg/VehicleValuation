@@ -1,12 +1,17 @@
 import { ImageResponse } from 'next/og'
+import { getAllArticleSlugs } from '@/lib/knowledge-base-db'
 
-export const runtime = 'edge'
 export const alt = 'Article Image'
 export const size = {
   width: 1200,
   height: 630,
 }
 export const contentType = 'image/png'
+
+export async function generateStaticParams() {
+  const slugs = await getAllArticleSlugs()
+  return slugs.map(slug => ({ slug }))
+}
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
