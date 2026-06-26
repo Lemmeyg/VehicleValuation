@@ -1,5 +1,7 @@
-import { getAllArticles } from '@/lib/knowledge-base-db'
+import { getArticleListMetadata } from '@/lib/knowledge-base-db'
 import { getAllSuppliers } from '@/lib/suppliers-db'
+
+export const revalidate = 3600
 
 const BASE_URL = 'https://www.totallosstoolkit.com'
 
@@ -27,7 +29,7 @@ export async function GET() {
   const now = new Date().toISOString()
 
   const [articles, suppliers] = await Promise.all([
-    getAllArticles(),
+    getArticleListMetadata(),
     getAllSuppliers().catch(() => []),
   ])
 
