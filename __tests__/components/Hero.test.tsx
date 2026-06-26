@@ -85,11 +85,6 @@ describe('Hero — email capture enabled', () => {
     expect(screen.getByText(/optional/i)).toBeInTheDocument()
   })
 
-  it('renders price mention text', () => {
-    render(<Hero />)
-    expect(screen.getByText(/reports from \$19/i)).toBeInTheDocument()
-  })
-
   it('renders permission text', () => {
     render(<Hero />)
     expect(screen.getByText(/agree to receive occasional emails/i)).toBeInTheDocument()

@@ -466,10 +466,7 @@ export default function Hero() {
 
             {/* Submit Button Row */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <p className="text-base text-slate-600">
-                Takes 60 seconds • Instant results
-                {emailCaptureEnabled && ' • Reports from $19'}
-              </p>
+              <p className="text-base text-slate-600">Takes 60 seconds • Instant results</p>
               <div className="flex flex-col items-center w-full md:w-auto">
                 <Button
                   type="submit"
