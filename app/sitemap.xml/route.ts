@@ -1,7 +1,7 @@
 import { getArticleListMetadata } from '@/lib/knowledge-base-db'
-import { getAllSuppliers } from '@/lib/suppliers-db'
+import { getSupplierListMetadata } from '@/lib/suppliers-db'
 
-export const revalidate = 3600
+export const revalidate = 86400
 
 const BASE_URL = 'https://www.totallosstoolkit.com'
 
@@ -30,7 +30,7 @@ export async function GET() {
 
   const [articles, suppliers] = await Promise.all([
     getArticleListMetadata(),
-    getAllSuppliers().catch(() => []),
+    getSupplierListMetadata().catch(() => []),
   ])
 
   const staticEntries = STATIC_PAGES.map(p => urlEntry(p.url, now, p.changefreq, p.priority))
@@ -61,7 +61,7 @@ ${[...staticEntries, ...articleEntries, ...supplierEntries].join('\n')}
     status: 200,
     headers: {
       'Content-Type': 'application/xml; charset=UTF-8',
-      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+      'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
     },
   })
 }

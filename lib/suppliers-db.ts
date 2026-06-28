@@ -184,25 +184,28 @@ export async function getSupplierBySlug(slug: string): Promise<Supplier | null> 
  * Get list of states that have suppliers
  * Returns sorted array of state codes
  */
-export async function getAvailableStates(): Promise<string[]> {
-  const supabase = await createServerSupabaseClient()
+const _getCachedAvailableStates = unstable_cache(
+  async (): Promise<string[]> => {
+    const { data, error } = await supabase.from('suppliers').select('state').eq('published', true)
 
-  const { data: suppliers, error } = await supabase
-    .from('suppliers')
-    .select('state')
-    .eq('published', true)
+    if (error || !data) {
+      console.error('Error fetching states:', error)
+      return []
+    }
 
-  if (error || !suppliers) {
-    console.error('Error fetching states:', error)
-    return []
-  }
+    const states = new Set<string>()
+    data.forEach((s: { state: string | null }) => {
+      if (s.state) states.add(s.state)
+    })
 
-  const states = new Set<string>()
-  suppliers.forEach(s => {
-    if (s.state) states.add(s.state)
-  })
+    return Array.from(states).sort()
+  },
+  ['supplier-available-states'],
+  { revalidate: 86400, tags: ['suppliers'] }
+)
 
-  return Array.from(states).sort()
+export function getAvailableStates(): Promise<string[]> {
+  return _getCachedAvailableStates()
 }
 
 /**
@@ -564,3 +567,34 @@ export async function getRelatedSuppliersStatic(
 
   return sorted.slice(0, limit)
 }
+
+export interface SupplierListItem {
+  slug: string
+  featured: boolean
+  published: boolean
+}
+
+// Lean, cookie-free query for the sitemap. Uses plain anon client so it can
+// be wrapped in unstable_cache (request-scoped createServerSupabaseClient cannot).
+export const getSupplierListMetadata = unstable_cache(
+  async (): Promise<SupplierListItem[]> => {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('slug, featured, published')
+      .eq('published', true)
+      .order('featured', { ascending: false })
+
+    if (error || !data) {
+      console.error('Error fetching supplier list metadata:', error)
+      return []
+    }
+
+    return data.map((s: { slug: string; featured: boolean | null; published: boolean | null }) => ({
+      slug: s.slug,
+      featured: s.featured ?? false,
+      published: s.published ?? true,
+    }))
+  },
+  ['supplier-list-metadata'],
+  { revalidate: 86400, tags: ['supplier-list-metadata'] }
+)
