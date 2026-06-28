@@ -16,6 +16,8 @@ import { RelatedArticlesSidebar } from '@/components/RelatedArticlesSidebar'
 import { RelatedArticlesMobile } from '@/components/RelatedArticlesMobile'
 import { DisputeLetterCTA } from '@/components/DisputeLetterCTA'
 
+export const revalidate = false
+
 interface Props {
   params: Promise<{ slug: string }>
 }
