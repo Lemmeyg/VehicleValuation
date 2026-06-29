@@ -1,6 +1,6 @@
 import {
   getArticleBySlugStatic,
-  getArticleListMetadata,
+  getArticleListMetadataStatic,
   getAllArticleSlugs,
 } from '@/lib/knowledge-base-db'
 import { getRelatedArticles } from '@/lib/utils/related-articles'
@@ -73,7 +73,7 @@ export default async function ArticlePage({ params }: Props) {
 
   const [article, allArticles] = await Promise.all([
     getArticleBySlugStatic(slug),
-    getArticleListMetadata(),
+    getArticleListMetadataStatic(),
   ])
 
   if (!article) {

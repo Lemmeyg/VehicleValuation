@@ -32,35 +32,47 @@ const ARTICLE_LIST_SELECT =
 
 // Uses plain supabase anon client (not createServerSupabaseClient) — unstable_cache
 // persists across requests and cannot hold request-scoped cookie state.
+async function _fetchArticleListMetadata(): Promise<ArticleListItem[]> {
+  const { data: articles, error } = await supabase
+    .from('articles')
+    .select(ARTICLE_LIST_SELECT)
+    .eq('published', true)
+    .order('date_published', { ascending: false })
+
+  if (error || !articles) {
+    console.error('Error fetching article list metadata:', error)
+    return []
+  }
+
+  return articles.map(article => ({
+    slug: article.slug,
+    title: article.title,
+    description: article.description,
+    category: article.category,
+    tags: article.tags || [],
+    author: article.author,
+    datePublished: article.date_published,
+    dateModified: article.date_modified,
+    featured: article.featured || false,
+    published: true,
+    readingTime: article.reading_time || '5 min read',
+  }))
+}
+
+// 1h ISR — used by /knowledge-base index to pick up new articles without redeploy
 export const getArticleListMetadata = unstable_cache(
-  async (): Promise<ArticleListItem[]> => {
-    const { data: articles, error } = await supabase
-      .from('articles')
-      .select(ARTICLE_LIST_SELECT)
-      .eq('published', true)
-      .order('date_published', { ascending: false })
-
-    if (error || !articles) {
-      console.error('Error fetching article list metadata:', error)
-      return []
-    }
-
-    return articles.map(article => ({
-      slug: article.slug,
-      title: article.title,
-      description: article.description,
-      category: article.category,
-      tags: article.tags || [],
-      author: article.author,
-      datePublished: article.date_published,
-      dateModified: article.date_modified,
-      featured: article.featured || false,
-      published: true,
-      readingTime: article.reading_time || '5 min read',
-    }))
-  },
+  _fetchArticleListMetadata,
   ['article-list-metadata'],
   { revalidate: 3600, tags: ['article-list-metadata'] }
+)
+
+// revalidate: false — used by static /knowledge-base/[slug] pages.
+// Shares the same inner fetch. Does NOT propagate a TTL to the route,
+// so revalidate=false on the page actually takes effect.
+export const getArticleListMetadataStatic = unstable_cache(
+  _fetchArticleListMetadata,
+  ['article-list-metadata-static'],
+  { revalidate: false, tags: ['article-list-metadata'] }
 )
 
 /**
@@ -336,7 +348,7 @@ const _getCachedArticleBySlug = unstable_cache(
     return transformedArticle
   },
   ['article-by-slug'],
-  { revalidate: 3600, tags: ['articles'] }
+  { revalidate: false, tags: ['articles'] }
 )
 
 export function getArticleBySlugStatic(slug: string): Promise<Article | null> {
