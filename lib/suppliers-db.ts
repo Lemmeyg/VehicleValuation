@@ -500,7 +500,7 @@ const _getCachedSupplierBySlug = unstable_cache(
     return transformedSupplier
   },
   ['supplier-by-slug'],
-  { revalidate: 3600, tags: ['suppliers'] }
+  { revalidate: 43200, tags: ['suppliers'] }
 )
 
 export function getSupplierBySlugStatic(slug: string): Promise<Supplier | null> {

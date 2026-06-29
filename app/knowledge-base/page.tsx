@@ -14,7 +14,7 @@ import { KBClientPage } from '@/components/KBClientPage'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
-export const revalidate = 3600
+export const revalidate = 43200
 
 export const metadata = {
   title: 'Knowledge Base | TotalLossToolKit.com',

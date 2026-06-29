@@ -59,11 +59,11 @@ async function _fetchArticleListMetadata(): Promise<ArticleListItem[]> {
   }))
 }
 
-// 1h ISR — used by /knowledge-base index to pick up new articles without redeploy
+// 12h ISR — used by /knowledge-base index to pick up new articles without redeploy
 export const getArticleListMetadata = unstable_cache(
   _fetchArticleListMetadata,
   ['article-list-metadata'],
-  { revalidate: 3600, tags: ['article-list-metadata'] }
+  { revalidate: 43200, tags: ['article-list-metadata'] }
 )
 
 // revalidate: false — used by static /knowledge-base/[slug] pages.
