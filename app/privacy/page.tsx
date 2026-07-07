@@ -1,7 +1,6 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import type { Metadata } from 'next'
-import { SUPPORT_EMAIL } from '@/lib/constants'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
@@ -511,8 +510,8 @@ export default function PrivacyPolicyPage() {
                 </p>
                 <p className="text-slate-600 leading-relaxed mb-4">
                   <strong>Email:</strong>{' '}
-                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
-                    {SUPPORT_EMAIL}
+                  <a href="/contact" className="text-primary-600 hover:underline">
+                    Contact Us
                   </a>
                 </p>
                 <p className="text-slate-600 leading-relaxed">
