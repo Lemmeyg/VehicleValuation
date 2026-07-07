@@ -3,6 +3,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { Shield, CheckCircle2, ArrowRight } from 'lucide-react'
 import type { Metadata } from 'next'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
@@ -82,8 +83,14 @@ export default function MoneyBackGuaranteePage() {
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-700">
-                    <strong>How to claim</strong> — submit via Contact Us with subject
-                    &quot;Money-Back Guarantee Claim&quot; within 90 days of purchase
+                    <strong>How to claim</strong> — email{' '}
+                    <a
+                      href={`mailto:${SUPPORT_EMAIL}?subject=Money-Back%20Guarantee%20Claim`}
+                      className="text-emerald-700 underline"
+                    >
+                      {SUPPORT_EMAIL}
+                    </a>{' '}
+                    with subject &quot;Money-Back Guarantee Claim&quot; within 90 days of purchase
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
@@ -229,12 +236,17 @@ export default function MoneyBackGuaranteePage() {
                   4. How to Submit a Refund Request
                 </h3>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>Go to our Contact Us page on the website</li>
                   <li>
-                    Submit a refund request with the subject line &quot;Money-Back Guarantee
-                    Claim&quot;
+                    Email{' '}
+                    <a
+                      href={`mailto:${SUPPORT_EMAIL}?subject=Money-Back%20Guarantee%20Claim`}
+                      className="text-primary-600 hover:underline"
+                    >
+                      {SUPPORT_EMAIL}
+                    </a>{' '}
+                    with the subject line &quot;Money-Back Guarantee Claim&quot;
                   </li>
-                  <li>Include all required documentation listed above</li>
+                  <li>Include all required documentation listed above as attachments</li>
                   <li>You&apos;ll receive instructions on next steps within 14 business days</li>
                 </ul>
               </section>
@@ -406,9 +418,15 @@ export default function MoneyBackGuaranteePage() {
                       What should I do?
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
-                      A: Contact us immediately through our Contact Us page. We&apos;ll work with
-                      you on a case-by-case basis for claims that are still in active negotiation
-                      near the deadline.
+                      A: Email us immediately at{' '}
+                      <a
+                        href={`mailto:${SUPPORT_EMAIL}`}
+                        className="text-primary-600 hover:underline"
+                      >
+                        {SUPPORT_EMAIL}
+                      </a>
+                      . We&apos;ll work with you on a case-by-case basis for claims that are still
+                      in active negotiation near the deadline.
                     </p>
                   </div>
 
@@ -444,8 +462,11 @@ export default function MoneyBackGuaranteePage() {
                 </h2>
                 <p className="text-slate-600 leading-relaxed mb-4">
                   If you have questions about our Money-Back Guarantee or need clarification on any
-                  terms, please contact us through our website. We&apos;re here to help you get the
-                  fair settlement you deserve.
+                  terms, please email us at{' '}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
+                    {SUPPORT_EMAIL}
+                  </a>
+                  . We&apos;re here to help you get the fair settlement you deserve.
                 </p>
                 <p className="text-slate-600 leading-relaxed">
                   This guarantee demonstrates our confidence in the Premium Vehicle Valuation Report
@@ -464,7 +485,11 @@ export default function MoneyBackGuaranteePage() {
                 <p className="text-sm text-slate-600 italic">
                   This Money-Back Guarantee policy is part of our commitment to customer
                   satisfaction. Please read it carefully to understand your rights and our refund
-                  process. For questions, please contact us through our website.
+                  process. For questions, email{' '}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
+                    {SUPPORT_EMAIL}
+                  </a>
+                  .
                 </p>
               </div>
             </div>

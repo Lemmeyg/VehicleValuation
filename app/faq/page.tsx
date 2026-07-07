@@ -1,6 +1,7 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import type { Metadata } from 'next'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
@@ -369,9 +370,15 @@ export default function FAQPage() {
                       Can I delete my account?
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
-                      Yes, you can request account deletion at any time by contacting our support
-                      team through the Contact Us form. Please note that account deletion will
-                      remove access to any previously generated reports.
+                      Yes, you can request account deletion at any time by emailing{' '}
+                      <a
+                        href={`mailto:${SUPPORT_EMAIL}`}
+                        className="text-primary-600 hover:underline"
+                      >
+                        {SUPPORT_EMAIL}
+                      </a>
+                      . Please note that account deletion will remove access to any previously
+                      generated reports.
                     </p>
                   </div>
                 </div>
@@ -447,8 +454,14 @@ export default function FAQPage() {
                       How do I request a refund?
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
-                      Contact our support team using the Contact Us form at the bottom of any page.
-                      Explain the issue with your report, and we&apos;ll review your request
+                      Email us at{' '}
+                      <a
+                        href={`mailto:${SUPPORT_EMAIL}`}
+                        className="text-primary-600 hover:underline"
+                      >
+                        {SUPPORT_EMAIL}
+                      </a>
+                      , explain the issue with your report, and we&apos;ll review your request
                       promptly.
                     </p>
                   </div>
@@ -465,8 +478,14 @@ export default function FAQPage() {
                       How can I contact support?
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
-                      Use the &quot;Contact Us&quot; link in the footer of any page to send us a
-                      message. We aim to respond to all inquiries within 5-7 business days.
+                      Email us at{' '}
+                      <a
+                        href={`mailto:${SUPPORT_EMAIL}`}
+                        className="text-primary-600 hover:underline"
+                      >
+                        {SUPPORT_EMAIL}
+                      </a>
+                      . We aim to respond to all inquiries within 5-7 business days.
                     </p>
                   </div>
 
@@ -475,8 +494,15 @@ export default function FAQPage() {
                       I have a question not listed here.
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
-                      No problem! Contact us through the Contact Us form and we&apos;ll be happy to
-                      help answer any questions you have about our service.
+                      No problem! Email us at{' '}
+                      <a
+                        href={`mailto:${SUPPORT_EMAIL}`}
+                        className="text-primary-600 hover:underline"
+                      >
+                        {SUPPORT_EMAIL}
+                      </a>{' '}
+                      and we&apos;ll be happy to help answer any questions you have about our
+                      service.
                     </p>
                   </div>
                 </div>
@@ -489,7 +515,7 @@ export default function FAQPage() {
                 </p>
                 <p className="text-sm text-slate-600 mt-2">
                   Didn&apos;t find what you were looking for?{' '}
-                  <a href="#" className="text-primary-600 hover:underline">
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
                     Contact us
                   </a>{' '}
                   and we&apos;ll be happy to help.

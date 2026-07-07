@@ -18,7 +18,7 @@ import { getUser, getUserProfile } from '@/lib/db/auth'
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import ContactUsDialog from '@/components/directory/ContactUsDialog'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
@@ -194,8 +194,14 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
           <div className="mt-16 bg-gradient-to-br from-primary-600 to-emerald-600 rounded-2xl p-8 md:p-12 text-white text-center">
             <h2 className="text-3xl font-bold mb-4">Don&apos;t see a provider for your need?</h2>
             <div className="text-lg text-white/90 mb-6 max-w-2xl mx-auto">
-              Please <ContactUsDialog userName={userName} userEmail={userEmail} /> and let us know
-              what service you&apos;re looking for.
+              Please email{' '}
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className="text-white underline hover:text-white/80"
+              >
+                {SUPPORT_EMAIL}
+              </a>{' '}
+              and let us know what service you&apos;re looking for.
             </div>
           </div>
         </div>

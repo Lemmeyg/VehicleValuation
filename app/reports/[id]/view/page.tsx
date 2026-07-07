@@ -14,6 +14,7 @@ import { Car, FileText } from 'lucide-react'
 import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintPdfButtons } from './print-pdf-buttons'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 import { ReportViewTracker } from '@/components/ReportViewTracker'
 import { ReportReadyWatcher } from './ReportReadyWatcher'
 import { TokenAccessBanner } from './TokenAccessBanner'
@@ -706,9 +707,9 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
                     <Link href="/privacy" className="hover:text-slate-700">
                       PRIVACY POLICY
                     </Link>
-                    <Link href="/contact" className="hover:text-slate-700">
-                      CONTACT SUPPORT
-                    </Link>
+                    <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-slate-700">
+                      {SUPPORT_EMAIL}
+                    </a>
                   </div>
                 </div>
               </div>
