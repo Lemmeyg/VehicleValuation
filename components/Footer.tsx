@@ -47,7 +47,7 @@ export default function Footer() {
                   href={`mailto:${SUPPORT_EMAIL}`}
                   className="text-slate-400 hover:text-primary-500 transition-colors text-sm"
                 >
-                  Contact Us
+                  {SUPPORT_EMAIL}
                 </a>
               </li>
             </ul>
