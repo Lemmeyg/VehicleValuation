@@ -52,9 +52,10 @@ export function KBClientPage({ articles, categories, totalCount }: KBClientPageP
   const handleSearch = useCallback(
     (query: string) => {
       setActiveQuery(query)
-      updateUrl(query, activeCategory)
+      setActiveCategory('')
+      updateUrl(query, '')
     },
-    [activeCategory, updateUrl]
+    [updateUrl]
   )
 
   const handleCategoryChange = useCallback(

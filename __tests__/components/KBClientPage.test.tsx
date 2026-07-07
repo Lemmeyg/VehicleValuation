@@ -134,4 +134,25 @@ describe('KBClientPage', () => {
     render(<KBClientPage articles={articles} categories={categories} totalCount={3} />)
     expect(screen.getByText(/Showing 3 articles/)).toBeInTheDocument()
   })
+
+  it('clears an active category filter when a search is submitted', () => {
+    render(<KBClientPage articles={articles} categories={categories} totalCount={3} />)
+
+    // Select "State Guides" category — narrows to article-b only.
+    fireEvent.click(screen.getByRole('button', { name: 'State Guides' }))
+    expect(screen.queryByText('Valuation Tips')).not.toBeInTheDocument()
+
+    // Search for a term that only matches an article in a DIFFERENT category.
+    fireEvent.change(screen.getByPlaceholderText('Search articles…'), {
+      target: { value: 'valuation' },
+    })
+    fireEvent.submit(screen.getByRole('button', { name: 'Search' }).closest('form')!)
+
+    // The stale category filter should no longer suppress it.
+    expect(screen.getByText('Valuation Tips')).toBeInTheDocument()
+    expect(screen.queryByText('State Law Guide')).not.toBeInTheDocument()
+
+    // The "All" category pill should be active again.
+    expect(screen.getByRole('button', { name: 'All' })).toHaveClass('bg-primary-600')
+  })
 })
