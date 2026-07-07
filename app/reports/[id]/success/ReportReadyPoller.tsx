@@ -169,7 +169,7 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
             </button>
             <p className="text-sm text-slate-500">
               Still having trouble?{' '}
-              <a href="mailto:support@totallosstoolkit.com" className="text-emerald-600 underline">
+              <a href="/contact" className="text-emerald-600 underline">
                 Contact Support
               </a>
             </p>
