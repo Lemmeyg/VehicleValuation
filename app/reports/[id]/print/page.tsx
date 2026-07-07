@@ -6,6 +6,7 @@ import { canViewReport } from '@/lib/utils/report-access'
 import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintToolbar } from './PrintToolbar'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -509,8 +510,8 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
               <a href="/privacy" className="hover:text-slate-700 underline">
                 Privacy Policy
               </a>
-              <a href="/contact" className="hover:text-slate-700 underline">
-                Contact Support
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-slate-700 underline">
+                {SUPPORT_EMAIL}
               </a>
             </div>
           </div>
