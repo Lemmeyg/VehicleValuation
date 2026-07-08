@@ -162,6 +162,21 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
     })
 
     if (paymentError) {
+      if (paymentError.code === '23505') {
+        // Duplicate key — this orderId was already processed by a previous webhook delivery.
+        // Return 200 so LemonSqueezy does not retry.
+        console.log(
+          `[WH-5] Order ${orderId} already processed (idempotent retry) — returning early`
+        )
+        await logApiCall({
+          reportId,
+          provider: 'webhook',
+          endpoint: '[WH-5] payment insert (idempotent)',
+          success: true,
+          requestData: { reportId, resolvedUserId, orderId, amount, status },
+        })
+        return
+      }
       console.error('[WH-5] Error creating payment record:', paymentError)
       await logApiCall({
         reportId,

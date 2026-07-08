@@ -435,6 +435,53 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
       expect.objectContaining({ status: 'vin_decode_failed' })
     )
   })
+
+  it('returns 200 silently when orderId already has a payment (idempotent retry)', async () => {
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({
+        error: {
+          code: '23505',
+          message:
+            'duplicate key value violates unique constraint "payments_stripe_payment_id_key"',
+          details: 'Key (stripe_payment_id)=(order-123) already exists.',
+        },
+      }),
+      update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const body = makeOrderCreatedBody()
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body,
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(200)
+    // Heavy API calls must NOT fire on a duplicate delivery
+    expect(autodev.fetchAutoDevVinDecode).not.toHaveBeenCalled()
+    expect(marketcheck.fetchMarketCheckData).not.toHaveBeenCalled()
+  })
 })
 
 describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supplement', () => {
