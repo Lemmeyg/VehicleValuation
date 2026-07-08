@@ -58,6 +58,7 @@ function AuthContent() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [showEmailForm, setShowEmailForm] = useState(false)
   const [loginFailCount, setLoginFailCount] = useState(0)
+  const [accountAlreadyExisted, setAccountAlreadyExisted] = useState(false)
 
   // Pre-fill email from URL params
   useEffect(() => {
@@ -204,6 +205,39 @@ function AuthContent() {
       const data = await response.json()
 
       if (!response.ok) {
+        if (response.status === 409) {
+          // Account already exists — the purchase webhook likely created it silently.
+          // Send a magic link instead of leaving the user at a dead-end password form.
+          setAccountAlreadyExisted(true)
+          trackAuthEvent({
+            method: 'email',
+            step: 'failed',
+            isNewUser: true,
+            error: 'account_exists',
+          })
+          trackAuthEvent({ method: 'magic_link', step: 'started' })
+
+          const magicLinkResponse = await fetch('/api/auth/magic-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          })
+          const magicLinkData = await magicLinkResponse.json()
+
+          if (magicLinkResponse.ok) {
+            setStep('magic-link-sent')
+            trackAuthEvent({ method: 'magic_link', step: 'completed' })
+          } else {
+            setError(magicLinkData.error || 'Failed to send sign-in link')
+            trackAuthEvent({
+              method: 'magic_link',
+              step: 'failed',
+              error: magicLinkData.error || 'magic_link_failed',
+            })
+          }
+          return
+        }
+
         setError(data.error || 'Signup failed')
         trackAuthEvent({
           method: 'email',
@@ -338,6 +372,7 @@ function AuthContent() {
     setPassword('')
     setConfirmPassword('')
     setError('')
+    setAccountAlreadyExisted(false)
   }
 
   return (
@@ -377,6 +412,11 @@ function AuthContent() {
               <CheckCircle className="w-10 h-10 text-green-600" />
             </div>
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              {accountAlreadyExisted && (
+                <p className="text-green-900 text-sm font-medium mb-2">
+                  Looks like you already have an account for {email}.
+                </p>
+              )}
               <p className="text-green-800 text-sm">
                 Click the link in your email to sign in. The link will expire in 24 hours.
               </p>
