@@ -223,6 +223,32 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     )
   })
 
+  it('returns the response before running heavy API calls — deferred via after()', async () => {
+    const body = makeOrderCreatedBody()
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body,
+    })
+
+    await POST(request)
+
+    // The response must return before the heavy API calls run — they belong
+    // inside the deferred after() callback, not on the synchronous request path.
+    expect(autodev.fetchAutoDevVinDecode).not.toHaveBeenCalled()
+    expect(marketcheck.fetchMarketCheckData).not.toHaveBeenCalled()
+
+    await drainAfterCallbacks()
+
+    // Once drained, the deferred work has actually run.
+    expect(autodev.fetchAutoDevVinDecode).toHaveBeenCalled()
+    expect(marketcheck.fetchMarketCheckData).toHaveBeenCalled()
+  })
+
   it('uses NEXT_PUBLIC_APP_URL when set', async () => {
     process.env.NEXT_PUBLIC_APP_URL = 'https://totallosstoolkit.com'
 
