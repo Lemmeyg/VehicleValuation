@@ -12,6 +12,21 @@ import { logApiCall } from '@/lib/api/api-call-logger'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 
+// Collects after() callbacks registered during each test so they can be drained explicitly.
+let pendingAfterCallbacks: Array<() => Promise<void>> = []
+
+async function drainAfterCallbacks(): Promise<void> {
+  const cbs = [...pendingAfterCallbacks]
+  pendingAfterCallbacks = []
+  for (const cb of cbs) {
+    try {
+      await cb()
+    } catch {
+      // Mirrors production fire-and-forget semantics — errors in after() do not fail the request
+    }
+  }
+}
+
 jest.mock('@/lib/api/api-call-logger', () => ({
   logApiCall: jest.fn().mockResolvedValue(undefined),
 }))
@@ -47,10 +62,7 @@ jest.mock('next/server', () => {
   return {
     ...actual,
     after: jest.fn((fn: () => Promise<void>) => {
-      // Fire-and-forget in tests — avoids "after called outside request scope" errors
-      Promise.resolve()
-        .then(fn)
-        .catch(() => undefined)
+      pendingAfterCallbacks.push(fn)
     }),
   }
 })
@@ -102,6 +114,7 @@ function makeOrderCreatedBody(overrides = {}) {
 
 describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
   beforeEach(() => {
+    pendingAfterCallbacks = []
     jest.clearAllMocks()
     ;(client.verifyWebhookSignature as jest.Mock).mockReturnValue(true)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -183,6 +196,7 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     })
 
     await POST(request)
+    await drainAfterCallbacks()
 
     expect(signInWithOtpMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -224,6 +238,7 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     })
 
     await POST(request)
+    await drainAfterCallbacks()
 
     expect(signInWithOtpMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -256,6 +271,7 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     })
 
     await POST(request)
+    await drainAfterCallbacks()
 
     const callArgs = signInWithOtpMock.mock.calls[0][0]
     expect(callArgs.options.emailRedirectTo).toContain('/auth/callback')
@@ -342,6 +358,7 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     })
 
     const response = await POST(request)
+    await drainAfterCallbacks()
     expect(response.status).toBe(200)
 
     expect(mockUpsert).toHaveBeenCalledWith(
@@ -426,6 +443,7 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     })
 
     await POST(request)
+    await drainAfterCallbacks()
 
     // PDF should NOT have been generated
     expect(mockGeneratePDF).not.toHaveBeenCalled()
@@ -486,6 +504,7 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
 
 describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supplement', () => {
   beforeEach(() => {
+    pendingAfterCallbacks = []
     jest.clearAllMocks()
     ;(client.verifyWebhookSignature as jest.Mock).mockReturnValue(true)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -561,6 +580,7 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
   it('calls validateListingUrls when MarketCheck fetch is needed (no pre-existing data)', async () => {
     const request = makeRequest()
     await POST(request)
+    await drainAfterCallbacks()
     expect(mockValidateListingUrls).toHaveBeenCalledTimes(1)
   })
 
@@ -596,6 +616,7 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
 
     const request = makeRequest()
     await POST(request)
+    await drainAfterCallbacks()
     // URL validation must run even on pre-existing data — the fetch-marketcheck route
     // stores raw unvalidated listings, so the webhook must validate + supplement them
     expect(mockValidateListingUrls).toHaveBeenCalledTimes(1)
@@ -643,6 +664,7 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
 
     const request = makeRequest()
     await POST(request)
+    await drainAfterCallbacks()
 
     expect(capturedUpdateArg).not.toBeNull()
     expect(capturedUpdateArg).toMatchObject({ comparables_supplemented: true })
@@ -688,6 +710,7 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
 
     const request = makeRequest()
     await POST(request)
+    await drainAfterCallbacks()
 
     expect(capturedUpdateArg).not.toBeNull()
     expect(capturedUpdateArg).toMatchObject({ marketcheck_fallback_used: true })
@@ -724,6 +747,7 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
 
     const request = makeRequest()
     const response = await POST(request)
+    await drainAfterCallbacks()
 
     // Should return 200 — non-fatal error
     expect(response.status).toBe(200)

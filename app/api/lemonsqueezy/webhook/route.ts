@@ -207,331 +207,315 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
       }
     }
 
-    // Fetch the report to get VIN, mileage, ZIP for API calls
-    const { data: report, error: fetchError } = await supabase
-      .from('reports')
-      .select('vin, mileage, zip_code, vehicle_data, marketcheck_valuation')
-      .eq('id', reportId)
-      .single()
-
-    if (fetchError || !report) {
-      console.error('[WH-6] Error fetching report for API calls:', fetchError)
-      await logApiCall({
-        reportId,
-        provider: 'webhook',
-        endpoint: '[WH-6] report fetch',
-        success: false,
-        errorMessage: fetchError?.message ?? 'report not found',
-        requestData: { reportId },
-      })
-      throw new Error(`Failed to fetch report: ${fetchError?.message}`)
-    }
-    console.log(`[WH-6] Report fetched OK for report ${reportId}`)
-
-    console.log(`[Webhook] Report ${reportId} fetched for API calls:`, {
-      vin: report.vin?.substring(0, 8) + '...',
-      mileage: report.mileage,
-      zip_code: report.zip_code,
-      hasExistingMarketCheck: !!report.marketcheck_valuation,
-    })
-
-    // ========================================
-    // FETCH AUTO.DEV VIN DECODE DATA (first — needed for MarketCheck fallback)
-    // ========================================
-    let autodevVinData = null
-
-    console.log(`[Webhook] Fetching Auto.dev VIN decode for report ${reportId}`)
-    const vinStartTime = Date.now()
-
-    const vinResult = await fetchAutoDevVinDecode(report.vin)
-    const vinResponseTime = Date.now() - vinStartTime
-
-    if (vinResult.success && vinResult.data) {
-      console.log(`[Webhook] Auto.dev VIN decode success for report ${reportId}:`, {
-        make: vinResult.data.make,
-        model: vinResult.data.model,
-        year: vinResult.data.vehicle?.year,
-        responseTimeMs: vinResponseTime,
-      })
-
-      autodevVinData = {
-        ...vinResult.data,
-        generatedAt: new Date().toISOString(),
-      }
-
-      // Log API call
-      await logApiCall({
-        reportId,
-        provider: 'autodev',
-        endpoint: '/vin/{vin}',
-        success: true,
-        responseTimeMs: vinResponseTime,
-        cost: 0.0,
-        requestData: { vin: report.vin },
-        responseData: {
-          make: vinResult.data.make,
-          model: vinResult.data.model,
-          year: vinResult.data.vehicle?.year,
-          vinValid: vinResult.data.vinValid,
-        },
-      })
-    } else {
-      console.warn(`[Webhook] Auto.dev VIN decode failed for report ${reportId}:`, vinResult.error)
-      // Log failed API call
-      await logApiCall({
-        reportId,
-        provider: 'autodev',
-        endpoint: '/vin/{vin}',
-        success: false,
-        responseTimeMs: vinResponseTime,
-        cost: 0.0,
-        requestData: { vin: report.vin },
-        errorMessage: vinResult.error,
-      })
-    }
-
-    // Build subjectVehicle from auto.dev result so MarketCheck can use the search
-    // fallback when its VIN-based prediction endpoint returns "Failed to decode VIN"
-    const subjectVehicle =
-      vinResult.success && vinResult.data
-        ? {
-            year: vinResult.data.vehicle?.year,
-            make: vinResult.data.make,
-            model: vinResult.data.model,
-            trim: vinResult.data.trim,
-          }
-        : undefined
-
-    // ========================================
-    // FETCH MARKETCHECK DATA (if not already present)
-    // ========================================
-    let marketcheckData = report.marketcheck_valuation
-
-    let webhookSupplemented = false
-    let webhookFallbackUsed = false
-
-    if (!marketcheckData) {
-      console.log(`[Webhook] Fetching MarketCheck data for report ${reportId}`, {
-        hasSubjectVehicle: !!subjectVehicle,
-        subjectVehicle,
-      })
-      const mcStartTime = Date.now()
-
-      const mcResult = await fetchMarketCheckData(
-        report.vin,
-        report.mileage,
-        report.zip_code,
-        false, // is_certified
-        undefined, // retryConfig (use default)
-        subjectVehicle // enables search fallback for VINs MarketCheck can't decode directly
-      )
-
-      const mcResponseTime = Date.now() - mcStartTime
-
-      if (mcResult.success && mcResult.data) {
-        console.log(`[Webhook] MarketCheck success for report ${reportId}:`, {
-          predictedPrice: mcResult.data.predictedPrice,
-          totalComparables: mcResult.data.totalComparablesFound,
-          fallbackUsed: mcResult.fallbackUsed,
-          responseTimeMs: mcResponseTime,
-        })
-
-        webhookFallbackUsed = mcResult.fallbackUsed ?? false
-        marketcheckData = mcResult.data
-
-        // Log API call for cost tracking
-        await logApiCall({
-          reportId,
-          provider: 'marketcheck',
-          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-          success: true,
-          responseTimeMs: mcResponseTime,
-          cost: 0.09,
-          requestData: {
-            vin: report.vin,
-            mileage: report.mileage,
-            zip_code: report.zip_code,
-            dealer_type: 'franchise',
-            fallback_used: mcResult.fallbackUsed ?? false,
-          },
-          responseData: {
-            predicted_price: mcResult.data.predictedPrice,
-            total_comparables_found: mcResult.data.totalComparablesFound,
-            recent_comparables_found: mcResult.data.recentComparables?.num_found ?? 0,
-          },
-        })
-      } else {
-        console.error(`[Webhook] MarketCheck failed for report ${reportId}:`, mcResult.error)
-        // Log failed API call
-        await logApiCall({
-          reportId,
-          provider: 'marketcheck',
-          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-          success: false,
-          responseTimeMs: mcResponseTime,
-          cost: 0.0,
-          requestData: {
-            vin: report.vin,
-            mileage: report.mileage,
-            zip_code: report.zip_code,
-            dealer_type: 'franchise',
-          },
-          errorMessage: mcResult.error,
-        })
-      }
-    } else {
-      console.log(
-        `[Webhook] MarketCheck data already exists for report ${reportId}, skipping API call`
-      )
-    }
-
-    // URL validation + supplement always run on whatever marketcheckData we have.
-    // This handles both: fresh data from the API call above, and pre-existing data
-    // stored by the fetch-marketcheck route before payment was made.
-    if (marketcheckData) {
-      let validatedPrediction = marketcheckData
-      let urlStats: ValidationStats = {
-        checkedCount: 0,
-        failedCount: 0,
-        failedUrls: [],
-        validatedUrls: [],
-        batchesUsed: 0,
-      }
-      let urlValidationSucceeded = false
-
-      try {
-        const urlResult = await validateListingUrls(marketcheckData)
-        validatedPrediction = urlResult.prediction
-        urlStats = urlResult.stats
-        urlValidationSucceeded = true
-      } catch (err) {
-        console.error(
-          '[Webhook] validateListingUrls threw — proceeding with unvalidated listings:',
-          err
-        )
-        // Non-fatal: raw prediction used; url_validated flags will be absent
-      }
-
-      // Top-up: only call supplement if URL validation completed
-      // (avoids spurious trigger when urlStats.validatedUrls.length would be 0 due to an exception)
-      if (urlValidationSucceeded) {
-        try {
-          const supplementResult = await supplementComparables(
-            validatedPrediction,
-            urlStats.validatedUrls.length,
-            subjectVehicle,
-            report.vin,
-            report.mileage ?? null,
-            report.zip_code ?? null
-          )
-          validatedPrediction = supplementResult.prediction
-          webhookSupplemented = supplementResult.supplemented
-        } catch (err) {
-          console.error('[Webhook] supplementComparables threw:', err)
-          // Non-fatal
-        }
-      }
-
-      marketcheckData = validatedPrediction
-    }
-
-    // ========================================
-    // UPDATE REPORT WITH API DATA AND PAYMENT INFO
-    // ========================================
-    const updateData: Record<string, unknown> = {
-      price_paid: amount,
-      stripe_payment_id: orderId,
-      status: 'pending',
-    }
-
-    // For anonymous purchases: stamp the report with the resolved user_id and email
-    if (!rawUserId && resolvedUserId) {
-      updateData.user_id = resolvedUserId
-      updateData.email = customerEmail
-    }
-
-    // Add MarketCheck data if fetched
-    if (marketcheckData) {
-      updateData.marketcheck_valuation = marketcheckData
-      updateData.marketcheck_predicted_price = marketcheckData.predictedPrice
-      updateData.marketcheck_msrp = marketcheckData.msrp || null
-      updateData.marketcheck_price_range_min = marketcheckData.priceRange?.min || null
-      updateData.marketcheck_price_range_max = marketcheckData.priceRange?.max || null
-      updateData.marketcheck_confidence = marketcheckData.confidence
-      updateData.marketcheck_total_comparables_found = marketcheckData.totalComparablesFound
-      updateData.marketcheck_recent_comparables_found =
-        marketcheckData.recentComparables?.num_found || 0
-      updateData.comparables_supplemented = webhookSupplemented
-      updateData.marketcheck_fallback_used = webhookFallbackUsed
-
-      // Also update valuation_result for consistency
-      updateData.valuation_result = {
-        predictedPrice: marketcheckData.predictedPrice,
-        lowValue:
-          marketcheckData.priceRange?.min || Math.round(marketcheckData.predictedPrice * 0.9),
-        averageValue: marketcheckData.predictedPrice,
-        highValue:
-          marketcheckData.priceRange?.max || Math.round(marketcheckData.predictedPrice * 1.1),
-        confidence: marketcheckData.confidence,
-        dataPoints: marketcheckData.totalComparablesFound,
-        dataSource: 'marketcheck',
-      }
-    }
-
-    // Add Auto.dev VIN data if fetched
-    if (autodevVinData) {
-      updateData.autodev_vin_data = autodevVinData
-    }
-
-    const { error: reportError } = await supabase
-      .from('reports')
-      .update(updateData)
-      .eq('id', reportId)
-
-    if (reportError) {
-      console.error('Error updating report:', reportError)
-      throw new Error(`Failed to update report: ${reportError.message}`)
-    }
-
-    console.log(`[Webhook] Report ${reportId} updated with payment info and API data`)
-
-    // Check if VIN decode failed both at creation and in this webhook
-    const hasVehicleData = autodevVinData || report.vehicle_data?.year
-    if (!hasVehicleData) {
-      console.warn(
-        `[Webhook] VIN decode failed for report ${reportId} — flagging for manual review`
-      )
-      const { error: flagError } = await supabase
-        .from('reports')
-        .update({ status: 'vin_decode_failed' })
-        .eq('id', reportId)
-      if (flagError) {
-        console.error(
-          `[Webhook] Failed to flag report ${reportId} as vin_decode_failed:`,
-          flagError
-        )
-        // Still return — PDF skip is intentional regardless of flag success
-      }
-      console.log(`[Webhook] Report ${reportId} set to vin_decode_failed, skipping PDF`)
-      return
-    }
-
-    // Generate PDF after the webhook response is sent.
-    // `after()` keeps the Vercel Lambda alive until the callback resolves,
-    // preventing the function from being killed before PDF upload completes.
+    // ── Return 200 quickly. All heavy I/O runs after the response is sent. ──
     after(async () => {
       try {
-        console.log(`[Webhook] PDF generation starting for report ${reportId}`)
-        await generateAndUploadPDF({ reportId })
-        console.log(`[Webhook] PDF generation completed for report ${reportId}`)
+        // Fetch the report to get VIN, mileage, ZIP for API calls
+        const { data: report, error: fetchError } = await supabase
+          .from('reports')
+          .select('vin, mileage, zip_code, vehicle_data, marketcheck_valuation')
+          .eq('id', reportId)
+          .single()
+
+        if (fetchError || !report) {
+          console.error('[WH-6] Error fetching report for API calls:', fetchError)
+          await logApiCall({
+            reportId,
+            provider: 'webhook',
+            endpoint: '[WH-6] report fetch',
+            success: false,
+            errorMessage: fetchError?.message ?? 'report not found',
+            requestData: { reportId },
+          })
+          return
+        }
+        console.log(`[WH-6] Report fetched OK for report ${reportId}`)
+
+        console.log(`[Webhook] Report ${reportId} fetched for API calls:`, {
+          vin: report.vin?.substring(0, 8) + '...',
+          mileage: report.mileage,
+          zip_code: report.zip_code,
+          hasExistingMarketCheck: !!report.marketcheck_valuation,
+        })
+
+        // ========================================
+        // FETCH AUTO.DEV VIN DECODE DATA
+        // ========================================
+        let autodevVinData = null
+        console.log(`[Webhook] Fetching Auto.dev VIN decode for report ${reportId}`)
+        const vinStartTime = Date.now()
+        const vinResult = await fetchAutoDevVinDecode(report.vin)
+        const vinResponseTime = Date.now() - vinStartTime
+
+        if (vinResult.success && vinResult.data) {
+          console.log(`[Webhook] Auto.dev VIN decode success for report ${reportId}:`, {
+            make: vinResult.data.make,
+            model: vinResult.data.model,
+            year: vinResult.data.vehicle?.year,
+            responseTimeMs: vinResponseTime,
+          })
+          autodevVinData = {
+            ...vinResult.data,
+            generatedAt: new Date().toISOString(),
+          }
+          await logApiCall({
+            reportId,
+            provider: 'autodev',
+            endpoint: '/vin/{vin}',
+            success: true,
+            responseTimeMs: vinResponseTime,
+            cost: 0.0,
+            requestData: { vin: report.vin },
+            responseData: {
+              make: vinResult.data.make,
+              model: vinResult.data.model,
+              year: vinResult.data.vehicle?.year,
+              vinValid: vinResult.data.vinValid,
+            },
+          })
+        } else {
+          console.warn(
+            `[Webhook] Auto.dev VIN decode failed for report ${reportId}:`,
+            vinResult.error
+          )
+          await logApiCall({
+            reportId,
+            provider: 'autodev',
+            endpoint: '/vin/{vin}',
+            success: false,
+            responseTimeMs: vinResponseTime,
+            cost: 0.0,
+            requestData: { vin: report.vin },
+            errorMessage: vinResult.error,
+          })
+        }
+
+        const subjectVehicle =
+          vinResult.success && vinResult.data
+            ? {
+                year: vinResult.data.vehicle?.year,
+                make: vinResult.data.make,
+                model: vinResult.data.model,
+                trim: vinResult.data.trim,
+              }
+            : undefined
+
+        // ========================================
+        // FETCH MARKETCHECK DATA (if not already present)
+        // ========================================
+        let marketcheckData = report.marketcheck_valuation
+        let webhookSupplemented = false
+        let webhookFallbackUsed = false
+
+        if (!marketcheckData) {
+          console.log(`[Webhook] Fetching MarketCheck data for report ${reportId}`, {
+            hasSubjectVehicle: !!subjectVehicle,
+            subjectVehicle,
+          })
+          const mcStartTime = Date.now()
+          const mcResult = await fetchMarketCheckData(
+            report.vin,
+            report.mileage,
+            report.zip_code,
+            false,
+            undefined,
+            subjectVehicle
+          )
+          const mcResponseTime = Date.now() - mcStartTime
+
+          if (mcResult.success && mcResult.data) {
+            console.log(`[Webhook] MarketCheck success for report ${reportId}:`, {
+              predictedPrice: mcResult.data.predictedPrice,
+              totalComparables: mcResult.data.totalComparablesFound,
+              fallbackUsed: mcResult.fallbackUsed,
+              responseTimeMs: mcResponseTime,
+            })
+            webhookFallbackUsed = mcResult.fallbackUsed ?? false
+            marketcheckData = mcResult.data
+            await logApiCall({
+              reportId,
+              provider: 'marketcheck',
+              endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+              success: true,
+              responseTimeMs: mcResponseTime,
+              cost: 0.09,
+              requestData: {
+                vin: report.vin,
+                mileage: report.mileage,
+                zip_code: report.zip_code,
+                dealer_type: 'franchise',
+                fallback_used: mcResult.fallbackUsed ?? false,
+              },
+              responseData: {
+                predicted_price: mcResult.data.predictedPrice,
+                total_comparables_found: mcResult.data.totalComparablesFound,
+                recent_comparables_found: mcResult.data.recentComparables?.num_found ?? 0,
+              },
+            })
+          } else {
+            console.error(`[Webhook] MarketCheck failed for report ${reportId}:`, mcResult.error)
+            await logApiCall({
+              reportId,
+              provider: 'marketcheck',
+              endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+              success: false,
+              responseTimeMs: mcResponseTime,
+              cost: 0.0,
+              requestData: {
+                vin: report.vin,
+                mileage: report.mileage,
+                zip_code: report.zip_code,
+                dealer_type: 'franchise',
+              },
+              errorMessage: mcResult.error,
+            })
+          }
+        } else {
+          console.log(
+            `[Webhook] MarketCheck data already exists for report ${reportId}, skipping API call`
+          )
+        }
+
+        // URL validation + supplement
+        if (marketcheckData) {
+          let validatedPrediction = marketcheckData
+          let urlStats: ValidationStats = {
+            checkedCount: 0,
+            failedCount: 0,
+            failedUrls: [],
+            validatedUrls: [],
+            batchesUsed: 0,
+          }
+          let urlValidationSucceeded = false
+
+          try {
+            const urlResult = await validateListingUrls(marketcheckData)
+            validatedPrediction = urlResult.prediction
+            urlStats = urlResult.stats
+            urlValidationSucceeded = true
+          } catch (err) {
+            console.error(
+              '[Webhook] validateListingUrls threw — proceeding with unvalidated listings:',
+              err
+            )
+          }
+
+          if (urlValidationSucceeded) {
+            try {
+              const supplementResult = await supplementComparables(
+                validatedPrediction,
+                urlStats.validatedUrls.length,
+                subjectVehicle,
+                report.vin,
+                report.mileage ?? null,
+                report.zip_code ?? null
+              )
+              validatedPrediction = supplementResult.prediction
+              webhookSupplemented = supplementResult.supplemented
+            } catch (err) {
+              console.error('[Webhook] supplementComparables threw:', err)
+            }
+          }
+
+          marketcheckData = validatedPrediction
+        }
+
+        // ========================================
+        // UPDATE REPORT WITH API DATA AND PAYMENT INFO
+        // ========================================
+        const updateData: Record<string, unknown> = {
+          price_paid: amount,
+          stripe_payment_id: orderId,
+          status: 'pending',
+        }
+
+        // For anonymous purchases: stamp the report with resolved user_id and email
+        if (!rawUserId && resolvedUserId) {
+          updateData.user_id = resolvedUserId
+          updateData.email = customerEmail
+        }
+
+        if (marketcheckData) {
+          updateData.marketcheck_valuation = marketcheckData
+          updateData.marketcheck_predicted_price = marketcheckData.predictedPrice
+          updateData.marketcheck_msrp = marketcheckData.msrp || null
+          updateData.marketcheck_price_range_min = marketcheckData.priceRange?.min || null
+          updateData.marketcheck_price_range_max = marketcheckData.priceRange?.max || null
+          updateData.marketcheck_confidence = marketcheckData.confidence
+          updateData.marketcheck_total_comparables_found = marketcheckData.totalComparablesFound
+          updateData.marketcheck_recent_comparables_found =
+            marketcheckData.recentComparables?.num_found || 0
+          updateData.comparables_supplemented = webhookSupplemented
+          updateData.marketcheck_fallback_used = webhookFallbackUsed
+          updateData.valuation_result = {
+            predictedPrice: marketcheckData.predictedPrice,
+            lowValue:
+              marketcheckData.priceRange?.min || Math.round(marketcheckData.predictedPrice * 0.9),
+            averageValue: marketcheckData.predictedPrice,
+            highValue:
+              marketcheckData.priceRange?.max || Math.round(marketcheckData.predictedPrice * 1.1),
+            confidence: marketcheckData.confidence,
+            dataPoints: marketcheckData.totalComparablesFound,
+            dataSource: 'marketcheck',
+          }
+        }
+
+        if (autodevVinData) {
+          updateData.autodev_vin_data = autodevVinData
+        }
+
+        const { error: reportError } = await supabase
+          .from('reports')
+          .update(updateData)
+          .eq('id', reportId)
+
+        if (reportError) {
+          // Cannot throw here — 200 was already sent. Log and bail.
+          console.error('[Webhook] Error updating report:', reportError)
+          return
+        }
+
+        console.log(`[Webhook] Report ${reportId} updated with payment info and API data`)
+
+        // VIN decode failed — flag for manual review, skip PDF
+        const hasVehicleData = autodevVinData || report.vehicle_data?.year
+        if (!hasVehicleData) {
+          console.warn(
+            `[Webhook] VIN decode failed for report ${reportId} — flagging for manual review`
+          )
+          const { error: flagError } = await supabase
+            .from('reports')
+            .update({ status: 'vin_decode_failed' })
+            .eq('id', reportId)
+          if (flagError) {
+            console.error(
+              `[Webhook] Failed to flag report ${reportId} as vin_decode_failed:`,
+              flagError
+            )
+          }
+          console.log(`[Webhook] Report ${reportId} set to vin_decode_failed, skipping PDF`)
+          return
+        }
+
+        // Generate PDF
+        try {
+          console.log(`[Webhook] PDF generation starting for report ${reportId}`)
+          await generateAndUploadPDF({ reportId })
+          console.log(`[Webhook] PDF generation completed for report ${reportId}`)
+        } catch (error) {
+          console.error(`[Webhook] PDF generation failed for report ${reportId}:`, error)
+          await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
+          console.log(`[Webhook] Report ${reportId} marked as failed`)
+        }
       } catch (error) {
-        console.error(`PDF generation failed for report ${reportId}:`, error)
-        await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
-        console.log(`Report ${reportId} marked as failed`)
+        console.error(
+          `[Webhook] Unhandled error in post-payment processing for report ${reportId}:`,
+          error
+        )
       }
     })
 
-    console.log(`[Webhook] PDF generation scheduled for report ${reportId}`)
+    console.log(`[Webhook] Post-payment processing scheduled for report ${reportId}`)
   } catch (error) {
     console.error('Error handling order_created event:', error)
     throw error
