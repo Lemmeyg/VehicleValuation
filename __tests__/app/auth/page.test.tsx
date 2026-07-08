@@ -178,4 +178,40 @@ describe('AuthPage — signup existing-account fallback (P4)', () => {
     await waitFor(() => expect(screen.getByText(/check your email/i)).toBeInTheDocument())
     expect(screen.queryByText(/already have an account/i)).not.toBeInTheDocument()
   })
+
+  it('does not leak the flag into a requiresEmailConfirmation success screen reached without the "Use a different email" reset', async () => {
+    // This path never touches the "Use a different email" button (which has its own reset), so
+    // it isolates and genuinely exercises the reset inside handleSignup's requiresEmailConfirmation
+    // branch. If that reset were removed, this test would fail.
+    await getToSignupStep()
+
+    // First attempt: signup hits 409 (flag becomes true), then the fallback magic-link send
+    // itself fails — user stays on the signup step with accountAlreadyExisted still true.
+    ;(global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: 'Email already registered' }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ error: 'Failed to send magic link. Please try again.' }),
+      })
+
+    await submitSignupForm()
+
+    await waitFor(() => expect(screen.getByText(/failed to send magic link/i)).toBeInTheDocument())
+
+    // Still on the signup step — retry the same form (fields retain their values; the checkbox
+    // is already checked from the first submit, so don't re-click it) with a signup response
+    // that now succeeds and requires email confirmation.
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, requiresEmailConfirmation: true }),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => expect(screen.getByText(/check your email/i)).toBeInTheDocument())
+    expect(screen.queryByText(/already have an account/i)).not.toBeInTheDocument()
+  })
 })
