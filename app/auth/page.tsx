@@ -250,6 +250,7 @@ function AuthContent() {
 
       // If email confirmation required, show message
       if (data.requiresEmailConfirmation) {
+        setAccountAlreadyExisted(false)
         setStep('magic-link-sent')
         trackAuthEvent({ method: 'email', step: 'completed', isNewUser: true })
         trackRedditSignUp()
@@ -307,6 +308,7 @@ function AuthContent() {
         return
       }
 
+      setAccountAlreadyExisted(false)
       setStep('magic-link-sent')
       trackAuthEvent({ method: 'magic_link', step: 'completed' })
     } catch (err) {
@@ -422,7 +424,10 @@ function AuthContent() {
               </p>
             </div>
             <button
-              onClick={() => setStep('email')}
+              onClick={() => {
+                setStep('email')
+                setAccountAlreadyExisted(false)
+              }}
               className="text-blue-600 hover:text-blue-500 text-sm font-medium"
             >
               Use a different email

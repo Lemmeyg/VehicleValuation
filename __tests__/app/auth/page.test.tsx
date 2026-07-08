@@ -128,4 +128,54 @@ describe('AuthPage — signup existing-account fallback (P4)', () => {
 
     await waitFor(() => expect(screen.getByText(/failed to send magic link/i)).toBeInTheDocument())
   })
+
+  it('does not leak the "already have an account" message into a later, unrelated magic-link-sent render', async () => {
+    // Step 1: trigger the 409 fallback for a@x.com — sets accountAlreadyExisted(true)
+    await getToSignupStep('a@x.com')
+    ;(global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: 'Email already registered' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, message: 'Magic link sent!' }),
+      })
+
+    await submitSignupForm()
+
+    await waitFor(() => expect(screen.getByText(/already have an account/i)).toBeInTheDocument())
+
+    // Step 2: use "Use a different email" to go back to the email step
+    fireEvent.click(screen.getByRole('button', { name: /use a different email/i }))
+    await waitFor(() => expect(screen.getByLabelText(/email address/i)).toBeInTheDocument())
+
+    // Step 3: enter a brand-new email, b@x.com, that has no existing account
+    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: 'b@x.com' } })
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, hasUser: false, hasReports: false, reportCount: 0 }),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^continue$/i }))
+    await waitFor(() => expect(screen.getByText(/create your account/i)).toBeInTheDocument())
+
+    // Step 4: sign up successfully, requiring email confirmation — lands on magic-link-sent again.
+    // Password/confirm-password/terms-checkbox state persisted from the first signup attempt
+    // (the "Use a different email" button doesn't reset the form), so re-fill the passwords but
+    // don't re-click the already-checked terms checkbox.
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'password123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), {
+      target: { value: 'password123' },
+    })
+    expect(screen.getByRole('checkbox')).toBeChecked()
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, requiresEmailConfirmation: true }),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => expect(screen.getByText(/check your email/i)).toBeInTheDocument())
+    expect(screen.queryByText(/already have an account/i)).not.toBeInTheDocument()
+  })
 })
