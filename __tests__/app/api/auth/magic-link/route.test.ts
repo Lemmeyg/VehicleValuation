@@ -3,6 +3,8 @@
  *
  * Tests magic link authentication endpoint
  * CRITICAL: Supabase auth is mocked to prevent real email sends
+ *
+ * @jest-environment node
  */
 
 import { POST } from '@/app/api/auth/magic-link/route'
@@ -128,7 +130,6 @@ describe('POST /api/auth/magic-link', () => {
         data: {},
         error: null,
       })
-
       ;(supabaseAdmin.from as jest.Mock).mockReturnValue({
         update: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -243,7 +244,6 @@ describe('POST /api/auth/magic-link', () => {
         data: {},
         error: null,
       })
-
       ;(supabaseAdmin.from as jest.Mock).mockReturnValue({
         update: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
@@ -289,6 +289,86 @@ describe('POST /api/auth/magic-link', () => {
       expect(data.error).not.toContain('database')
       expect(data.error).not.toContain('sensitive')
       expect(data.error).toBe('An unexpected error occurred. Please try again.')
+    })
+  })
+
+  describe('appUrl resolution', () => {
+    const ORIGINAL_APP_URL = process.env.NEXT_PUBLIC_APP_URL
+    const ORIGINAL_VERCEL_URL = process.env.VERCEL_URL
+
+    afterEach(() => {
+      if (ORIGINAL_APP_URL === undefined) delete process.env.NEXT_PUBLIC_APP_URL
+      else process.env.NEXT_PUBLIC_APP_URL = ORIGINAL_APP_URL
+      if (ORIGINAL_VERCEL_URL === undefined) delete process.env.VERCEL_URL
+      else process.env.VERCEL_URL = ORIGINAL_VERCEL_URL
+    })
+
+    it('prefers x-forwarded-host over NEXT_PUBLIC_APP_URL when both are present', async () => {
+      process.env.NEXT_PUBLIC_APP_URL = 'https://www.totallosstoolkit.com'
+      ;(supabaseAdmin.auth.signInWithOtp as jest.Mock).mockResolvedValue({ data: {}, error: null })
+
+      const request = new Request('http://internal/api/auth/magic-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-host': 'my-preview-branch.vercel.app',
+          'x-forwarded-proto': 'https',
+        },
+        body: JSON.stringify({ email: 'user@example.com' }),
+      })
+
+      await POST(request)
+
+      expect(supabaseAdmin.auth.signInWithOtp).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        options: {
+          emailRedirectTo: 'https://my-preview-branch.vercel.app/api/auth/callback',
+          shouldCreateUser: true,
+        },
+      })
+    })
+
+    it('falls back to NEXT_PUBLIC_APP_URL when no x-forwarded-host header is present', async () => {
+      process.env.NEXT_PUBLIC_APP_URL = 'https://www.totallosstoolkit.com'
+      ;(supabaseAdmin.auth.signInWithOtp as jest.Mock).mockResolvedValue({ data: {}, error: null })
+
+      const request = new Request('http://internal/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'user@example.com' }),
+      })
+
+      await POST(request)
+
+      expect(supabaseAdmin.auth.signInWithOtp).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        options: {
+          emailRedirectTo: 'https://www.totallosstoolkit.com/api/auth/callback',
+          shouldCreateUser: true,
+        },
+      })
+    })
+
+    it('falls back to VERCEL_URL when neither x-forwarded-host nor NEXT_PUBLIC_APP_URL is present', async () => {
+      delete process.env.NEXT_PUBLIC_APP_URL
+      process.env.VERCEL_URL = 'my-deployment.vercel.app'
+      ;(supabaseAdmin.auth.signInWithOtp as jest.Mock).mockResolvedValue({ data: {}, error: null })
+
+      const request = new Request('http://internal/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'user@example.com' }),
+      })
+
+      await POST(request)
+
+      expect(supabaseAdmin.auth.signInWithOtp).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        options: {
+          emailRedirectTo: 'https://my-deployment.vercel.app/api/auth/callback',
+          shouldCreateUser: true,
+        },
+      })
     })
   })
 })
