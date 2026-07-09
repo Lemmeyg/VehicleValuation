@@ -29,6 +29,7 @@ export async function createCheckout(
       data: {
         type: 'checkouts',
         attributes: {
+          test_mode: params.testMode ?? false,
           checkout_data: {
             custom: params.customData,
             ...(params.discountCode ? { discount_code: params.discountCode } : {}),
