@@ -1,44 +1,39 @@
 /**
  * GET /api/auth/session
  *
- * Get the current authenticated user and session.
+ * Get the current authenticated user.
  * Returns user data and profile if authenticated, null otherwise.
  */
 
 import { createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import { NextResponse } from 'next/server'
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   try {
     const supabase = await createRouteHandlerSupabaseClient()
 
-    // Get current session
+    // getUser() validates against the Supabase Auth server on every call —
+    // unlike getSession(), it can't be spoofed by a crafted cookie.
     const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
 
-    if (sessionError) {
-      console.error('Session error:', sessionError)
-      return NextResponse.json(
-        { error: 'Failed to get session' },
-        { status: 500 }
-      )
+    if (userError) {
+      console.error('Session error:', userError)
+      return NextResponse.json({ error: 'Failed to get session' }, { status: 500 })
     }
 
     // No active session
-    if (!session) {
-      return NextResponse.json(
-        { user: null, session: null },
-        { status: 200 }
-      )
+    if (!user) {
+      return NextResponse.json({ user: null, session: null }, { status: 200 })
     }
 
     // Fetch user profile
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     if (profileError) {
@@ -49,19 +44,18 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         user: {
-          id: session.user.id,
-          email: session.user.email,
+          id: user.id,
+          email: user.email,
           profile,
         },
-        session,
+        // Callers (Navbar, PricingSection) only check truthiness of `session`,
+        // never read token fields from it — this presence marker is sufficient.
+        session: { user },
       },
       { status: 200 }
     )
   } catch (error) {
     console.error('Session exception:', error)
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 })
   }
 }
