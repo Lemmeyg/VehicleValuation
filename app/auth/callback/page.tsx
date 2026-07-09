@@ -98,7 +98,7 @@ function AuthCallbackContent() {
           setStatus('success')
           setMessage('Success! Redirecting...')
           const storedRedirect = localStorage.getItem('auth_redirect_to')
-          let redirectUrl = '/pricing'
+          let redirectUrl = '/'
           if (nextUrl) {
             redirectUrl = decodeURIComponent(nextUrl)
           } else if (storedRedirect) {
@@ -183,9 +183,9 @@ function AuthCallbackContent() {
           setStatus('success')
           setMessage('Success! Redirecting...')
 
-          // Priority: nextUrl (OAuth) > localStorage fallback > reportId > pricing default
+          // Priority: nextUrl (OAuth) > localStorage fallback > reportId > home page default
           const storedRedirect = localStorage.getItem('auth_redirect_to')
-          let redirectUrl = '/pricing'
+          let redirectUrl = '/'
           if (nextUrl) {
             redirectUrl = decodeURIComponent(nextUrl)
           } else if (storedRedirect) {
@@ -251,9 +251,9 @@ function AuthCallbackContent() {
         setStatus('success')
         setMessage('Success! Redirecting...')
 
-        // Priority: nextUrl (OAuth) > localStorage fallback > reportId > pricing default
+        // Priority: nextUrl (OAuth) > localStorage fallback > reportId > home page default
         const storedRedirect = localStorage.getItem('auth_redirect_to')
-        let redirectUrl = '/pricing'
+        let redirectUrl = '/'
         if (nextUrl) {
           redirectUrl = decodeURIComponent(nextUrl)
         } else if (storedRedirect) {

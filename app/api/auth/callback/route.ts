@@ -101,7 +101,7 @@ export async function GET(request: Request) {
         await linkReportsToUser(userId, userEmail)
       }
 
-      // Redirect: next param > reportId > /pricing (hero flow default) > /dashboard
+      // Redirect: next param > reportId > home page (default)
       return redirectToReport(reportId, next, requestUrl.origin)
     }
 
@@ -162,7 +162,7 @@ async function linkReportsToUser(userId: string, userEmail: string) {
 
 // Helper function to determine redirect destination
 function redirectToReport(reportId: string | null, next: string | null, origin: string) {
-  let redirectUrl = '/pricing'
+  let redirectUrl = '/'
 
   if (next) {
     redirectUrl = next
@@ -171,7 +171,7 @@ function redirectToReport(reportId: string | null, next: string | null, origin: 
     redirectUrl = `/reports/${reportId}`
     console.log('Redirecting to specific report:', redirectUrl)
   } else {
-    console.log('Redirecting to pricing (default for OAuth flow)')
+    console.log('Redirecting to home page (no next/reportId provided)')
   }
 
   return NextResponse.redirect(new URL(redirectUrl, origin))
