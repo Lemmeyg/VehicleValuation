@@ -83,7 +83,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Create checkout session
-    const requestedTestMode = process.env.LEMONSQUEEZY_TEST_MODE === 'true'
     const checkout = await createCheckout({
       variantId,
       customData: {
@@ -94,16 +93,7 @@ export async function POST(request: NextRequest) {
       successUrl,
       cancelUrl: `${appUrl}/reports/${reportId}`,
       discountCode,
-      testMode: requestedTestMode,
-    })
-
-    // TEMP DIAGNOSTIC — remove once test mode is confirmed working end-to-end.
-    // Compares what we asked LemonSqueezy for vs. what it actually returned,
-    // to reveal whether the API key's own mode is overriding the test_mode we send.
-    console.log('[create-checkout] test mode diagnostic:', {
-      requestedTestMode,
-      responseTestMode: checkout.data.attributes.test_mode,
-      checkoutUrl: checkout.data.attributes.url,
+      testMode: process.env.LEMONSQUEEZY_TEST_MODE === 'true',
     })
 
     // Return checkout URL
