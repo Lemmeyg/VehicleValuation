@@ -34,11 +34,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
     }
 
-    // Derive callback base URL:
-    // - NEXT_PUBLIC_APP_URL for production (set in Vercel production env vars)
-    // - VERCEL_URL for preview deployments (auto-set by Vercel per deployment)
-    // - localhost fallback for local dev
+    // Derive callback base URL from the request's actual host first — Vercel's
+    // proxy always sets x-forwarded-host to whatever domain the browser
+    // actually hit, so this is correct in every environment (production, each
+    // Preview deployment, and local dev). NEXT_PUBLIC_APP_URL is only a
+    // fallback for a request that arrives with no forwarding headers at all —
+    // preferring it first would mean every magic link sent from a Preview
+    // deployment silently redirects back to whatever fixed URL that env var
+    // holds, which is exactly the bug this resolves.
+    const forwardedHost = request.headers.get('x-forwarded-host')
+    const forwardedProto = request.headers.get('x-forwarded-proto') || 'https'
     const appUrl =
+      (forwardedHost ? `${forwardedProto}://${forwardedHost}` : null) ||
       process.env.NEXT_PUBLIC_APP_URL ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
