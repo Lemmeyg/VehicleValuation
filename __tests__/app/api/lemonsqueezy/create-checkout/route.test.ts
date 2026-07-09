@@ -84,4 +84,24 @@ describe('POST /api/lemonsqueezy/create-checkout', () => {
     expect(res.status).toBe(200)
     expect(data.checkoutUrl).toBe('https://lemonsqueezy.com/checkout/123')
   })
+
+  it('passes testMode: false to createCheckout when LEMONSQUEEZY_TEST_MODE is not set', async () => {
+    delete process.env.LEMONSQUEEZY_TEST_MODE
+
+    const req = makeRequest({ reportId: 'report-1', reportType: 'BASIC' })
+    await POST(req)
+
+    expect(mockCreateCheckout).toHaveBeenCalledWith(expect.objectContaining({ testMode: false }))
+  })
+
+  it('passes testMode: true to createCheckout when LEMONSQUEEZY_TEST_MODE=true', async () => {
+    process.env.LEMONSQUEEZY_TEST_MODE = 'true'
+
+    const req = makeRequest({ reportId: 'report-1', reportType: 'BASIC' })
+    await POST(req)
+
+    expect(mockCreateCheckout).toHaveBeenCalledWith(expect.objectContaining({ testMode: true }))
+
+    delete process.env.LEMONSQUEEZY_TEST_MODE
+  })
 })

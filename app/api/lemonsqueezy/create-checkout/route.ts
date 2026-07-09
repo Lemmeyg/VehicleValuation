@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       successUrl,
       cancelUrl: `${appUrl}/reports/${reportId}`,
       discountCode,
+      testMode: process.env.LEMONSQUEEZY_TEST_MODE === 'true',
     })
 
     // Return checkout URL

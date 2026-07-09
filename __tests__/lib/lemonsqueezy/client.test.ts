@@ -43,4 +43,29 @@ describe('createCheckout', () => {
     const body = JSON.parse(mockFetch.mock.calls[0][1].body)
     expect(body.data.attributes.checkout_data.discount_code).toBe('STAY19')
   })
+
+  it('defaults test_mode to false when testMode is not provided', async () => {
+    await createCheckout({
+      variantId: '123',
+      customData: { reportId: 'rep-1', reportType: 'BASIC' },
+      successUrl: 'https://example.com/success',
+      cancelUrl: 'https://example.com/cancel',
+    })
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.data.attributes.test_mode).toBe(false)
+  })
+
+  it('sets test_mode to true when testMode is true', async () => {
+    await createCheckout({
+      variantId: '123',
+      customData: { reportId: 'rep-1', reportType: 'BASIC' },
+      successUrl: 'https://example.com/success',
+      cancelUrl: 'https://example.com/cancel',
+      testMode: true,
+    })
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.data.attributes.test_mode).toBe(true)
+  })
 })

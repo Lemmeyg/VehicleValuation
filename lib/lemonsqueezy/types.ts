@@ -134,4 +134,5 @@ export interface CreateCheckoutParams {
   successUrl: string
   cancelUrl: string
   discountCode?: string
+  testMode?: boolean
 }
