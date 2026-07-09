@@ -101,7 +101,7 @@ export async function GET(request: Request) {
         await linkReportsToUser(userId, userEmail)
       }
 
-      // Redirect: next param > reportId > /pricing (hero flow default) > /dashboard
+      // Redirect: next param > reportId > home page (default)
       return redirectToReport(reportId, next, requestUrl.origin)
     }
 
