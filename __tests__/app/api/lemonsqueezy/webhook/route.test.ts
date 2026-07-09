@@ -278,6 +278,39 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     delete process.env.NEXT_PUBLIC_APP_URL
   })
 
+  it('prefers x-forwarded-host over NEXT_PUBLIC_APP_URL when both are present', async () => {
+    process.env.NEXT_PUBLIC_APP_URL = 'https://www.totallosstoolkit.com'
+
+    const signInWithOtpMock = jest.fn().mockResolvedValue({ error: null })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.auth.signInWithOtp = signInWithOtpMock as any
+
+    const body = makeOrderCreatedBody()
+    const request = new Request('http://internal/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'my-preview-branch.vercel.app',
+        'x-forwarded-proto': 'https',
+      },
+      body,
+    })
+
+    await POST(request)
+    await drainAfterCallbacks()
+
+    expect(signInWithOtpMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          emailRedirectTo:
+            'https://my-preview-branch.vercel.app/api/auth/callback?next=/reports/report-abc/view',
+        }),
+      })
+    )
+
+    delete process.env.NEXT_PUBLIC_APP_URL
+  })
+
   it('magic link redirects to /reports/{id}/view not /reports/{id}', async () => {
     delete process.env.NEXT_PUBLIC_APP_URL
 

@@ -39,12 +39,19 @@ export async function POST(request: NextRequest) {
     }
     console.log('[WH-1] Signature verified OK')
 
-    // Resolve the public app URL (needed for magic link emails)
+    // Resolve the public app URL (needed for magic link emails). Prefer the
+    // request's actual host first — Vercel's proxy always sets x-forwarded-host
+    // to whatever domain the browser actually hit, so this is correct in every
+    // environment. NEXT_PUBLIC_APP_URL is only a fallback for a request that
+    // arrives with no forwarding headers at all — preferring it first would
+    // mean every magic link sent after a purchase on a Preview deployment
+    // silently redirects back to whatever fixed URL that env var holds.
     const forwardedHost = request.headers.get('x-forwarded-host')
     const forwardedProto = request.headers.get('x-forwarded-proto') || 'https'
     const appUrl =
+      (forwardedHost ? `${forwardedProto}://${forwardedHost}` : null) ||
       process.env.NEXT_PUBLIC_APP_URL ||
-      (forwardedHost ? `${forwardedProto}://${forwardedHost}` : request.nextUrl.origin)
+      request.nextUrl.origin
 
     // Parse the event
     const event: LemonSqueezyWebhookEvent = JSON.parse(rawBody)
