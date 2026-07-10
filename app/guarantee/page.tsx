@@ -462,11 +462,11 @@ export default function MoneyBackGuaranteePage() {
                 </h2>
                 <p className="text-slate-600 leading-relaxed mb-4">
                   If you have questions about our Money-Back Guarantee or need clarification on any
-                  terms, please visit our{' '}
-                  <a href="/contact" className="text-primary-600 hover:underline">
-                    Contact Us
-                  </a>{' '}
-                  page. We&apos;re here to help you get the fair settlement you deserve.
+                  terms, please email us at{' '}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
+                    {SUPPORT_EMAIL}
+                  </a>
+                  . We&apos;re here to help you get the fair settlement you deserve.
                 </p>
                 <p className="text-slate-600 leading-relaxed">
                   This guarantee demonstrates our confidence in the Premium Vehicle Valuation Report
@@ -485,11 +485,11 @@ export default function MoneyBackGuaranteePage() {
                 <p className="text-sm text-slate-600 italic">
                   This Money-Back Guarantee policy is part of our commitment to customer
                   satisfaction. Please read it carefully to understand your rights and our refund
-                  process. For questions, visit our{' '}
-                  <a href="/contact" className="text-primary-600 hover:underline">
-                    Contact Us
-                  </a>{' '}
-                  page.
+                  process. For questions, email{' '}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
+                    {SUPPORT_EMAIL}
+                  </a>
+                  .
                 </p>
               </div>
             </div>
