@@ -87,7 +87,29 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
 
   // Ownership check — skip for token access (token already validated above)
   // Admins can view any report
-  if (!isTokenAccess && !canViewReport(user?.id ?? '', isAdmin, report.user_id)) {
+  let hasAccess = isTokenAccess || canViewReport(user?.id ?? '', isAdmin, report.user_id)
+
+  // Secondary check: an authenticated user whose account email matches an
+  // orphaned report (user_id IS NULL — e.g. the webhook's email-based link
+  // never ran) shouldn't be bounced to /auth and looped back here forever.
+  // Grant access now and link the report so future visits hit the primary
+  // check directly.
+  if (
+    !hasAccess &&
+    user?.email &&
+    report.user_id === null &&
+    report.email &&
+    report.email.toLowerCase() === user.email.toLowerCase()
+  ) {
+    hasAccess = true
+    await supabaseAdmin
+      .from('reports')
+      .update({ user_id: user.id })
+      .eq('id', id)
+      .is('user_id', null)
+  }
+
+  if (!hasAccess) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md">
