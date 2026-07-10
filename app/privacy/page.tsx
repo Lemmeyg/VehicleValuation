@@ -1,7 +1,7 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import Link from 'next/link'
 import type { Metadata } from 'next'
-import { SUPPORT_EMAIL } from '@/lib/constants'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
@@ -510,10 +510,10 @@ export default function PrivacyPolicyPage() {
                   data practices, please contact us:
                 </p>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  <strong>Email:</strong>{' '}
-                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
-                    {SUPPORT_EMAIL}
-                  </a>
+                  <strong>Contact:</strong>{' '}
+                  <Link href="/contact" className="text-primary-600 hover:underline">
+                    Contact Us
+                  </Link>
                 </p>
                 <p className="text-slate-600 leading-relaxed">
                   We aim to respond to all privacy-related inquiries within 5-7 business days.

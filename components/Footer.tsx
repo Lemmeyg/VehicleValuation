@@ -1,8 +1,10 @@
 import Link from 'next/link'
-import { SUPPORT_EMAIL } from '@/lib/constants'
 
 const footerLinks = {
-  company: [{ name: 'FAQ', href: '/faq' }],
+  company: [
+    { name: 'FAQ', href: '/faq' },
+    { name: 'Contact Us', href: '/contact' },
+  ],
   resources: [
     { name: 'Get Report', href: '#hero-form' },
     { name: 'Articles', href: '#knowledge-base' },
@@ -42,14 +44,6 @@ export default function Footer() {
                   </Link>
                 </li>
               ))}
-              <li>
-                <a
-                  href={`mailto:${SUPPORT_EMAIL}`}
-                  className="text-slate-400 hover:text-primary-500 transition-colors text-sm"
-                >
-                  Contact Us
-                </a>
-              </li>
             </ul>
           </div>
 
