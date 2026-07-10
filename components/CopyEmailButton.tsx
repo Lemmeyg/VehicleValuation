@@ -22,23 +22,28 @@ export function CopyEmailButton({ email }: CopyEmailButtonProps) {
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700"
-      aria-label={copied ? 'Email copied' : 'Copy email address'}
-    >
-      {copied ? (
-        <>
-          <Check className="h-4 w-4" />
-          Copied!
-        </>
-      ) : (
-        <>
-          <Copy className="h-4 w-4" />
-          Copy email
-        </>
-      )}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700"
+        aria-label={copied ? 'Email copied' : 'Copy email address'}
+      >
+        {copied ? (
+          <>
+            <Check className="h-4 w-4" />
+            Copied!
+          </>
+        ) : (
+          <>
+            <Copy className="h-4 w-4" />
+            Copy email
+          </>
+        )}
+      </button>
+      <span role="status" aria-live="polite" className="sr-only">
+        {copied ? 'Email address copied to clipboard' : ''}
+      </span>
+    </>
   )
 }

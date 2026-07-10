@@ -86,7 +86,7 @@ export default function MoneyBackGuaranteePage() {
                     <Link href="/contact" className="text-emerald-700 underline">
                       Contact Us
                     </Link>{' '}
-                    page with subject &quot;Money-Back Guarantee Claim&quot; within 90 days of
+                    page and reference &quot;Money-Back Guarantee Claim&quot; within 90 days of
                     purchase
                   </span>
                 </li>
@@ -238,7 +238,7 @@ export default function MoneyBackGuaranteePage() {
                     <Link href="/contact" className="text-primary-600 hover:underline">
                       Contact Us
                     </Link>{' '}
-                    page with the subject line &quot;Money-Back Guarantee Claim&quot;
+                    page and reference &quot;Money-Back Guarantee Claim&quot;
                   </li>
                   <li>Include all required documentation listed above as attachments</li>
                   <li>You&apos;ll receive instructions on next steps within 14 business days</li>
