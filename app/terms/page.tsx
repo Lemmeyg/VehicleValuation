@@ -1,6 +1,7 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import type { Metadata } from 'next'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
@@ -1017,11 +1018,11 @@ export default function TermsPage() {
               <section className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Contact Information</h2>
                 <p className="text-slate-600 leading-relaxed mb-4">
-                  If you have questions about these Terms and Conditions, please visit our{' '}
-                  <a href="/contact" className="text-primary-600 hover:underline">
-                    Contact Us
-                  </a>{' '}
-                  page.
+                  If you have questions about these Terms and Conditions, please email us at{' '}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
+                    {SUPPORT_EMAIL}
+                  </a>
+                  .
                 </p>
                 <p className="text-slate-600 leading-relaxed">
                   We aim to respond to all inquiries within 5-7 business days.
