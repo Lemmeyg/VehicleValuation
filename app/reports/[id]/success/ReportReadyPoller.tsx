@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
 import { trackReportWorkflow, trackPaymentSuccess } from '@/lib/analytics/events'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 
 interface Props {
   reportId: string
@@ -168,9 +169,9 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
               Try Again
             </button>
             <p className="text-sm text-slate-500">
-              Still having trouble?{' '}
-              <a href="/contact" className="text-emerald-600 underline">
-                Contact Support
+              Still having trouble? Email{' '}
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-emerald-600 underline">
+                {SUPPORT_EMAIL}
               </a>
             </p>
           </div>
