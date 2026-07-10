@@ -39,4 +39,30 @@ describe('upsertLead', () => {
       p_lead_type: 'purchased',
     })
   })
+
+  it('passes attribution fields through when provided', async () => {
+    const supabase = makeSupabase()
+    await upsertLead(supabase, 'user@example.com', 'form_submitted', {
+      source: 'kb_article',
+      kbSourceSlug: 'my-article',
+    })
+    expect(supabase.rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'user@example.com',
+      p_lead_type: 'form_submitted',
+      p_source: 'kb_article',
+      p_kb_source_slug: 'my-article',
+      p_utm_source: undefined,
+      p_utm_medium: undefined,
+      p_utm_campaign: undefined,
+    })
+  })
+
+  it('omits attribution fields when not provided (backward compatible)', async () => {
+    const supabase = makeSupabase()
+    await upsertLead(supabase, 'user@example.com', 'dispute_letter')
+    expect(supabase.rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'user@example.com',
+      p_lead_type: 'dispute_letter',
+    })
+  })
 })
