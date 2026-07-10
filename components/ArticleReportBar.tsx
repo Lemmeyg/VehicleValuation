@@ -135,21 +135,39 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
     })
 
     const sanitizedEmail = sanitizeEmail(email)
-
-    // Email capture — fire and forget, non-blocking
-    fetch('/api/leads/capture', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: sanitizedEmail, source: 'KB report form' }),
-    })
     trackEmailCapture({ form: 'kb_article_bar', action: 'submitted' })
 
-    // Store form data for pricing page — same pattern as Hero form, no auth required before purchase
-    localStorage.setItem(
-      'hero_form_data',
-      JSON.stringify({ vin: sanitized, mileage: mileageNum, zipCode, email: sanitizedEmail })
-    )
-    router.push('/pricing')
+    // Create the report server-side now, at submit time — not later when the
+    // pricing page happens to load. Same single write path as Hero.tsx.
+    try {
+      const response = await fetch('/api/reports/create-anonymous', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vin: sanitized,
+          mileage: mileageNum,
+          zipCode,
+          email: sanitizedEmail,
+          source: 'kb_article',
+          kbSourceSlug: articleSlug,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setError(result.error || 'Failed to create report. Please try again.')
+        setLoading(false)
+        return
+      }
+
+      sessionStorage.setItem('pending_report', JSON.stringify(result.report))
+      router.push('/pricing')
+    } catch (err) {
+      console.error('[ArticleReportBar] Failed to create report:', err)
+      setError('Failed to create report. Please try again.')
+      setLoading(false)
+    }
   }
 
   const isSubmittable =
