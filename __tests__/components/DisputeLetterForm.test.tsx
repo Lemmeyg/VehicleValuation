@@ -4,6 +4,12 @@ import DisputeLetterForm from '@/components/DisputeLetterForm'
 const mockFetch = jest.fn()
 global.fetch = mockFetch
 
+jest.mock('@/lib/analytics/events', () => ({
+  trackEvent: jest.fn(),
+}))
+import { trackEvent } from '@/lib/analytics/events'
+const mockTrackEvent = trackEvent as jest.Mock
+
 const mockClick = jest.fn()
 
 beforeEach(() => {
@@ -72,6 +78,32 @@ describe('DisputeLetterForm', () => {
       expect(screen.getByText(/your download has started/i)).toBeInTheDocument()
     })
     expect(mockClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('fires dispute_letter_downloaded on successful download', async () => {
+    render(<DisputeLetterForm />)
+    fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
+      target: { value: 'user@example.com' },
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /download free letter/i }))
+    })
+    expect(mockTrackEvent).toHaveBeenCalledWith('dispute_letter_downloaded')
+  })
+
+  it('does not fire dispute_letter_downloaded when the request fails', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'Something went wrong' }),
+    })
+    render(<DisputeLetterForm />)
+    fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
+      target: { value: 'user@example.com' },
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /download free letter/i }))
+    })
+    expect(mockTrackEvent).not.toHaveBeenCalled()
   })
 
   it('shows API error message on non-ok response', async () => {
