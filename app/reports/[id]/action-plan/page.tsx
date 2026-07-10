@@ -10,6 +10,7 @@ import { supabaseAdmin } from '@/lib/db/supabase'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { canViewReport } from '@/lib/utils/report-access'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 import {
   CheckCircle,
   Clock,
@@ -658,9 +659,9 @@ export default async function ActionPlanPage({ params }: PageProps) {
             <Link href="/privacy" className="hover:text-slate-700">
               Privacy Policy
             </Link>
-            <Link href="/contact" className="hover:text-slate-700">
-              Contact Us
-            </Link>
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-slate-700">
+              {SUPPORT_EMAIL}
+            </a>
           </div>
         </div>
       </div>

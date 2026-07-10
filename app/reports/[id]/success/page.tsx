@@ -6,6 +6,7 @@ import { RedditPurchaseTracker } from './RedditPurchaseTracker'
 import { PostHogPurchaseTracker } from './PostHogPurchaseTracker'
 import { ReportReadyPoller } from './ReportReadyPoller'
 import { AuthenticatedPaymentPoller } from './AuthenticatedPaymentPoller'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 /**
  * Payment Success Page
  *
@@ -305,9 +306,12 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
         {/* Help Section */}
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-500">
-            Questions about your report?{' '}
-            <a href="/contact" className="font-medium text-blue-600 hover:text-blue-500">
-              Contact Us
+            Questions about your report? Email{' '}
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="font-medium text-blue-600 hover:text-blue-500"
+            >
+              {SUPPORT_EMAIL}
             </a>
           </p>
         </div>

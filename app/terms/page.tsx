@@ -1,5 +1,6 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
@@ -1018,9 +1019,9 @@ export default function TermsPage() {
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Contact Information</h2>
                 <p className="text-slate-600 leading-relaxed mb-4">
                   If you have questions about these Terms and Conditions, please visit our{' '}
-                  <a href="/contact" className="text-primary-600 hover:underline">
+                  <Link href="/contact" className="text-primary-600 hover:underline">
                     Contact Us
-                  </a>{' '}
+                  </Link>{' '}
                   page.
                 </p>
                 <p className="text-slate-600 leading-relaxed">

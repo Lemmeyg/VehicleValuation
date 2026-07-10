@@ -8,6 +8,7 @@ import { getUser } from '@/lib/db/auth'
 import { supabaseAdmin } from '@/lib/db/supabase'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 import { canViewReport } from '@/lib/utils/report-access'
 import Image from 'next/image'
 import { Car, FileText } from 'lucide-react'
@@ -728,8 +729,8 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
                     <Link href="/privacy" className="hover:text-slate-700">
                       PRIVACY POLICY
                     </Link>
-                    <a href="/contact" className="hover:text-slate-700">
-                      Contact Us
+                    <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-slate-700">
+                      {SUPPORT_EMAIL}
                     </a>
                   </div>
                 </div>

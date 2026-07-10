@@ -1,5 +1,6 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
@@ -370,9 +371,9 @@ export default function FAQPage() {
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
                       Yes, you can request account deletion at any time by visiting our{' '}
-                      <a href="/contact" className="text-primary-600 hover:underline">
+                      <Link href="/contact" className="text-primary-600 hover:underline">
                         Contact Us
-                      </a>{' '}
+                      </Link>{' '}
                       page. Please note that account deletion will remove access to any previously
                       generated reports.
                     </p>
@@ -451,9 +452,9 @@ export default function FAQPage() {
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
                       Visit our{' '}
-                      <a href="/contact" className="text-primary-600 hover:underline">
+                      <Link href="/contact" className="text-primary-600 hover:underline">
                         Contact Us
-                      </a>{' '}
+                      </Link>{' '}
                       page, explain the issue with your report, and we&apos;ll review your request
                       promptly.
                     </p>
@@ -472,9 +473,9 @@ export default function FAQPage() {
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
                       Visit our{' '}
-                      <a href="/contact" className="text-primary-600 hover:underline">
+                      <Link href="/contact" className="text-primary-600 hover:underline">
                         Contact Us
-                      </a>{' '}
+                      </Link>{' '}
                       page. We aim to respond to all inquiries within 5-7 business days.
                     </p>
                   </div>
@@ -485,9 +486,9 @@ export default function FAQPage() {
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
                       No problem! Visit our{' '}
-                      <a href="/contact" className="text-primary-600 hover:underline">
+                      <Link href="/contact" className="text-primary-600 hover:underline">
                         Contact Us
-                      </a>{' '}
+                      </Link>{' '}
                       page and we&apos;ll be happy to help answer any questions you have about our
                       service.
                     </p>
@@ -502,9 +503,9 @@ export default function FAQPage() {
                 </p>
                 <p className="text-sm text-slate-600 mt-2">
                   Didn&apos;t find what you were looking for?{' '}
-                  <a href="/contact" className="text-primary-600 hover:underline">
+                  <Link href="/contact" className="text-primary-600 hover:underline">
                     Contact us
-                  </a>{' '}
+                  </Link>{' '}
                   and we&apos;ll be happy to help.
                 </p>
               </div>
