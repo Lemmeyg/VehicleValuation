@@ -3,11 +3,10 @@
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { useRouter } from 'next/navigation'
 import Hero from '@/components/Hero'
 
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn() }),
-}))
+jest.mock('next/navigation', () => ({ useRouter: jest.fn() }))
 
 jest.mock('@/lib/analytics/events', () => ({
   trackVehicleSearch: jest.fn(),
@@ -27,6 +26,7 @@ jest.mock('@/components/ReportPreviewCondensed', () => {
   return MockReportPreviewCondensed
 })
 
+const mockPush = jest.fn()
 const VALID_VIN = '1HGCM82633A004352'
 
 const fillValidFieldsExceptEmail = () => {
@@ -38,7 +38,13 @@ const fillValidFieldsExceptEmail = () => {
 describe('Hero', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    ;(useRouter as jest.Mock).mockReturnValue({ push: mockPush })
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ report: { id: 'report-1' } }),
+    })
+    localStorage.clear()
+    sessionStorage.clear()
   })
 
   it('renders the email field', () => {
@@ -71,7 +77,7 @@ describe('Hero', () => {
     expect(screen.getByRole('button', { name: /get my independent valuation/i })).toBeEnabled()
   })
 
-  it('shows a validation warning and does not call /api/leads/capture when submitted without email', async () => {
+  it('shows a validation warning and does not call create-anonymous when submitted without email', async () => {
     render(<Hero />)
     fillValidFieldsExceptEmail()
 
@@ -81,11 +87,14 @@ describe('Hero', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/email is required/i)
     expect(
-      (global.fetch as jest.Mock).mock.calls.some(([url]) => url === '/api/leads/capture')
+      (global.fetch as jest.Mock).mock.calls.some(
+        ([url]) => url === '/api/reports/create-anonymous'
+      )
     ).toBe(false)
+    expect(mockPush).not.toHaveBeenCalled()
   })
 
-  it('calls /api/leads/capture with the sanitized email and stores it for the pricing page on valid submit', async () => {
+  it('calls create-anonymous with email and source, stores pending_report, and redirects on valid submit', async () => {
     render(<Hero />)
     fillValidFieldsExceptEmail()
     fireEvent.change(screen.getByLabelText(/^email$/i), {
@@ -96,15 +105,38 @@ describe('Hero', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/leads/capture',
+        '/api/reports/create-anonymous',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ email: 'test@example.com' }),
+          body: JSON.stringify({
+            vin: VALID_VIN,
+            mileage: 50000,
+            zipCode: '90210',
+            email: 'test@example.com',
+            source: 'homepage',
+          }),
         })
       )
     })
 
-    const stored = JSON.parse(localStorage.getItem('hero_form_data') || '{}')
-    expect(stored.email).toBe('test@example.com')
+    expect(sessionStorage.getItem('pending_report')).toBe(JSON.stringify({ id: 'report-1' }))
+    expect(mockPush).toHaveBeenCalledWith('/pricing')
+  })
+
+  it('shows a submit error and does not redirect when create-anonymous fails', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Failed to create report. Please try again.' }),
+    })
+    render(<Hero />)
+    fillValidFieldsExceptEmail()
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: 'test@example.com' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to create report/i)).toBeInTheDocument()
+    })
+    expect(mockPush).not.toHaveBeenCalled()
   })
 })

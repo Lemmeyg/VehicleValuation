@@ -172,28 +172,40 @@ export default function Hero() {
     trackRedditLead()
 
     const sanitizedEmail = sanitizeEmail(email)
-
-    // Email capture — fire and forget, non-blocking
-    fetch('/api/leads/capture', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: sanitizedEmail }),
-    }).catch(() => {})
     trackEmailCapture({ form: 'hero', action: 'submitted' })
 
-    // Store form data in localStorage for pricing page
-    const formData = {
-      vin: sanitizeVin(vin),
-      mileage: parseInt(mileage),
-      zipCode,
-      email: sanitizedEmail,
-    }
-    localStorage.setItem('hero_form_data', JSON.stringify(formData))
-    console.log('[Hero] Form data stored in localStorage:', formData)
+    // Create the report server-side now, at submit time — not later when the
+    // pricing page happens to load. This is the one write path for email +
+    // KB attribution; there is no separate /api/leads/capture call anymore.
+    try {
+      const response = await fetch('/api/reports/create-anonymous', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vin: sanitizeVin(vin),
+          mileage: parseInt(mileage),
+          zipCode,
+          email: sanitizedEmail,
+          source: 'homepage',
+          ...(kbAttr && { kbSourceSlug: kbAttr.slug }),
+        }),
+      })
 
-    // Redirect directly to pricing — no auth required before purchase
-    console.log('[Hero] Redirecting to pricing page')
-    router.push('/pricing')
+      const result = await response.json()
+
+      if (!response.ok) {
+        setErrors({ submit: result.error || 'Failed to create report. Please try again.' })
+        setLoading(false)
+        return
+      }
+
+      sessionStorage.setItem('pending_report', JSON.stringify(result.report))
+      router.push('/pricing')
+    } catch (err) {
+      console.error('[Hero] Failed to create report:', err)
+      setErrors({ submit: 'Failed to create report. Please try again.' })
+      setLoading(false)
+    }
   }
 
   return (
