@@ -1,4 +1,6 @@
 /**
+ * @jest-environment node
+ *
  * Create Report API Integration Tests
  *
  * Tests report creation endpoint with mocked dependencies
@@ -6,7 +8,11 @@
  */
 
 import { POST } from '@/app/api/reports/create/route'
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import {
+  createServerSupabaseClient,
+  createRouteHandlerSupabaseClient,
+  supabaseAdmin,
+} from '@/lib/db/supabase'
 import * as rateLimitModule from '@/lib/rate-limit'
 import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
@@ -50,6 +56,7 @@ describe('POST /api/reports/create', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ;(createServerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
+    ;(createRouteHandlerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
 
     // Mock rate limiter to allow requests by default
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -643,5 +650,79 @@ describe('POST /api/reports/create', () => {
         })
       )
     })
+  })
+})
+
+describe('lead capture on report creation (N6)', () => {
+  const mockSingle = jest.fn()
+  const mockSelect = jest.fn(() => ({ single: mockSingle }))
+  const mockInsert = jest.fn(() => ({ select: mockSelect }))
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(createServerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
+    ;(createRouteHandlerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
+    mockSupabase.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'test-user-123', email: 'test@example.com' } },
+      error: null,
+    })
+    mockSingle.mockResolvedValue({ data: { id: 'new-report-123' }, error: null })
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      gte: jest.fn().mockReturnThis(),
+      single: mockSingle,
+      insert: mockInsert,
+      update: jest.fn().mockReturnThis(),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(rateLimitModule.reportCreationLimiter as any) = {
+      check: jest.fn().mockResolvedValue(undefined),
+    }
+    mockFetchAutoDevVinDecode.mockResolvedValue({ success: false, error: 'not relevant here' })
+    mockLogApiCall.mockResolvedValue(undefined)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
+  })
+
+  function makeRequest() {
+    return new Request('http://localhost:3000/api/reports/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vin: '1HGBH41JXMN109186',
+        mileage: 35000,
+        zipCode: '10001',
+        reportType: 'basic',
+      }),
+    })
+  }
+
+  it('includes the authenticated user email on the reports insert', async () => {
+    await POST(makeRequest())
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ email: 'test@example.com' }))
+  })
+
+  it('calls upsertLead with the authenticated user email as form_submitted', async () => {
+    await POST(makeRequest())
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((supabaseAdmin as any).rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'test@example.com',
+      p_lead_type: 'form_submitted',
+      p_source: undefined,
+      p_kb_source_slug: undefined,
+      p_utm_source: undefined,
+      p_utm_medium: undefined,
+      p_utm_campaign: undefined,
+    })
+  })
+
+  it('still creates the report even if upsertLead rejects', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabaseAdmin as any).rpc = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'db down' } })
+    const response = await POST(makeRequest())
+    expect(response.status).toBe(201)
   })
 })
