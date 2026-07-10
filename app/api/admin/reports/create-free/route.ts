@@ -17,6 +17,7 @@ import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
 import { logApiCall } from '@/lib/api/api-call-logger'
+import { upsertLead } from '@/lib/leads'
 
 export async function POST(request: Request) {
   try {
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
         status: 'draft',
         data_retrieval_status: 'pending',
         price_paid: 0,
+        email: user.email ?? null,
       })
       .select()
       .single()
@@ -61,6 +63,17 @@ export async function POST(request: Request) {
     if (reportError || !report) {
       console.error('[ADMIN_FREE_REPORT] Error creating report:', reportError)
       return NextResponse.json({ error: 'Failed to create report' }, { status: 500 })
+    }
+
+    // Capture form_submitted lead — non-fatal. 'purchased' stays reserved for
+    // the real LemonSqueezy webhook; this $0 admin report is an internal
+    // bypass, not an actual transaction.
+    if (user.email) {
+      try {
+        await upsertLead(supabaseAdmin, user.email, 'form_submitted')
+      } catch (leadErr) {
+        console.error('[ADMIN_FREE_REPORT] Lead capture failed (non-fatal):', leadErr)
+      }
     }
 
     // Fetch VIN decode

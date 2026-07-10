@@ -16,7 +16,9 @@ import { POST } from '@/app/api/admin/reports/create-free/route'
 
 // Mock all dependencies
 jest.mock('@/lib/db/admin-auth')
-jest.mock('@/lib/db/supabase', () => ({ supabaseAdmin: { from: jest.fn() } }))
+jest.mock('@/lib/db/supabase', () => ({
+  supabaseAdmin: { from: jest.fn(), rpc: jest.fn() },
+}))
 jest.mock('@/lib/api/autodev-client')
 jest.mock('@/lib/api/marketcheck-client')
 jest.mock('@/lib/services/pdf-generator', () => ({ generateAndUploadPDF: jest.fn() }))
@@ -76,6 +78,7 @@ describe('POST /api/admin/reports/create-free', () => {
 
     // Reset supabase mock (cleared above)
     ;(supabaseAdmin as any).from = mockFrom
+    ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
     mockFrom.mockReturnValue({ insert: mockInsert, update: mockUpdate, select: mockSelect })
     mockInsert.mockReturnValue({ select: mockSelect, single: mockSingle })
     mockSelect.mockReturnValue({ single: mockSingle })
@@ -219,6 +222,36 @@ describe('POST /api/admin/reports/create-free', () => {
       const data = await res.json()
       expect(res.status).toBe(500)
       expect(data.reportId).toBe('report-abc-123')
+    })
+  })
+
+  describe('lead capture (N6)', () => {
+    it('includes the admin user email on the reports insert', async () => {
+      await POST(makeRequest({ vin: VALID_VIN, mileage: 35000, zipCode: '10001' }))
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'admin@example.com' })
+      )
+    })
+
+    it('calls upsertLead with the admin email as form_submitted', async () => {
+      await POST(makeRequest({ vin: VALID_VIN, mileage: 35000, zipCode: '10001' }))
+      expect((supabaseAdmin as any).rpc).toHaveBeenCalledWith('upsert_lead', {
+        p_email: 'admin@example.com',
+        p_lead_type: 'form_submitted',
+        p_source: undefined,
+        p_kb_source_slug: undefined,
+        p_utm_source: undefined,
+        p_utm_medium: undefined,
+        p_utm_campaign: undefined,
+      })
+    })
+
+    it('still returns 201 if upsertLead rejects', async () => {
+      ;(supabaseAdmin as any).rpc = jest
+        .fn()
+        .mockResolvedValue({ data: null, error: { message: 'db down' } })
+      const response = await POST(makeRequest({ vin: VALID_VIN, mileage: 35000, zipCode: '10001' }))
+      expect(response.status).toBe(201)
     })
   })
 })
