@@ -1,5 +1,6 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { CopyEmailButton } from '@/components/CopyEmailButton'
 import { Mail } from 'lucide-react'
 import type { Metadata } from 'next'
 import { SUPPORT_EMAIL } from '@/lib/constants'
@@ -48,14 +49,18 @@ export default function ContactPage() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-slate-900 mb-1">Email Support</h2>
-                <a
-                  href={`mailto:${SUPPORT_EMAIL}`}
-                  className="text-primary-600 hover:underline text-lg font-medium"
-                >
-                  {SUPPORT_EMAIL}
-                </a>
+                <div className="flex flex-wrap items-center gap-3">
+                  <a
+                    href={`mailto:${SUPPORT_EMAIL}`}
+                    className="text-primary-600 hover:underline text-lg font-medium"
+                  >
+                    {SUPPORT_EMAIL}
+                  </a>
+                  <CopyEmailButton email={SUPPORT_EMAIL} />
+                </div>
                 <p className="text-slate-500 text-sm mt-2">
-                  We aim to respond to all inquiries within 5–7 business days.
+                  No email app configured? Use the copy button above and paste the address into your
+                  webmail. We aim to respond to all inquiries within 5–7 business days.
                 </p>
               </div>
             </div>

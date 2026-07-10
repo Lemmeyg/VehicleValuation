@@ -20,6 +20,7 @@ import {
   Path,
 } from '@react-pdf/renderer'
 import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
+import { SUPPORT_EMAIL } from '@/lib/constants'
 import {
   createPriceDistribution,
   findClosestBin,
@@ -1309,7 +1310,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
               © {new Date().getFullYear()} ELITE VALUATION SERVICES
             </Text>
             <Text style={styles.disclaimerFooterText}>
-              TERMS OF SERVICE | PRIVACY POLICY | CONTACT SUPPORT
+              TERMS OF SERVICE | PRIVACY POLICY | {SUPPORT_EMAIL}
             </Text>
           </View>
         </View>
