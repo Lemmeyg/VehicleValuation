@@ -188,3 +188,71 @@ describe('Lead capture', () => {
     expect(body.success).toBe(true)
   })
 })
+
+describe('attribution (N5)', () => {
+  it('stores source and kb_source_slug on the reports insert when provided', async () => {
+    await POST(
+      makeRequest({
+        vin: '1HGBH41JXMN109186',
+        mileage: 35000,
+        zipCode: '10001',
+        source: 'homepage',
+      })
+    )
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'homepage', kb_source_slug: null })
+    )
+  })
+
+  it('stores kb_source_slug when provided alongside source', async () => {
+    await POST(
+      makeRequest({
+        vin: '1HGBH41JXMN109186',
+        mileage: 35000,
+        zipCode: '10001',
+        source: 'kb_article',
+        kbSourceSlug: 'pennsylvania-total-loss-law',
+      })
+    )
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'kb_article',
+        kb_source_slug: 'pennsylvania-total-loss-law',
+      })
+    )
+  })
+
+  it('passes source and kbSourceSlug into upsertLead when an email is provided', async () => {
+    await POST(
+      makeRequest({
+        vin: '1HGBH41JXMN109186',
+        mileage: 35000,
+        zipCode: '10001',
+        email: 'shopper@example.com',
+        source: 'kb_article',
+        kbSourceSlug: 'pennsylvania-total-loss-law',
+      })
+    )
+    expect((supabaseAdmin as any).rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'shopper@example.com',
+      p_lead_type: 'form_submitted',
+      p_source: 'kb_article',
+      p_kb_source_slug: 'pennsylvania-total-loss-law',
+      p_utm_source: undefined,
+      p_utm_medium: undefined,
+      p_utm_campaign: undefined,
+    })
+  })
+
+  it('does not call upsertLead when no email is provided, regardless of attribution', async () => {
+    await POST(
+      makeRequest({
+        vin: '1HGBH41JXMN109186',
+        mileage: 35000,
+        zipCode: '10001',
+        source: 'homepage',
+      })
+    )
+    expect((supabaseAdmin as any).rpc).not.toHaveBeenCalled()
+  })
+})

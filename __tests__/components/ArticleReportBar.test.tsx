@@ -20,6 +20,10 @@ const mockPosthog = posthog as jest.Mocked<typeof posthog>
 
 function setupMocks() {
   ;(useRouter as jest.Mock).mockReturnValue({ push: mockPush })
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ report: { id: 'report-3' } }),
+  })
 }
 
 const VALID_VIN = '1HGBH41JXMN109186'
@@ -43,6 +47,7 @@ describe('ArticleReportBar', () => {
     jest.clearAllMocks()
     setupMocks()
     localStorage.clear()
+    sessionStorage.clear()
   })
 
   describe('rendering', () => {
@@ -92,34 +97,37 @@ describe('ArticleReportBar', () => {
   })
 
   describe('form submission', () => {
-    it('stores form data in localStorage and redirects to /pricing', async () => {
-      global.fetch = jest.fn()
+    it('creates the report server-side with source: kb_article and the article slug', async () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
       await fillForm()
       fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith('/pricing')
+        expect(global.fetch).toHaveBeenCalledWith(
+          '/api/reports/create-anonymous',
+          expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({
+              vin: VALID_VIN,
+              mileage: parseInt(VALID_MILEAGE),
+              zipCode: VALID_ZIP,
+              email: VALID_EMAIL,
+              source: 'kb_article',
+              kbSourceSlug: 'test-article',
+            }),
+          })
+        )
       })
-      const stored = JSON.parse(localStorage.getItem('hero_form_data') || '{}')
-      expect(stored.vin).toBe(VALID_VIN)
-      expect(stored.mileage).toBe(parseInt(VALID_MILEAGE))
-      expect(stored.zipCode).toBe(VALID_ZIP)
-      expect(stored.email).toBe(VALID_EMAIL)
+      expect(sessionStorage.getItem('pending_report')).toBe(JSON.stringify({ id: 'report-3' }))
+      expect(mockPush).toHaveBeenCalledWith('/pricing')
     })
 
-    it('calls /api/leads/capture with the sanitized email on submission', async () => {
-      global.fetch = jest.fn()
+    it('does not write to localStorage on submission', async () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
-      await fillForm({ email: '  Test@Example.com  ' })
+      await fillForm()
       fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
       await waitFor(() => expect(mockPush).toHaveBeenCalled())
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/leads/capture',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ email: 'test@example.com', source: 'KB report form' }),
-        })
-      )
+      expect(localStorage.getItem('hero_form_data')).toBeNull()
     })
 
     it('does not show any auth modal', async () => {
@@ -128,6 +136,21 @@ describe('ArticleReportBar', () => {
       fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
       await waitFor(() => expect(mockPush).toHaveBeenCalled())
       expect(screen.queryByTestId('auth-modal')).not.toBeInTheDocument()
+    })
+
+    it('shows an inline error and does not redirect when create-anonymous fails', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'Failed to create report. Please try again.' }),
+      })
+      render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
+      await fillForm()
+      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText(/failed to create report/i)).toBeInTheDocument()
+      })
+      expect(mockPush).not.toHaveBeenCalled()
     })
   })
 
