@@ -1,4 +1,6 @@
 /**
+ * @jest-environment node
+ *
  * Create Report API Integration Tests
  *
  * Tests report creation endpoint with mocked dependencies
@@ -6,7 +8,7 @@
  */
 
 import { POST } from '@/app/api/reports/create/route'
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { createServerSupabaseClient, createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import * as rateLimitModule from '@/lib/rate-limit'
 import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import { fetchMarketCheckData } from '@/lib/api/marketcheck-client'
@@ -50,6 +52,7 @@ describe('POST /api/reports/create', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ;(createServerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
+    ;(createRouteHandlerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
 
     // Mock rate limiter to allow requests by default
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
