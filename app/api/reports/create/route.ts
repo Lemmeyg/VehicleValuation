@@ -11,7 +11,8 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/db/auth'
 import { isAdmin } from '@/lib/db/admin-auth'
-import { createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
+import { createRouteHandlerSupabaseClient, supabaseAdmin } from '@/lib/db/supabase'
+import { upsertLead } from '@/lib/leads'
 import { getVinValidationError, sanitizeVin } from '@/lib/utils/vin-validator'
 import {
   fetchAutoDevVinDecode, // REAL API for VIN decode
@@ -135,6 +136,7 @@ export async function POST(request: Request) {
         status: 'draft',
         data_retrieval_status: 'pending',
         price_paid: 0, // Will be set after payment
+        email: user.email ?? null,
       })
       .select()
       .single()
@@ -142,6 +144,16 @@ export async function POST(request: Request) {
     if (reportError) {
       console.error('Error creating report:', reportError)
       return NextResponse.json({ error: 'Failed to create report' }, { status: 500 })
+    }
+
+    // Capture form_submitted lead — non-fatal. Authenticated users starting a
+    // report are a lead regardless of whether they've purchased yet.
+    if (user.email) {
+      try {
+        await upsertLead(supabaseAdmin, user.email, 'form_submitted')
+      } catch (leadErr) {
+        console.error('[create] Lead capture failed (non-fatal):', leadErr)
+      }
     }
 
     // Fetch VIN decode data from Auto.dev API
