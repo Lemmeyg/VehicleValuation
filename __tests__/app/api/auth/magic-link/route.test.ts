@@ -9,6 +9,7 @@
 
 import { POST } from '@/app/api/auth/magic-link/route'
 import { supabaseAdmin } from '@/lib/db/supabase'
+import { upsertLead } from '@/lib/leads'
 
 // Mock Supabase admin client
 jest.mock('@/lib/db/supabase', () => ({
@@ -18,6 +19,10 @@ jest.mock('@/lib/db/supabase', () => ({
     },
     from: jest.fn(),
   },
+}))
+
+jest.mock('@/lib/leads', () => ({
+  upsertLead: jest.fn(),
 }))
 
 describe('POST /api/auth/magic-link', () => {
@@ -188,6 +193,76 @@ describe('POST /api/auth/magic-link', () => {
       expect(mockUpdate).toHaveBeenCalledWith({ email: 'user@example.com' })
       expect(mockEq).toHaveBeenCalledWith('id', 'report-123')
       expect(mockIs).toHaveBeenCalledWith('user_id', null)
+    })
+
+    it('should capture a lead when reportId is provided', async () => {
+      ;(supabaseAdmin.auth.signInWithOtp as jest.Mock).mockResolvedValue({
+        data: {},
+        error: null,
+      })
+      ;(supabaseAdmin.from as jest.Mock).mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        is: jest.fn().mockResolvedValue({ error: null }),
+      })
+
+      const request = new Request('http://localhost:3000/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'user@example.com',
+          reportId: 'report-123',
+        }),
+      })
+
+      await POST(request)
+
+      expect(upsertLead).toHaveBeenCalledWith(supabaseAdmin, 'user@example.com', 'form_submitted')
+    })
+
+    it('should not capture a lead when reportId is not provided', async () => {
+      ;(supabaseAdmin.auth.signInWithOtp as jest.Mock).mockResolvedValue({
+        data: {},
+        error: null,
+      })
+
+      const request = new Request('http://localhost:3000/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'user@example.com',
+        }),
+      })
+
+      await POST(request)
+
+      expect(upsertLead).not.toHaveBeenCalled()
+    })
+
+    it('should not fail the request if lead capture fails', async () => {
+      ;(supabaseAdmin.auth.signInWithOtp as jest.Mock).mockResolvedValue({
+        data: {},
+        error: null,
+      })
+      ;(supabaseAdmin.from as jest.Mock).mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        is: jest.fn().mockResolvedValue({ error: null }),
+      })
+      ;(upsertLead as jest.Mock).mockRejectedValue(new Error('RPC failed'))
+
+      const request = new Request('http://localhost:3000/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'user@example.com',
+          reportId: 'report-123',
+        }),
+      })
+
+      const response = await POST(request)
+
+      expect(response.status).toBe(200)
     })
   })
 
