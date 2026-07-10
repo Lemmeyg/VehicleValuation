@@ -179,7 +179,12 @@ function PricingContent() {
     }, 3000)
   }
 
-  const createAnonymousReport = async (data: { vin: string; mileage: number; zipCode: string }) => {
+  const createAnonymousReport = async (data: {
+    vin: string
+    mileage: number
+    zipCode: string
+    email?: string
+  }) => {
     setCreatingReport(true)
     setLoading(true)
 
@@ -187,7 +192,12 @@ function PricingContent() {
       const response = await fetch('/api/reports/create-anonymous', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vin: data.vin, mileage: data.mileage, zipCode: data.zipCode }),
+        body: JSON.stringify({
+          vin: data.vin,
+          mileage: data.mileage,
+          zipCode: data.zipCode,
+          email: data.email,
+        }),
       })
 
       const result = await response.json()

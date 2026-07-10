@@ -1,7 +1,8 @@
 /**
- * Tests for VehicleValuation component — PostHog analytics tracking
+ * Tests for VehicleValuation component — PostHog analytics tracking + email requirement
  *
- * Covers: form-start tracking, form-submitted tracking (success and failure paths)
+ * Covers: form-start tracking, form-submitted tracking (success and failure paths),
+ * required email field validation
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -26,12 +27,6 @@ jest.mock('@/components/AuthModal', () => ({
     ) : null,
 }))
 
-jest.mock('@/lib/feature-flags', () => ({
-  isEmailCaptureEnabled: jest.fn().mockReturnValue(false),
-}))
-import { isEmailCaptureEnabled } from '@/lib/feature-flags'
-const mockIsEmailCaptureEnabled = isEmailCaptureEnabled as jest.Mock
-
 const mockPush = jest.fn()
 const mockPosthog = posthog as jest.Mocked<typeof posthog>
 
@@ -43,11 +38,15 @@ function setupMocks({ loggedIn = false } = {}) {
 const VALID_VIN = '1HGBH41JXMN109186'
 const VALID_MILEAGE = '42000'
 const VALID_ZIP = '90210'
+const VALID_EMAIL = 'test@example.com'
 
-async function fillForm() {
+async function fillForm({ email = VALID_EMAIL }: { email?: string } = {}) {
   await userEvent.type(screen.getByPlaceholderText(/17-character VIN/i), VALID_VIN)
   await userEvent.type(screen.getByPlaceholderText(/e\.g\., 42000/i), VALID_MILEAGE)
   await userEvent.type(screen.getByPlaceholderText(/e\.g\., 90210/i), VALID_ZIP)
+  if (email) {
+    await userEvent.type(screen.getByLabelText(/^email$/i), email)
+  }
 }
 
 describe('VehicleValuation analytics tracking', () => {
@@ -126,44 +125,15 @@ describe('VehicleValuation analytics tracking', () => {
   })
 })
 
-describe('VehicleValuation — email capture disabled', () => {
+describe('VehicleValuation — email field', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    mockIsEmailCaptureEnabled.mockReturnValue(false)
-    setupMocks()
-  })
-
-  it('does not render email field when feature is off', () => {
-    render(<VehicleValuation />)
-    expect(screen.queryByLabelText(/email address/i)).not.toBeInTheDocument()
-  })
-
-  it('does not render price mention when feature is off', () => {
-    render(<VehicleValuation />)
-    expect(screen.queryByText(/reports from \$19/i)).not.toBeInTheDocument()
-  })
-
-  it('does not render permission text when feature is off', () => {
-    render(<VehicleValuation />)
-    expect(screen.queryByText(/agree to receive/i)).not.toBeInTheDocument()
-  })
-})
-
-describe('VehicleValuation — email capture enabled', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-    mockIsEmailCaptureEnabled.mockReturnValue(true)
-    setupMocks()
+    setupMocks({ loggedIn: true })
   })
 
   it('renders the email field', () => {
     render(<VehicleValuation />)
-    expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
-  })
-
-  it('marks the email field as optional', () => {
-    render(<VehicleValuation />)
-    expect(screen.getByText(/optional/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument()
   })
 
   it('renders price mention text', () => {
@@ -174,5 +144,29 @@ describe('VehicleValuation — email capture enabled', () => {
   it('renders permission text', () => {
     render(<VehicleValuation />)
     expect(screen.getByText(/agree to receive occasional emails/i)).toBeInTheDocument()
+  })
+
+  it('disables submit when email is empty', async () => {
+    render(<VehicleValuation />)
+    await fillForm({ email: '' })
+    expect(screen.getByRole('button', { name: /get your valuation/i })).toBeDisabled()
+  })
+
+  it('disables submit when email is invalid', async () => {
+    render(<VehicleValuation />)
+    await fillForm({ email: 'not-an-email' })
+    expect(screen.getByRole('button', { name: /get your valuation/i })).toBeDisabled()
+  })
+
+  it('does not call the report-create API when submitted without a valid email', async () => {
+    global.fetch = jest.fn()
+    render(<VehicleValuation />)
+    await fillForm({ email: '' })
+    fireEvent.submit(screen.getByLabelText(/^email$/i).closest('form')!)
+
+    await waitFor(() => {
+      expect(screen.getByText(/email is required/i)).toBeInTheDocument()
+    })
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 })

@@ -14,32 +14,28 @@ import {
 } from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import { trackRedditLead } from '@/lib/analytics/reddit-events'
-import { isEmailCaptureEnabled } from '@/lib/feature-flags'
 import { trackEmailCapture } from '@/lib/analytics/events'
+import { getEmailValidationError, sanitizeEmail } from '@/lib/utils/email-validator'
 
 export default function Hero() {
   const router = useRouter()
 
-  // Form state (VIN, mileage, ZIP — email collected at LemonSqueezy checkout)
+  // Form state (VIN, mileage, ZIP, email)
   const [vin, setVin] = useState('')
   const [mileage, setMileage] = useState('')
   const [zipCode, setZipCode] = useState('')
+  const [email, setEmail] = useState('')
 
   // UI state
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showVinTooltip, setShowVinTooltip] = useState(false)
 
-  const emailCaptureEnabled = isEmailCaptureEnabled()
-  const [email, setEmail] = useState('')
-
   // Track form engagement
   const hasTrackedFormStart = useRef(false)
 
   useEffect(() => {
-    if (isEmailCaptureEnabled()) {
-      trackEmailCapture({ form: 'hero', action: 'shown' })
-    }
+    trackEmailCapture({ form: 'hero', action: 'shown' })
   }, [])
 
   // Track when user starts filling out the form (first field interaction)
@@ -75,6 +71,9 @@ export default function Hero() {
     return null
   }
 
+  // Email validation
+  const validateEmail = (email: string): string | null => getEmailValidationError(email)
+
   // Handle field changes
   const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     trackFormStart()
@@ -106,7 +105,11 @@ export default function Hero() {
   }
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    trackFormStart()
     setEmail(e.target.value)
+    if (errors.email) {
+      setErrors(prev => ({ ...prev, email: '' }))
+    }
   }
 
   // Form submission
@@ -125,6 +128,9 @@ export default function Hero() {
     const zipCodeError = validateZipCode(zipCode)
     if (zipCodeError) newErrors.zipCode = zipCodeError
 
+    const emailError = validateEmail(email)
+    if (emailError) newErrors.email = emailError
+
     // If any errors, show them and stop
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -142,7 +148,7 @@ export default function Hero() {
     // Track successful form submission attempt
     trackFormSubmission('hero_vehicle_form', {
       success: true,
-      fields: ['vin', 'mileage', 'zipCode'],
+      fields: ['vin', 'mileage', 'zipCode', 'email'],
     })
 
     // Track vehicle search
@@ -165,23 +171,22 @@ export default function Hero() {
     // Reddit Pixel: track as Lead conversion
     trackRedditLead()
 
+    const sanitizedEmail = sanitizeEmail(email)
+
     // Email capture — fire and forget, non-blocking
-    if (emailCaptureEnabled && email.trim()) {
-      fetch('/api/leads/capture', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      }).catch(() => {})
-      trackEmailCapture({ form: 'hero', action: 'submitted' })
-    } else if (emailCaptureEnabled) {
-      trackEmailCapture({ form: 'hero', action: 'skipped' })
-    }
+    fetch('/api/leads/capture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: sanitizedEmail }),
+    }).catch(() => {})
+    trackEmailCapture({ form: 'hero', action: 'submitted' })
 
     // Store form data in localStorage for pricing page
     const formData = {
       vin: sanitizeVin(vin),
       mileage: parseInt(mileage),
       zipCode,
+      email: sanitizedEmail,
     }
     localStorage.setItem('hero_form_data', JSON.stringify(formData))
     console.log('[Hero] Form data stored in localStorage:', formData)
@@ -323,10 +328,8 @@ export default function Hero() {
             onSubmit={handleSubmit}
             className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-2xl"
           >
-            {/* Form fields grid — 4 cols when email capture enabled, 3 cols otherwise */}
-            <div
-              className={`grid grid-cols-1 gap-4 mb-6 ${emailCaptureEnabled ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}
-            >
+            {/* Form fields grid */}
+            <div className="grid grid-cols-1 gap-4 mb-6 md:grid-cols-4">
               {/* VIN Field */}
               <div className="relative">
                 <div className="flex items-center justify-between mb-2">
@@ -435,26 +438,33 @@ export default function Hero() {
                 )}
               </div>
 
-              {/* Email capture — feature flagged, 4th column */}
-              {emailCaptureEnabled && (
-                <div>
-                  <label
-                    htmlFor="hero-email"
-                    className="block text-sm font-semibold text-slate-900 mb-2"
-                  >
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    id="hero-email"
-                    value={email}
-                    onChange={handleEmailChange}
-                    placeholder="your@email.com"
-                    autoComplete="email"
-                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-slate-900"
-                  />
-                </div>
-              )}
+              {/* Email Field */}
+              <div>
+                <label
+                  htmlFor="hero-email"
+                  className="block text-sm font-semibold text-slate-900 mb-2"
+                >
+                  Email
+                </label>
+                <input
+                  type="email"
+                  id="hero-email"
+                  value={email}
+                  onChange={handleEmailChange}
+                  placeholder="your@email.com"
+                  autoComplete="email"
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-slate-900 ${
+                    errors.email ? 'border-red-400' : 'border-slate-200'
+                  }`}
+                  aria-required="true"
+                  aria-describedby="hero-email-error"
+                />
+                {errors.email && (
+                  <p id="hero-email-error" className="text-sm text-red-600 mt-1" role="alert">
+                    {errors.email}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Submit Error */}
@@ -472,16 +482,20 @@ export default function Hero() {
                   type="submit"
                   size="lg"
                   className="w-full md:w-auto px-8 group"
-                  disabled={loading || vin.length !== 17 || !mileage || zipCode.length !== 5}
+                  disabled={
+                    loading ||
+                    vin.length !== 17 ||
+                    !mileage ||
+                    zipCode.length !== 5 ||
+                    !!getEmailValidationError(email)
+                  }
                 >
                   {loading ? 'Processing...' : 'Get My Independent Valuation'}
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
-                {emailCaptureEnabled && (
-                  <p className="text-xs text-slate-500 mt-2 text-center">
-                    By submitting, you agree to receive occasional emails from TotalLossToolkit.com
-                  </p>
-                )}
+                <p className="text-xs text-slate-500 mt-2 text-center">
+                  By submitting, you agree to receive occasional emails from TotalLossToolkit.com
+                </p>
               </div>
             </div>
           </form>
