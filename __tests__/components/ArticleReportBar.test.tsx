@@ -25,11 +25,15 @@ function setupMocks() {
 const VALID_VIN = '1HGBH41JXMN109186'
 const VALID_MILEAGE = '42000'
 const VALID_ZIP = '90210'
+const VALID_EMAIL = 'test@example.com'
 
-async function fillForm() {
+async function fillForm({ email = VALID_EMAIL }: { email?: string } = {}) {
   await userEvent.type(screen.getByPlaceholderText(/1HGCM82633A123456/i), VALID_VIN)
   await userEvent.type(screen.getByPlaceholderText(/42,000/i), VALID_MILEAGE)
   await userEvent.type(screen.getByPlaceholderText(/90210/i), VALID_ZIP)
+  if (email) {
+    await userEvent.type(screen.getByLabelText(/^email$/i), email)
+  }
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -89,6 +93,7 @@ describe('ArticleReportBar', () => {
 
   describe('form submission', () => {
     it('stores form data in localStorage and redirects to /pricing', async () => {
+      global.fetch = jest.fn()
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
       await fillForm()
       fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
@@ -99,15 +104,22 @@ describe('ArticleReportBar', () => {
       expect(stored.vin).toBe(VALID_VIN)
       expect(stored.mileage).toBe(parseInt(VALID_MILEAGE))
       expect(stored.zipCode).toBe(VALID_ZIP)
+      expect(stored.email).toBe(VALID_EMAIL)
     })
 
-    it('does not call any API endpoint on submission', async () => {
+    it('calls /api/leads/capture with the sanitized email on submission', async () => {
       global.fetch = jest.fn()
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
-      await fillForm()
+      await fillForm({ email: '  Test@Example.com  ' })
       fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
       await waitFor(() => expect(mockPush).toHaveBeenCalled())
-      expect(global.fetch).not.toHaveBeenCalled()
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/leads/capture',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ email: 'test@example.com', source: 'KB report form' }),
+        })
+      )
     })
 
     it('does not show any auth modal', async () => {
@@ -126,6 +138,33 @@ describe('ArticleReportBar', () => {
       await userEvent.type(screen.getByPlaceholderText(/42,000/i), VALID_MILEAGE)
       await userEvent.type(screen.getByPlaceholderText(/90210/i), VALID_ZIP)
       fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      expect(mockPush).not.toHaveBeenCalled()
+      expect(localStorage.getItem('hero_form_data')).toBeNull()
+    })
+
+    it('renders the email field', () => {
+      render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
+      expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument()
+    })
+
+    it('disables submit when email is empty', async () => {
+      render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
+      await fillForm({ email: '' })
+      expect(screen.getByRole('button', { name: /get my independent valuation/i })).toBeDisabled()
+    })
+
+    it('disables submit when email is invalid', async () => {
+      render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
+      await fillForm({ email: 'not-an-email' })
+      expect(screen.getByRole('button', { name: /get my independent valuation/i })).toBeDisabled()
+    })
+
+    it('shows a validation warning and does not submit when submitted without a valid email', async () => {
+      render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
+      await fillForm({ email: '' })
+      fireEvent.submit(screen.getByLabelText(/^email$/i).closest('form')!)
+
+      expect(await screen.findByText(/email is required/i)).toBeInTheDocument()
       expect(mockPush).not.toHaveBeenCalled()
       expect(localStorage.getItem('hero_form_data')).toBeNull()
     })
