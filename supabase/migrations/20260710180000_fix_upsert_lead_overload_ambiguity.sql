@@ -1,0 +1,33 @@
+-- Fixes a P0 regression introduced by 20260708000000_add_leads_attribution.sql.
+--
+-- That migration used CREATE OR REPLACE FUNCTION to add a new 7-arg
+-- upsert_lead(p_email, p_lead_type, p_source, p_kb_source_slug, p_utm_source,
+-- p_utm_medium, p_utm_campaign) alongside the pre-existing 2-arg
+-- upsert_lead(p_email, p_lead_type). The assumption was that Postgres's
+-- function-overload resolution (which prefers an exact arity match over one
+-- requiring defaults) would let existing 2-argument callers keep routing to
+-- the old function unambiguously.
+--
+-- That assumption holds for plain SQL calls, but NOT for PostgREST's RPC
+-- layer (the actual mechanism supabase-js's `.rpc()` uses in production).
+-- PostgREST cannot disambiguate between the two overloads when given only
+-- {p_email, p_lead_type} and returns PGRST203 ("Could not choose the best
+-- candidate function"), HTTP 300. Every existing upsertLead() caller
+-- (create-anonymous, the LemonSqueezy webhook, /api/leads/capture,
+-- /api/dispute-letter) has been silently failing to capture leads since the
+-- prior migration was applied — the error is swallowed by a non-fatal
+-- try/catch in every caller, so reports/purchases still succeed but no lead
+-- row is written.
+--
+-- Fix: drop the old 2-arg function entirely, leaving only the 7-arg version
+-- (all 5 new params DEFAULT NULL). With a single function, PostgREST has
+-- nothing to disambiguate — a 2-key call correctly uses the defaults for the
+-- other 5 params, exactly as intended.
+--
+-- This migration was already applied manually to production via the
+-- Supabase dashboard SQL editor before this commit was made (hotfix — the
+-- bug was live and actively dropping leads). Committed here for history/
+-- reproducibility, matching how prior migrations in this project are
+-- applied: https://supabase.com/dashboard/project/noijdbkcwcivewzwznru/sql
+
+DROP FUNCTION IF EXISTS public.upsert_lead(text, text);
