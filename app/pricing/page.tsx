@@ -124,7 +124,6 @@ function PricingContent() {
   const [processingPayment, setProcessingPayment] = useState(false)
   const [showBetaModal, setShowBetaModal] = useState(false)
   const [showExistingUserModal, setShowExistingUserModal] = useState(false)
-  const [creatingReport, setCreatingReport] = useState(false)
   const [showReportPreview, setShowReportPreview] = useState(false)
   const [sendingMagicLink, setSendingMagicLink] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
@@ -154,20 +153,18 @@ function PricingContent() {
       return
     }
 
-    // Option B: New flow - user authenticated, get data from localStorage
-    const storedData = localStorage.getItem('hero_form_data')
-    if (storedData) {
+    // Option B: report was already created server-side at form-submit time
+    // (Hero.tsx / ArticleReportBar.tsx) — this is a same-tab sessionStorage
+    // hand-off, not a fresh create-anonymous call.
+    const pendingReport = sessionStorage.getItem('pending_report')
+    if (pendingReport) {
       try {
-        const data = JSON.parse(storedData)
-        console.log('[PricingPage] Found hero form data in localStorage:', data)
-        // Clear stored data now that we've consumed it
-        localStorage.removeItem('hero_form_data')
-
-        // Create anonymous report — no auth required before purchase
-        await createAnonymousReport(data)
+        const rawReport = JSON.parse(pendingReport)
+        sessionStorage.removeItem('pending_report')
+        hydrateReportFromCreateResponse(rawReport)
         return
       } catch (err) {
-        console.error('localStorage parse error:', err)
+        console.error('[PricingPage] pending_report parse error:', err)
       }
     }
 
@@ -179,84 +176,56 @@ function PricingContent() {
     }, 3000)
   }
 
-  const createAnonymousReport = async (data: {
+  const hydrateReportFromCreateResponse = (rawReport: {
+    id: string
     vin: string
     mileage: number
-    zipCode: string
-    email?: string
+    zip_code: string
+    vehicle_data: { year: string | number; make: string; model: string; trim?: string } | null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    marketcheck_valuation: any
   }) => {
-    setCreatingReport(true)
-    setLoading(true)
-
-    try {
-      const response = await fetch('/api/reports/create-anonymous', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vin: data.vin,
-          mileage: data.mileage,
-          zipCode: data.zipCode,
-          email: data.email,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        setError(result.error || 'Failed to create report')
-        setLoading(false)
-        setCreatingReport(false)
-        return
-      }
-
-      // Anonymous endpoint returns snake_case with flat vehicle_data shape
-      const reportData: Report = {
-        id: result.report.id,
-        vin: result.report.vin,
-        mileage: result.report.mileage,
-        zip_code: result.report.zip_code || data.zipCode,
-        dealer_type: 'private',
-        vehicle_data: result.report.vehicle_data
-          ? {
-              year: parseInt(result.report.vehicle_data.year || '0'),
-              make: result.report.vehicle_data.make || '',
-              model: result.report.vehicle_data.model || '',
-              trim: result.report.vehicle_data.trim,
-            }
-          : { year: 0, make: '', model: '' },
-        marketcheck_valuation: result.report.marketcheck_valuation,
-      }
-
-      setReport(reportData)
-      sessionStorage.setItem('current_report_id', reportData.id)
-
-      trackReportWorkflow({
-        step: 'report_created',
-        reportId: reportData.id,
-        vehicleYear: reportData.vehicle_data?.year,
-        vehicleMake: reportData.vehicle_data?.make,
-        vehicleModel: reportData.vehicle_data?.model,
-      })
-      const kbAttr = getKBAttribution()
-      trackReportWorkflow({
-        step: 'pricing_viewed',
-        reportId: reportData.id,
-        ...(kbAttr && {
-          kb_source_slug: kbAttr.slug,
-          kb_source_title: kbAttr.title,
-          kb_source_visited_at: kbAttr.visited_at,
-        }),
-      })
-      trackRedditViewContent()
-
-      setLoading(false)
-      setCreatingReport(false)
-    } catch (err) {
-      console.error('Create anonymous report error:', err)
-      setError('An unexpected error occurred while creating your report')
-      setLoading(false)
-      setCreatingReport(false)
+    // create-anonymous returns snake_case with a flat vehicle_data shape
+    const reportData: Report = {
+      id: rawReport.id,
+      vin: rawReport.vin,
+      mileage: rawReport.mileage,
+      zip_code: rawReport.zip_code,
+      dealer_type: 'private',
+      vehicle_data: rawReport.vehicle_data
+        ? {
+            year: parseInt(String(rawReport.vehicle_data.year || '0')),
+            make: rawReport.vehicle_data.make || '',
+            model: rawReport.vehicle_data.model || '',
+            trim: rawReport.vehicle_data.trim,
+          }
+        : { year: 0, make: '', model: '' },
+      marketcheck_valuation: rawReport.marketcheck_valuation,
     }
+
+    setReport(reportData)
+    sessionStorage.setItem('current_report_id', reportData.id)
+
+    trackReportWorkflow({
+      step: 'report_created',
+      reportId: reportData.id,
+      vehicleYear: reportData.vehicle_data?.year,
+      vehicleMake: reportData.vehicle_data?.make,
+      vehicleModel: reportData.vehicle_data?.model,
+    })
+    const kbAttr = getKBAttribution()
+    trackReportWorkflow({
+      step: 'pricing_viewed',
+      reportId: reportData.id,
+      ...(kbAttr && {
+        kb_source_slug: kbAttr.slug,
+        kb_source_title: kbAttr.title,
+        kb_source_visited_at: kbAttr.visited_at,
+      }),
+    })
+    trackRedditViewContent()
+
+    setLoading(false)
   }
 
   const fetchExistingReport = async (id: string) => {
@@ -573,14 +542,7 @@ function PricingContent() {
             <div className="text-center">
               <h1 className="sr-only">Get Your Total Loss Vehicle Valuation Report</h1>
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-              <p className="text-slate-600">
-                {creatingReport ? 'Analyzing your vehicle...' : 'Loading your vehicle data...'}
-              </p>
-              {creatingReport && (
-                <p className="text-sm text-slate-500 mt-2">
-                  This may take a few moments as we gather market data
-                </p>
-              )}
+              <p className="text-slate-600">Loading your vehicle data...</p>
             </div>
           </div>
         </main>
