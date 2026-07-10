@@ -18,12 +18,14 @@ interface CreateAnonymousReportRequest {
   vin: string
   mileage: number
   zipCode: string
+  source?: string
+  kbSourceSlug?: string
 }
 
 export async function POST(request: Request) {
   try {
     const body: CreateAnonymousReportRequest = await request.json()
-    const { email, vin, mileage, zipCode } = body
+    const { email, vin, mileage, zipCode, source, kbSourceSlug } = body
 
     // Normalize email to lowercase for consistency
     const normalizedEmail = email?.toLowerCase().trim() ?? null
@@ -157,6 +159,8 @@ export async function POST(request: Request) {
         status: 'pending', // Reports start as pending until payment received
         vehicle_data: null, // Populated by webhook after payment
         user_id: authenticatedUserId, // Link to user if authenticated, otherwise null
+        source: source ?? null,
+        kb_source_slug: kbSourceSlug ?? null,
         ...(isAnonymous
           ? { access_token: accessToken, access_token_expires_at: accessTokenExpiresAt }
           : // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -179,7 +183,7 @@ export async function POST(request: Request) {
     // Capture form_submitted lead — non-fatal
     if (normalizedEmail) {
       try {
-        await upsertLead(supabaseAdmin, normalizedEmail, 'form_submitted')
+        await upsertLead(supabaseAdmin, normalizedEmail, 'form_submitted', { source, kbSourceSlug })
       } catch (leadErr) {
         console.error('[create-anonymous] Lead capture failed (non-fatal):', leadErr)
       }
