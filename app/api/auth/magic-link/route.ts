@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db/supabase'
+import { upsertLead } from '@/lib/leads'
 
 /**
  * Magic Link Authentication Endpoint
@@ -107,6 +108,13 @@ export async function POST(request: Request) {
         // Don't fail the request - magic link was still sent
       } else {
         console.log('[magic-link] Report email confirmed')
+      }
+
+      // Capture as a lead — non-fatal, must not block the magic link response
+      try {
+        await upsertLead(supabaseAdmin, email, 'form_submitted')
+      } catch (leadErr) {
+        console.error('[magic-link] Lead capture failed (non-fatal):', leadErr)
       }
     }
 
