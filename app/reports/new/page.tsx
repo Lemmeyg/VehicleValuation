@@ -86,7 +86,7 @@ export default function NewReportPage() {
 
       // Track VIN form submission with KB attribution if present
       const kbAttr = getKBAttribution()
-      trackEvent('kb_vin_form_submitted', {
+      trackEvent('dashboard_vin_form_submitted', {
         ...(kbAttr && {
           kb_source_slug: kbAttr.slug,
           kb_source_title: kbAttr.title,

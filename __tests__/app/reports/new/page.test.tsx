@@ -45,10 +45,10 @@ describe('NewReportPage', () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalled())
   }
 
-  it('fires kb_vin_form_submitted on successful submission', async () => {
+  it('fires dashboard_vin_form_submitted on successful submission', async () => {
     await fillAndSubmit()
 
-    expect(mockTrackEvent).toHaveBeenCalledWith('kb_vin_form_submitted', expect.any(Object))
+    expect(mockTrackEvent).toHaveBeenCalledWith('dashboard_vin_form_submitted', expect.any(Object))
   })
 
   it('includes kb_source_slug when KB attribution is present', async () => {
@@ -60,18 +60,18 @@ describe('NewReportPage', () => {
 
     await fillAndSubmit()
 
-    expect(mockTrackEvent).toHaveBeenCalledWith('kb_vin_form_submitted', {
+    expect(mockTrackEvent).toHaveBeenCalledWith('dashboard_vin_form_submitted', {
       kb_source_slug: 'challenge-comps',
       kb_source_title: 'How to Challenge Comps',
       kb_source_visited_at: '2026-03-02T00:00:00Z',
     })
   })
 
-  it('fires kb_vin_form_submitted with empty object when no KB attribution', async () => {
+  it('fires dashboard_vin_form_submitted with empty object when no KB attribution', async () => {
     mockGetKBAttribution.mockReturnValue(null)
 
     await fillAndSubmit()
 
-    expect(mockTrackEvent).toHaveBeenCalledWith('kb_vin_form_submitted', {})
+    expect(mockTrackEvent).toHaveBeenCalledWith('dashboard_vin_form_submitted', {})
   })
 })
