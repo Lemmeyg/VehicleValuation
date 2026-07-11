@@ -27,6 +27,9 @@ const config: Config = {
     '<rootDir>/e2e/',
     '<rootDir>/.worktrees/',
   ],
+  // testPathIgnorePatterns only filters which files run as tests — Jest's haste map still
+  // indexes .worktrees/ for manual mocks, causing duplicate-mock collisions across worktrees.
+  modulePathIgnorePatterns: ['<rootDir>/.worktrees/'],
   testMatch: ['**/__tests__/**/*.test.{js,jsx,ts,tsx}'],
   collectCoverageFrom: [
     'app/**/*.{js,jsx,ts,tsx}',
