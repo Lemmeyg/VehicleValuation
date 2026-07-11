@@ -56,9 +56,25 @@ describe('GET /api/auth/session', () => {
     expect(body.session).toBeTruthy()
   })
 
-  it('returns 500 when getUser errors', async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: 'invalid token' } })
+  it('returns 500 when getUser errors with a genuine auth error', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: { name: 'AuthApiError', message: 'invalid token' },
+    })
     const response = await GET(new Request('http://localhost:3000/api/auth/session'))
     expect(response.status).toBe(500)
+  })
+
+  it('returns user: null, session: null (not 500) when getUser errors with AuthSessionMissingError', async () => {
+    // Supabase's getUser() returns this error for every anonymous visitor with
+    // no session cookie at all — it is the expected, common case, not a failure.
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: { name: 'AuthSessionMissingError', message: 'Auth session missing!', status: 400 },
+    })
+    const response = await GET(new Request('http://localhost:3000/api/auth/session'))
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ user: null, session: null })
   })
 })
