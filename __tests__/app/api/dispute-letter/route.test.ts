@@ -21,6 +21,8 @@ function makeRequest(body: unknown, ip = '1.2.3.4') {
   })
 }
 
+const ORIG_LIST_KEY = process.env.ZOHO_CAMPAIGNS_DISPUTE_LETTER_LIST_KEY
+
 beforeEach(() => {
   jest.clearAllMocks()
   _rateLimitMap.clear()
@@ -34,6 +36,11 @@ beforeEach(() => {
     createSignedUrl: mockCreateSignedUrl,
   })
   ;(supabaseAdmin as any)._mockCreateSignedUrl = mockCreateSignedUrl
+})
+
+afterEach(() => {
+  if (ORIG_LIST_KEY === undefined) delete process.env.ZOHO_CAMPAIGNS_DISPUTE_LETTER_LIST_KEY
+  else process.env.ZOHO_CAMPAIGNS_DISPUTE_LETTER_LIST_KEY = ORIG_LIST_KEY
 })
 
 describe('POST /api/dispute-letter', () => {
@@ -125,6 +132,7 @@ describe('POST /api/dispute-letter', () => {
   })
 
   it('still returns 200 even when Zoho Campaigns enrollment fails', async () => {
+    process.env.ZOHO_CAMPAIGNS_DISPUTE_LETTER_LIST_KEY = 'test-list-key'
     mockAddContactToList.mockRejectedValueOnce(new Error('Zoho down'))
     const res = await POST(makeRequest({ email: 'user@example.com' }))
     expect(res.status).toBe(200)
