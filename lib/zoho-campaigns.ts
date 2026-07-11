@@ -13,6 +13,7 @@ async function getAccessToken(): Promise<string | null> {
 
   const response = await fetch(`https://accounts.zoho.com/oauth/v2/token?${params.toString()}`, {
     method: 'POST',
+    signal: AbortSignal.timeout(3000),
   })
   if (!response.ok) return null
 
@@ -50,6 +51,7 @@ export async function addContactToList(params: AddContactToListParams): Promise<
       {
         method: 'POST',
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+        signal: AbortSignal.timeout(3000),
       }
     )
 

@@ -101,6 +101,15 @@ describe('addContactToList (Zoho Campaigns)', () => {
     ).resolves.not.toThrow()
   })
 
+  it('resolves without throwing when a fetch call is aborted (timeout)', async () => {
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(new DOMException('The operation was aborted.', 'AbortError'))
+    await expect(
+      addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
+    ).resolves.not.toThrow()
+  })
+
   it('resolves without throwing when listsubscribe returns a non-ok response', async () => {
     global.fetch = jest.fn().mockImplementation((url: string) => {
       if (url.toString().includes('accounts.zoho.com')) {
