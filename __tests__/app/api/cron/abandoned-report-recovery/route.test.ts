@@ -149,4 +149,42 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     const body = await res.json()
     expect(body.enrolled).toBe(0)
   })
+
+  it('does not count a report as enrolled if the update call returns an error', async () => {
+    const reports = [
+      { id: 'report-1', email: 'error@example.com', vin: 'VIN1' },
+      { id: 'report-2', email: 'ok@example.com', vin: 'VIN2' },
+    ]
+    mockFrom.mockImplementation(() => ({ ...makeQueryChain(reports), update: mockUpdate }))
+
+    function makeUpdateChainWithError(shouldError: boolean) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chain: any = {}
+      chain.eq = jest.fn(() => chain)
+      Object.defineProperty(chain, 'then', {
+        get: () => (resolve: (v: unknown) => void) =>
+          Promise.resolve({
+            data: null,
+            error: shouldError ? { message: 'DB constraint violation' } : null,
+          }).then(resolve),
+        configurable: true,
+      })
+      return chain
+    }
+
+    let updateCallCount = 0
+    mockUpdate.mockImplementation(() => {
+      const shouldError = updateCallCount === 0
+      updateCallCount++
+      return makeUpdateChainWithError(shouldError)
+    })
+
+    const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
+    const res = await GET(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(mockAddContactToList).toHaveBeenCalledTimes(2)
+    const body = await res.json()
+    expect(body.enrolled).toBe(1) // only the second report (with successful update) counted
+  })
 })

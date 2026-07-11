@@ -48,11 +48,18 @@ export async function GET(request: NextRequest) {
         email: report.email,
         customFields: { VIN: report.vin ?? '' },
       })
-      await supabaseAdmin
+      const { error: updateError } = await supabaseAdmin
         .from('reports')
         .update({ abandoned_recovery_sent_at: new Date().toISOString() })
         .eq('id', report.id)
-      enrolled++
+      if (updateError) {
+        console.error(
+          `[abandoned-report-recovery] failed to flag report ${report.id}:`,
+          updateError
+        )
+      } else {
+        enrolled++
+      }
     } catch (err) {
       console.error(`[abandoned-report-recovery] failed for report ${report.id}:`, err)
     }
