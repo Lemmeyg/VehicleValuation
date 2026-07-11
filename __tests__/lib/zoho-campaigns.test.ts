@@ -84,6 +84,16 @@ describe('addContactToList (Zoho Campaigns)', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1) // only the token refresh, no listsubscribe
   })
 
+  it('does not call listsubscribe when the token refresh response is not ok', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    })
+    await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
+    expect(global.fetch).toHaveBeenCalledTimes(1) // only the token refresh, no listsubscribe
+  })
+
   it('resolves without throwing when the token refresh fetch rejects', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('network error'))
     await expect(
