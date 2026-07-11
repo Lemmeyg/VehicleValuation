@@ -6,6 +6,11 @@ import { NextRequest } from 'next/server'
 
 jest.mock('@/lib/db/supabase')
 import { supabaseAdmin } from '@/lib/db/supabase'
+jest.mock('@/lib/zoho-campaigns', () => ({
+  addContactToList: jest.fn().mockResolvedValue(undefined),
+}))
+import { addContactToList } from '@/lib/zoho-campaigns'
+const mockAddContactToList = addContactToList as jest.Mock
 import { POST, _rateLimitMap } from '@/app/api/dispute-letter/route'
 
 function makeRequest(body: unknown, ip = '1.2.3.4') {
@@ -107,6 +112,21 @@ describe('POST /api/dispute-letter', () => {
     await POST(makeRequest({ email: 'b@example.com' }, '1.1.1.1'))
     await POST(makeRequest({ email: 'c@example.com' }, '1.1.1.1'))
     const res = await POST(makeRequest({ email: 'd@example.com' }, '2.2.2.2'))
+    expect(res.status).toBe(200)
+  })
+
+  it('enrolls the downloader in the Zoho Campaigns dispute-letter list', async () => {
+    process.env.ZOHO_CAMPAIGNS_DISPUTE_LETTER_LIST_KEY = 'test-list-key'
+    await POST(makeRequest({ email: 'user@example.com' }))
+    expect(mockAddContactToList).toHaveBeenCalledWith({
+      listKey: 'test-list-key',
+      email: 'user@example.com',
+    })
+  })
+
+  it('still returns 200 even when Zoho Campaigns enrollment fails', async () => {
+    mockAddContactToList.mockRejectedValueOnce(new Error('Zoho down'))
+    const res = await POST(makeRequest({ email: 'user@example.com' }))
     expect(res.status).toBe(200)
   })
 })
