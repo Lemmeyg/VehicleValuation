@@ -19,7 +19,11 @@ export async function GET(_request: Request) {
       error: userError,
     } = await supabase.auth.getUser()
 
-    if (userError) {
+    // getUser() returns AuthSessionMissingError for every anonymous visitor
+    // with no session cookie at all — that's the expected, common case for
+    // this endpoint (Navbar/PricingSection call it on every page load), not
+    // a failure. Only a genuine other error should surface as a 500.
+    if (userError && userError.name !== 'AuthSessionMissingError') {
       console.error('Session error:', userError)
       return NextResponse.json({ error: 'Failed to get session' }, { status: 500 })
     }
