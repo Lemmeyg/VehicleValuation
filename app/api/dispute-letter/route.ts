@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db/supabase'
 import { upsertLead } from '@/lib/leads'
+import { addContactToList } from '@/lib/zoho-campaigns'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const RATE_LIMIT_MAX = 20
@@ -45,6 +46,18 @@ export async function POST(request: NextRequest) {
     await upsertLead(supabaseAdmin, email, 'dispute_letter')
   } catch (err) {
     console.error('[dispute-letter] Lead capture failed (non-fatal):', err)
+  }
+
+  // Enroll in the Zoho Campaigns nurture sequence — non-fatal: the user can
+  // still download even if this fails (addContactToList() also never throws
+  // on its own, per Task 1, but we guard here too to match the pattern above).
+  try {
+    const listKey = process.env.ZOHO_CAMPAIGNS_DISPUTE_LETTER_LIST_KEY
+    if (listKey) {
+      await addContactToList({ listKey, email })
+    }
+  } catch (err) {
+    console.error('[dispute-letter] Zoho Campaigns enrollment failed (non-fatal):', err)
   }
 
   const { data, error: storageError } = await supabaseAdmin.storage
