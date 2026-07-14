@@ -3,7 +3,7 @@
  */
 jest.mock('@/lib/db/supabase')
 jest.mock('@/lib/zoho-campaigns', () => ({
-  addContactToList: jest.fn().mockResolvedValue(undefined),
+  addContactToList: jest.fn().mockResolvedValue(true),
 }))
 
 import { supabaseAdmin } from '@/lib/db/supabase'
@@ -59,7 +59,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     jest.clearAllMocks()
     process.env.CRON_SECRET = CRON_SECRET
     process.env.ZOHO_CAMPAIGNS_ABANDONED_REPORT_LIST_KEY = 'abandoned-list-key'
-    mockAddContactToList.mockResolvedValue(undefined)
+    mockAddContactToList.mockResolvedValue(true)
 
     mockUpdate = jest.fn(() => makeUpdateChain())
     mockFrom = jest.fn()
@@ -124,9 +124,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
       { id: 'report-2', email: 'ok@example.com', vin: 'VIN2' },
     ]
     mockFrom.mockImplementation(() => ({ ...makeQueryChain(reports), update: mockUpdate }))
-    mockAddContactToList
-      .mockRejectedValueOnce(new Error('Zoho down'))
-      .mockResolvedValueOnce(undefined)
+    mockAddContactToList.mockRejectedValueOnce(new Error('Zoho down')).mockResolvedValueOnce(true)
 
     const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
     const res = await GET(makeRequest())
@@ -146,6 +144,21 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     const res = await GET(makeRequest())
 
     expect(mockAddContactToList).not.toHaveBeenCalled()
+    const body = await res.json()
+    expect(body.enrolled).toBe(0)
+  })
+
+  it('does not update the DB or count the report when addContactToList resolves false', async () => {
+    const report = { id: 'report-1', email: 'user@example.com', vin: 'VIN1' }
+    mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
+    mockAddContactToList.mockResolvedValueOnce(false)
+
+    const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
+    const res = await GET(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(mockAddContactToList).toHaveBeenCalledTimes(1)
+    expect(mockUpdate).not.toHaveBeenCalled()
     const body = await res.json()
     expect(body.enrolled).toBe(0)
   })

@@ -43,11 +43,13 @@ export async function GET(request: NextRequest) {
     if (!report.email) continue
 
     try {
-      await addContactToList({
+      const success = await addContactToList({
         listKey,
         email: report.email,
         customFields: { VIN: report.vin ?? '' },
       })
+      if (!success) continue
+
       const { error: updateError } = await supabaseAdmin
         .from('reports')
         .update({ abandoned_recovery_sent_at: new Date().toISOString() })
