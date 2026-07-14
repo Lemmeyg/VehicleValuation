@@ -27,13 +27,10 @@ export interface AddContactToListParams {
   customFields?: Record<string, string>
 }
 
-// Fire-and-forget: adds a contact to a Zoho Campaigns list. The list itself
-// drives delivery via a Workflow Automation configured in the Zoho Campaigns
-// console — this function's only job is enrollment, never throws.
-export async function addContactToList(params: AddContactToListParams): Promise<void> {
+export async function addContactToList(params: AddContactToListParams): Promise<boolean> {
   try {
     const accessToken = await getAccessToken()
-    if (!accessToken) return
+    if (!accessToken) return false
 
     const contactInfo = JSON.stringify({
       'Contact Email': params.email,
@@ -58,8 +55,12 @@ export async function addContactToList(params: AddContactToListParams): Promise<
     if (!response.ok) {
       const errorBody = await response.text()
       console.error('[zoho-campaigns] add contact failed:', response.status, errorBody)
+      return false
     }
+
+    return true
   } catch (err) {
     console.error('[zoho-campaigns] add contact error:', err)
+    return false
   }
 }

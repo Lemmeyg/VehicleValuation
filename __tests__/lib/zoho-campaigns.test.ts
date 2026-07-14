@@ -68,49 +68,50 @@ describe('addContactToList (Zoho Campaigns)', () => {
     expect(contactInfo.VIN).toBe('1HGBH41JXMN109186')
   })
 
-  it('does not call fetch when ZOHO_CAMPAIGNS_CLIENT_ID is missing', async () => {
-    delete process.env.ZOHO_CAMPAIGNS_CLIENT_ID
-    await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
-    expect(global.fetch).not.toHaveBeenCalled()
+  it('returns true when listsubscribe succeeds', async () => {
+    const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
+    expect(result).toBe(true)
   })
 
-  it('does not call listsubscribe when the token refresh response has no access_token', async () => {
+  it('returns false when ZOHO_CAMPAIGNS_CLIENT_ID is missing', async () => {
+    delete process.env.ZOHO_CAMPAIGNS_CLIENT_ID
+    const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
+    expect(result).toBe(false)
+  })
+
+  it('returns false when the token refresh response has no access_token', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({}),
     })
-    await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
-    expect(global.fetch).toHaveBeenCalledTimes(1) // only the token refresh, no listsubscribe
+    const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
+    expect(result).toBe(false)
   })
 
-  it('does not call listsubscribe when the token refresh response is not ok', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      json: async () => ({}),
-    })
-    await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
-    expect(global.fetch).toHaveBeenCalledTimes(1) // only the token refresh, no listsubscribe
+  it('returns false when the token refresh response is not ok', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) })
+    const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
+    expect(result).toBe(false)
   })
 
-  it('resolves without throwing when the token refresh fetch rejects', async () => {
+  it('returns false without throwing when the token refresh fetch rejects', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('network error'))
     await expect(
       addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
-    ).resolves.not.toThrow()
+    ).resolves.toBe(false)
   })
 
-  it('resolves without throwing when a fetch call is aborted (timeout)', async () => {
+  it('returns false without throwing when a fetch call is aborted (timeout)', async () => {
     global.fetch = jest
       .fn()
       .mockRejectedValue(new DOMException('The operation was aborted.', 'AbortError'))
     await expect(
       addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
-    ).resolves.not.toThrow()
+    ).resolves.toBe(false)
   })
 
-  it('resolves without throwing when listsubscribe returns a non-ok response', async () => {
+  it('returns false without throwing when listsubscribe returns a non-ok response', async () => {
     global.fetch = jest.fn().mockImplementation((url: string) => {
       if (url.toString().includes('accounts.zoho.com')) {
         return Promise.resolve({
@@ -123,6 +124,6 @@ describe('addContactToList (Zoho Campaigns)', () => {
     })
     await expect(
       addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
-    ).resolves.not.toThrow()
+    ).resolves.toBe(false)
   })
 })
