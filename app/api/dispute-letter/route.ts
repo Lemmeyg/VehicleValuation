@@ -49,12 +49,22 @@ export async function POST(request: NextRequest) {
   }
 
   // Enroll in the Zoho Campaigns nurture sequence — non-fatal: the user can
-  // still download even if this fails (addContactToList() also never throws
-  // on its own, per Task 1, but we guard here too to match the pattern above).
+  // still download even if this fails. Only stamp the leads row when Zoho
+  // actually accepted the contact, so the backstop cron
+  // (/api/cron/dispute-letter-recovery) can find and retry anything missed.
   try {
     const listKey = process.env.ZOHO_CAMPAIGNS_DISPUTE_LETTER_LIST_KEY
     if (listKey) {
-      await addContactToList({ listKey, email })
+      const enrolled = await addContactToList({ listKey, email })
+      if (enrolled) {
+        const { error: flagError } = await supabaseAdmin
+          .from('leads')
+          .update({ dispute_letter_zoho_enrolled_at: new Date().toISOString() })
+          .eq('email', email)
+        if (flagError) {
+          console.error('[dispute-letter] Failed to flag leads row (non-fatal):', flagError)
+        }
+      }
     }
   } catch (err) {
     console.error('[dispute-letter] Zoho Campaigns enrollment failed (non-fatal):', err)

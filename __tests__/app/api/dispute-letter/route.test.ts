@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server'
 jest.mock('@/lib/db/supabase')
 import { supabaseAdmin } from '@/lib/db/supabase'
 jest.mock('@/lib/zoho-campaigns', () => ({
-  addContactToList: jest.fn().mockResolvedValue(undefined),
+  addContactToList: jest.fn().mockResolvedValue(true),
 }))
 import { addContactToList } from '@/lib/zoho-campaigns'
 const mockAddContactToList = addContactToList as jest.Mock
@@ -136,5 +136,32 @@ describe('POST /api/dispute-letter', () => {
     mockAddContactToList.mockRejectedValueOnce(new Error('Zoho down'))
     const res = await POST(makeRequest({ email: 'user@example.com' }))
     expect(res.status).toBe(200)
+  })
+
+  it('stamps dispute_letter_zoho_enrolled_at on the leads row when enrollment succeeds', async () => {
+    process.env.ZOHO_CAMPAIGNS_DISPUTE_LETTER_LIST_KEY = 'test-list-key'
+    const mockUpdate = jest
+      .fn()
+      .mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) })
+    ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ update: mockUpdate })
+
+    await POST(makeRequest({ email: 'user@example.com' }))
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ dispute_letter_zoho_enrolled_at: expect.any(String) })
+    )
+  })
+
+  it('does not stamp dispute_letter_zoho_enrolled_at when enrollment returns false', async () => {
+    process.env.ZOHO_CAMPAIGNS_DISPUTE_LETTER_LIST_KEY = 'test-list-key'
+    mockAddContactToList.mockResolvedValueOnce(false)
+    const mockUpdate = jest
+      .fn()
+      .mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) })
+    ;(supabaseAdmin as any).from = jest.fn().mockReturnValue({ update: mockUpdate })
+
+    await POST(makeRequest({ email: 'user@example.com' }))
+
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 })
