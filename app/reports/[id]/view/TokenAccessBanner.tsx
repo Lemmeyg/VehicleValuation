@@ -6,9 +6,11 @@ import Link from 'next/link'
 interface Props {
   reportId: string
   token: string
+  email: string | null
+  hasAccount: boolean
 }
 
-export function TokenAccessBanner({ reportId, token: _token }: Props) {
+export function TokenAccessBanner({ reportId, token: _token, email, hasAccount }: Props) {
   const [visible, setVisible] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -39,14 +41,31 @@ export function TokenAccessBanner({ reportId, token: _token }: Props) {
       >
         {/* Message */}
         <div className="flex-1 text-sm text-amber-900">
-          <span className="font-semibold">This link expires in 24 hours.</span> After that,{' '}
-          <Link
-            href={`/auth?redirect=/reports/${reportId}/view`}
-            className="underline font-medium hover:text-amber-700"
-          >
-            sign in or create an account
-          </Link>{' '}
-          to access your report anytime.{' '}
+          <span className="font-semibold">This link expires in 24 hours.</span>{' '}
+          {hasAccount && email ? (
+            <>
+              We&apos;ve already created an account for you using <strong>{email}</strong> — check
+              that inbox for a link to sign in anytime, or{' '}
+              <Link
+                href={`/auth?redirect=/reports/${reportId}/view`}
+                className="underline font-medium hover:text-amber-700"
+              >
+                sign in now
+              </Link>
+              .
+            </>
+          ) : (
+            <>
+              After that,{' '}
+              <Link
+                href={`/auth?redirect=/reports/${reportId}/view`}
+                className="underline font-medium hover:text-amber-700"
+              >
+                sign in or create an account
+              </Link>{' '}
+              to access your report anytime.
+            </>
+          )}{' '}
           <span className="text-amber-700">Tip: export to PDF using the button above.</span>
         </div>
 
