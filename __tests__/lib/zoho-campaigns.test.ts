@@ -21,7 +21,12 @@ describe('addContactToList (Zoho Campaigns)', () => {
           json: async () => ({ access_token: 'test-access-token' }),
         })
       }
-      return Promise.resolve({ ok: true, status: 200, text: async () => '{"status":"success"}' })
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: async () => '{"status":"success","ignored_contacts":[]}',
+        json: async () => ({ status: 'success', ignored_contacts: [] }),
+      })
     })
   })
 
@@ -44,18 +49,61 @@ describe('addContactToList (Zoho Campaigns)', () => {
     expect(result).toBe(true)
   })
 
-  it('posts to the listsubscribe endpoint with the access token and list key', async () => {
+  it('posts to the addlistsubscribersinbulk endpoint when no custom fields are given', async () => {
     const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
 
     const calls = (global.fetch as jest.Mock).mock.calls
-    const subscribeCall = calls.find(c => c[0].toString().includes('listsubscribe'))
-    expect(subscribeCall).toBeDefined()
-    expect(subscribeCall[0]).toContain('listkey=list-key-1')
-    expect(subscribeCall[1].headers.Authorization).toBe('Zoho-oauthtoken test-access-token')
+    const bulkCall = calls.find(c => c[0].toString().includes('addlistsubscribersinbulk'))
+    expect(bulkCall).toBeDefined()
+    expect(bulkCall[0]).toContain('listkey=list-key-1')
+    expect(bulkCall[0]).toContain('emailids=user%40example.com')
+    expect(bulkCall[1].headers.Authorization).toBe('Zoho-oauthtoken test-access-token')
     expect(result).toBe(true)
   })
 
-  it('includes the email and custom fields in contactinfo', async () => {
+  it('returns false when addlistsubscribersinbulk responds success but ignores the contact', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.toString().includes('accounts.zoho.com')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ access_token: 'test-access-token' }),
+        })
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: async () => '{"status":"success","ignored_contacts":["user@example.com"]}',
+        json: async () => ({ status: 'success', ignored_contacts: ['user@example.com'] }),
+      })
+    })
+
+    const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
+    expect(result).toBe(false)
+  })
+
+  it('returns false when addlistsubscribersinbulk responds 200 with a non-success status', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.toString().includes('accounts.zoho.com')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ access_token: 'test-access-token' }),
+        })
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: async () => '{"status":"error"}',
+        json: async () => ({ status: 'error' }),
+      })
+    })
+
+    const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
+    expect(result).toBe(false)
+  })
+
+  it('posts to the listsubscribe endpoint (with contactinfo) when custom fields are given', async () => {
     const result = await addContactToList({
       listKey: 'list-key-1',
       email: 'user@example.com',
@@ -78,25 +126,25 @@ describe('addContactToList (Zoho Campaigns)', () => {
     expect(result).toBe(false)
   })
 
-  it('does not call listsubscribe when the token refresh response has no access_token', async () => {
+  it('does not call the downstream endpoint when the token refresh response has no access_token', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({}),
     })
     const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
-    expect(global.fetch).toHaveBeenCalledTimes(1) // only the token refresh, no listsubscribe
+    expect(global.fetch).toHaveBeenCalledTimes(1) // only the token refresh, no downstream call
     expect(result).toBe(false)
   })
 
-  it('does not call listsubscribe when the token refresh response is not ok', async () => {
+  it('does not call the downstream endpoint when the token refresh response is not ok', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 401,
       json: async () => ({}),
     })
     const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
-    expect(global.fetch).toHaveBeenCalledTimes(1) // only the token refresh, no listsubscribe
+    expect(global.fetch).toHaveBeenCalledTimes(1) // only the token refresh, no downstream call
     expect(result).toBe(false)
   })
 
@@ -116,7 +164,7 @@ describe('addContactToList (Zoho Campaigns)', () => {
     expect(await resultPromise).toBe(false)
   })
 
-  it('resolves without throwing when listsubscribe returns a non-ok response', async () => {
+  it('resolves without throwing when addlistsubscribersinbulk returns a non-ok response', async () => {
     global.fetch = jest.fn().mockImplementation((url: string) => {
       if (url.toString().includes('accounts.zoho.com')) {
         return Promise.resolve({
