@@ -93,3 +93,10 @@ nul
 
 # Git worktrees
 .worktrees/
+
+# One-off KB article insertion/fix scripts (disposable, single-use)
+fetch-article-*.mjs
+fix-article-*.mjs
+update-article-*.mjs
+scripts/insert-article-*.mjs
+article-*-draft.md
