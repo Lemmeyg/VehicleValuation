@@ -2,7 +2,17 @@ async function getAccessToken(): Promise<string | null> {
   const clientId = process.env.ZOHO_CAMPAIGNS_CLIENT_ID
   const clientSecret = process.env.ZOHO_CAMPAIGNS_CLIENT_SECRET
   const refreshToken = process.env.ZOHO_CAMPAIGNS_REFRESH_TOKEN
-  if (!clientId || !clientSecret || !refreshToken) return null
+  // TEMPORARY diagnostic (2026-07-15) — no secret values logged, presence/prefix only.
+  console.log('[zoho-campaigns] getAccessToken env check:', {
+    hasClientId: !!clientId,
+    hasClientSecret: !!clientSecret,
+    hasRefreshToken: !!refreshToken,
+    clientIdPrefix: clientId?.slice(0, 10),
+  })
+  if (!clientId || !clientSecret || !refreshToken) {
+    console.error('[zoho-campaigns] getAccessToken: missing required env var(s)')
+    return null
+  }
 
   const params = new URLSearchParams({
     refresh_token: refreshToken,
@@ -15,9 +25,17 @@ async function getAccessToken(): Promise<string | null> {
     method: 'POST',
     signal: AbortSignal.timeout(3000),
   })
-  if (!response.ok) return null
+  if (!response.ok) {
+    console.error('[zoho-campaigns] getAccessToken: token endpoint returned', response.status)
+    return null
+  }
 
-  const data = (await response.json()) as { access_token?: string }
+  const data = (await response.json()) as { access_token?: string; error?: string }
+  console.log('[zoho-campaigns] getAccessToken result:', {
+    gotAccessToken: !!data.access_token,
+    tokenPrefix: data.access_token?.slice(0, 10),
+    error: data.error,
+  })
   return data.access_token ?? null
 }
 
@@ -102,6 +120,8 @@ async function callAddListSubscribersInBulk(
     status?: string
     ignored_contacts?: string[]
   }
+
+  console.log('[zoho-campaigns] addlistsubscribersinbulk response:', data)
 
   if (data.status !== 'success' || data.ignored_contacts?.includes(params.email)) {
     console.error('[zoho-campaigns] addlistsubscribersinbulk did not enroll contact:', data)
