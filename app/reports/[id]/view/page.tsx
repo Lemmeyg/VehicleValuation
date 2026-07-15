@@ -740,7 +740,14 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
         )}
 
         {/* Token access banner — shown only for anonymous token users */}
-        {isTokenAccess && token && <TokenAccessBanner reportId={id} token={token} />}
+        {isTokenAccess && token && (
+          <TokenAccessBanner
+            reportId={id}
+            token={token}
+            email={report.email}
+            hasAccount={report.user_id !== null}
+          />
+        )}
       </div>
     </div>
   )

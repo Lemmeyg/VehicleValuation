@@ -1,0 +1,71 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/db/supabase'
+import { addContactToList } from '@/lib/zoho-campaigns'
+
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
+const MIN_AGE_MS = 2 * 60 * 60 * 1000 // 2 hours — give checkout a real chance to complete
+const MAX_AGE_MS = 26 * 60 * 60 * 1000 // 26 hours — cap the query, never re-scan very old rows
+
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get('authorization')
+  const expectedToken = process.env.CRON_SECRET
+
+  if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const listKey = process.env.ZOHO_CAMPAIGNS_ABANDONED_REPORT_LIST_KEY
+  if (!listKey) {
+    console.error('[abandoned-report-recovery] ZOHO_CAMPAIGNS_ABANDONED_REPORT_LIST_KEY not set')
+    return NextResponse.json({ ok: true, enrolled: 0 })
+  }
+
+  const now = Date.now()
+  const { data: reports, error } = await supabaseAdmin
+    .from('reports')
+    .select('id, email, vin')
+    .is('abandoned_recovery_sent_at', null)
+    .is('price_paid', null)
+    .not('email', 'is', null)
+    .lte('created_at', new Date(now - MIN_AGE_MS).toISOString())
+    .gte('created_at', new Date(now - MAX_AGE_MS).toISOString())
+
+  if (error) {
+    console.error('[abandoned-report-recovery] query error:', error)
+    return NextResponse.json({ error: 'DB query failed' }, { status: 500 })
+  }
+
+  let enrolled = 0
+
+  for (const report of reports ?? []) {
+    if (!report.email) continue
+
+    try {
+      const success = await addContactToList({
+        listKey,
+        email: report.email,
+        customFields: { VIN: report.vin ?? '' },
+      })
+      if (!success) continue
+
+      const { error: updateError } = await supabaseAdmin
+        .from('reports')
+        .update({ abandoned_recovery_sent_at: new Date().toISOString() })
+        .eq('id', report.id)
+      if (updateError) {
+        console.error(
+          `[abandoned-report-recovery] failed to flag report ${report.id}:`,
+          updateError
+        )
+      } else {
+        enrolled++
+      }
+    } catch (err) {
+      console.error(`[abandoned-report-recovery] failed for report ${report.id}:`, err)
+    }
+  }
+
+  return NextResponse.json({ ok: true, enrolled })
+}
