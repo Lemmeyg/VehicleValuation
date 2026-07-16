@@ -220,7 +220,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
         // Fetch the report to get VIN, mileage, ZIP for API calls
         const { data: report, error: fetchError } = await supabase
           .from('reports')
-          .select('vin, mileage, zip_code, vehicle_data, marketcheck_valuation')
+          .select('vin, mileage, zip_code, vehicle_data, marketcheck_valuation, autodev_vin_data')
           .eq('id', reportId)
           .single()
 
@@ -248,53 +248,66 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
         // ========================================
         // FETCH AUTO.DEV VIN DECODE DATA
         // ========================================
-        let autodevVinData = null
-        console.log(`[Webhook] Fetching Auto.dev VIN decode for report ${reportId}`)
-        const vinStartTime = Date.now()
-        const vinResult = await fetchAutoDevVinDecode(report.vin)
-        const vinResponseTime = Date.now() - vinStartTime
+        let autodevVinData = report.autodev_vin_data ?? null
+        let vinResult: { success: boolean; data?: typeof autodevVinData; error?: string } = {
+          success: !!autodevVinData,
+          data: autodevVinData ?? undefined,
+        }
 
-        if (vinResult.success && vinResult.data) {
-          console.log(`[Webhook] Auto.dev VIN decode success for report ${reportId}:`, {
-            make: vinResult.data.make,
-            model: vinResult.data.model,
-            year: vinResult.data.vehicle?.year,
-            responseTimeMs: vinResponseTime,
-          })
-          autodevVinData = {
-            ...vinResult.data,
-            generatedAt: new Date().toISOString(),
-          }
-          await logApiCall({
-            reportId,
-            provider: 'autodev',
-            endpoint: '/vin/{vin}',
-            success: true,
-            responseTimeMs: vinResponseTime,
-            cost: 0.0,
-            requestData: { vin: report.vin },
-            responseData: {
+        if (!autodevVinData) {
+          console.log(
+            `[Webhook] No existing autodev_vin_data — fetching Auto.dev VIN decode for report ${reportId} (fallback)`
+          )
+          const vinStartTime = Date.now()
+          vinResult = await fetchAutoDevVinDecode(report.vin)
+          const vinResponseTime = Date.now() - vinStartTime
+
+          if (vinResult.success && vinResult.data) {
+            console.log(`[Webhook] Auto.dev VIN decode success for report ${reportId}:`, {
               make: vinResult.data.make,
               model: vinResult.data.model,
               year: vinResult.data.vehicle?.year,
-              vinValid: vinResult.data.vinValid,
-            },
-          })
+              responseTimeMs: vinResponseTime,
+            })
+            autodevVinData = {
+              ...vinResult.data,
+              generatedAt: new Date().toISOString(),
+            }
+            await logApiCall({
+              reportId,
+              provider: 'autodev',
+              endpoint: '/vin/{vin}',
+              success: true,
+              responseTimeMs: vinResponseTime,
+              cost: 0.0,
+              requestData: { vin: report.vin },
+              responseData: {
+                make: vinResult.data.make,
+                model: vinResult.data.model,
+                year: vinResult.data.vehicle?.year,
+                vinValid: vinResult.data.vinValid,
+              },
+            })
+          } else {
+            console.warn(
+              `[Webhook] Auto.dev VIN decode failed for report ${reportId}:`,
+              vinResult.error
+            )
+            await logApiCall({
+              reportId,
+              provider: 'autodev',
+              endpoint: '/vin/{vin}',
+              success: false,
+              responseTimeMs: vinResponseTime,
+              cost: 0.0,
+              requestData: { vin: report.vin },
+              errorMessage: vinResult.error,
+            })
+          }
         } else {
-          console.warn(
-            `[Webhook] Auto.dev VIN decode failed for report ${reportId}:`,
-            vinResult.error
+          console.log(
+            `[Webhook] autodev_vin_data already present for report ${reportId} — skipping re-fetch`
           )
-          await logApiCall({
-            reportId,
-            provider: 'autodev',
-            endpoint: '/vin/{vin}',
-            success: false,
-            responseTimeMs: vinResponseTime,
-            cost: 0.0,
-            requestData: { vin: report.vin },
-            errorMessage: vinResult.error,
-          })
         }
 
         const subjectVehicle =
