@@ -3,9 +3,12 @@
 -- Purpose: Make year/make/model available for ALL reports (paid or not) at
 --          submission time, so nurture emails can personalize by vehicle
 --          instead of only VIN. See docs/superpowers/specs/2026-07-12-vin-decode-at-submission-design.md.
--- IMPORTANT: upsert_lead is CREATE OR REPLACE'd here, never a new overload —
---            see 20260710180000_fix_upsert_lead_overload_ambiguity.sql for why
---            a second overload previously broke PostgREST RPC dispatch in prod.
+-- IMPORTANT: upsert_lead signature changes from 7 args to 10 args. The old 7-arg
+--            version is dropped explicitly before CREATE OR REPLACE, for the same
+--            reason as 20260710180000_fix_upsert_lead_overload_ambiguity.sql:
+--            CREATE OR REPLACE with different arity creates a new overload, not a
+--            replacement. Multiple overloads break PostgREST's function dispatch
+--            (PGRST203). See that migration for full incident context.
 
 ALTER TABLE public.reports
   ADD COLUMN IF NOT EXISTS vehicle_make text,
@@ -16,6 +19,8 @@ ALTER TABLE public.leads
   ADD COLUMN IF NOT EXISTS vehicle_make text,
   ADD COLUMN IF NOT EXISTS vehicle_model text,
   ADD COLUMN IF NOT EXISTS vehicle_year integer;
+
+DROP FUNCTION IF EXISTS public.upsert_lead(text, text, text, text, text, text, text);
 
 CREATE OR REPLACE FUNCTION public.upsert_lead(
   p_email text,
