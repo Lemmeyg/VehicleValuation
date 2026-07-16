@@ -188,6 +188,7 @@ export async function POST(request: Request) {
         dealer_type: 'private', // Default value — updated by webhook after VIN decode
         status: 'pending', // Reports start as pending until payment received
         vehicle_data: vehicleDataForInsert,
+        autodev_vin_data: autoDevResult.success ? (autoDevResult.data ?? null) : null,
         vehicle_make: vehicleMake,
         vehicle_model: vehicleModel,
         vehicle_year: vehicleYear,

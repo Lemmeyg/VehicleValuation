@@ -271,6 +271,7 @@ describe('vehicle personalization (flat columns)', () => {
         vehicle_make: 'Honda',
         vehicle_model: 'Accord',
         vehicle_year: 2021,
+        autodev_vin_data: mockAutoDevData,
       })
     )
   })
@@ -286,6 +287,7 @@ describe('vehicle personalization (flat columns)', () => {
         vehicle_make: null,
         vehicle_model: null,
         vehicle_year: null,
+        autodev_vin_data: null,
       })
     )
   })
