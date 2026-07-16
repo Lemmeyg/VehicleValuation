@@ -65,4 +65,25 @@ describe('upsertLead', () => {
       p_lead_type: 'dispute_letter',
     })
   })
+
+  it('forwards vehicle attribution to the upsert_lead RPC', async () => {
+    const supabase = makeSupabase()
+    await upsertLead(supabase, 'user@example.com', 'form_submitted', {
+      vehicleMake: 'Honda',
+      vehicleModel: 'Accord',
+      vehicleYear: 2021,
+    })
+    expect(supabase.rpc).toHaveBeenCalledWith('upsert_lead', {
+      p_email: 'user@example.com',
+      p_lead_type: 'form_submitted',
+      p_source: undefined,
+      p_kb_source_slug: undefined,
+      p_utm_source: undefined,
+      p_utm_medium: undefined,
+      p_utm_campaign: undefined,
+      p_vehicle_make: 'Honda',
+      p_vehicle_model: 'Accord',
+      p_vehicle_year: 2021,
+    })
+  })
 })

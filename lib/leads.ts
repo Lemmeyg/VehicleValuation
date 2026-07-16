@@ -8,6 +8,9 @@ export interface LeadAttribution {
   utmSource?: string
   utmMedium?: string
   utmCampaign?: string
+  vehicleMake?: string
+  vehicleModel?: string
+  vehicleYear?: number
 }
 
 export async function upsertLead(
@@ -24,6 +27,9 @@ export async function upsertLead(
     p_utm_source: attribution?.utmSource,
     p_utm_medium: attribution?.utmMedium,
     p_utm_campaign: attribution?.utmCampaign,
+    p_vehicle_make: attribution?.vehicleMake,
+    p_vehicle_model: attribution?.vehicleModel,
+    p_vehicle_year: attribution?.vehicleYear,
   })
   if (error) {
     throw new Error(`[leads] upsert_lead RPC failed: ${error.message}`)
