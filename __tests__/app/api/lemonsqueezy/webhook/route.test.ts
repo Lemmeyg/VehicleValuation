@@ -916,3 +916,128 @@ describe('POST /api/lemonsqueezy/webhook — Lead capture on successful payment'
     expect(body.received).toBe(true)
   })
 })
+
+describe('POST /api/lemonsqueezy/webhook — Auto.dev guard', () => {
+  beforeEach(() => {
+    pendingAfterCallbacks = []
+    jest.clearAllMocks()
+    ;(client.verifyWebhookSignature as jest.Mock).mockReturnValue(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
+
+    // Default report mock: autodev_vin_data absent — hits the fallback (fetch) branch
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: jest.fn().mockReturnValue({
+        eq: jest.fn().mockResolvedValue({ error: null }),
+      }),
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+    ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
+      success: true,
+      fallbackUsed: false,
+      data: {
+        predictedPrice: 25000,
+        confidence: 'high',
+        totalComparablesFound: 10,
+        recentComparables: { num_found: 5, listings: [] },
+      },
+    })
+    ;(autodev.fetchAutoDevVinDecode as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { make: 'Honda', model: 'Accord', vehicle: { year: 2021 }, vinValid: true },
+    })
+    mockLogApiCall.mockResolvedValue(undefined)
+    ;(pdfGenerator.generateAndUploadPDF as jest.Mock).mockResolvedValue(undefined)
+    ;(mockAdmin.auth.admin.createUser as jest.Mock).mockResolvedValue({
+      data: { user: { id: 'new-user-id' } },
+      error: null,
+    })
+
+    mockValidateListingUrls.mockImplementation(async prediction => ({
+      prediction,
+      stats: { checkedCount: 0, failedCount: 0, failedUrls: [], validatedUrls: [], batchesUsed: 0 },
+    }))
+    mockSupplementComparables.mockImplementation(async prediction => ({
+      prediction,
+      supplemented: false,
+    }))
+  })
+
+  it('skips fetchAutoDevVinDecode when report.autodev_vin_data is already present', async () => {
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: { year: '2021', make: 'Honda', model: 'Accord' },
+          autodev_vin_data: {
+            make: 'Honda',
+            model: 'Accord',
+            vehicle: { year: 2021 },
+            vinValid: true,
+          },
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body: makeOrderCreatedBody(),
+    })
+
+    await POST(request)
+    await drainAfterCallbacks()
+
+    expect(autodev.fetchAutoDevVinDecode).not.toHaveBeenCalled()
+    // MarketCheck's own guard is untouched — still driven by marketcheck_valuation, not this change
+    expect(marketcheck.fetchMarketCheckData).toHaveBeenCalled()
+  })
+
+  it('still fetches via Auto.dev when report.autodev_vin_data is null (fallback path)', async () => {
+    // Uses the default mock from this block's beforeEach (autodev_vin_data absent)
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body: makeOrderCreatedBody(),
+    })
+
+    await POST(request)
+    await drainAfterCallbacks()
+
+    expect(autodev.fetchAutoDevVinDecode).toHaveBeenCalledWith('1HGBH41JXMN109186')
+  })
+})

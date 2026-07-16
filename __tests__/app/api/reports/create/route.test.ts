@@ -650,6 +650,42 @@ describe('POST /api/reports/create', () => {
         })
       )
     })
+
+    it('writes vehicle_make/model/year to the report update when decode succeeds', async () => {
+      const mockUpdate = jest.fn().mockReturnThis()
+      const mockEq = jest.fn().mockResolvedValue({ error: null })
+      mockSupabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        eq: mockEq,
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        single: jest.fn().mockResolvedValue({ data: { id: 'test-report-123' }, error: null }),
+        insert: jest.fn().mockReturnThis(),
+        update: mockUpdate,
+      })
+
+      const request = new Request('http://localhost:3000/api/reports/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zipCode: '10001',
+          reportType: 'basic',
+        }),
+      })
+
+      await POST(request)
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          vehicle_make: 'Honda',
+          vehicle_model: 'Accord',
+          vehicle_year: 2020,
+        })
+      )
+    })
   })
 })
 

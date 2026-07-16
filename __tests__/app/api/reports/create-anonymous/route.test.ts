@@ -150,6 +150,9 @@ describe('Lead capture', () => {
     expect((supabaseAdmin as any).rpc).toHaveBeenCalledWith('upsert_lead', {
       p_email: 'user@example.com',
       p_lead_type: 'form_submitted',
+      p_vehicle_make: 'Honda',
+      p_vehicle_model: 'Accord',
+      p_vehicle_year: 2021,
     })
   })
 
@@ -241,6 +244,9 @@ describe('attribution (N5)', () => {
       p_utm_source: undefined,
       p_utm_medium: undefined,
       p_utm_campaign: undefined,
+      p_vehicle_make: 'Honda',
+      p_vehicle_model: 'Accord',
+      p_vehicle_year: 2021,
     })
   })
 
@@ -254,5 +260,35 @@ describe('attribution (N5)', () => {
       })
     )
     expect((supabaseAdmin as any).rpc).not.toHaveBeenCalled()
+  })
+})
+
+describe('vehicle personalization (flat columns)', () => {
+  it('sets vehicle_make/model/year on the reports insert when decode succeeds', async () => {
+    await POST(makeRequest({ vin: '1HGBH41JXMN109186', mileage: 35000, zipCode: '10001' }))
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vehicle_make: 'Honda',
+        vehicle_model: 'Accord',
+        vehicle_year: 2021,
+        autodev_vin_data: mockAutoDevData,
+      })
+    )
+  })
+
+  it('leaves vehicle_make/model/year null on the insert when decode fails', async () => {
+    mockFetchAutoDevVinDecode.mockResolvedValue({ success: false, error: 'timeout' })
+    const response = await POST(
+      makeRequest({ vin: '1HGBH41JXMN109186', mileage: 35000, zipCode: '10001' })
+    )
+    expect(response.status).toBe(200)
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vehicle_make: null,
+        vehicle_model: null,
+        vehicle_year: null,
+        autodev_vin_data: null,
+      })
+    )
   })
 })

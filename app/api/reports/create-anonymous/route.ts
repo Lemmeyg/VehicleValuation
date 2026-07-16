@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin, createRouteHandlerSupabaseClient } from '@/lib/db/supabase'
 import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
 import { upsertLead } from '@/lib/leads'
+import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
+import { logApiCall } from '@/lib/api/api-call-logger'
 
 /**
  * Create Anonymous Report Endpoint
@@ -117,6 +119,35 @@ export async function POST(request: Request) {
 
     console.log('[create-anonymous] No recent duplicate found. Creating new report.')
 
+    // Decode VIN via Auto.dev at submission time so vehicle info exists even
+    // for reports that never complete payment (Auto.dev is free-tier — see
+    // docs/superpowers/specs/2026-07-12-vin-decode-at-submission-design.md).
+    // Non-fatal: a failed/unreachable decode must never block report creation.
+    // logApiCall fires after the insert below, once report.id is known.
+    const decodeStartTime = Date.now()
+    const autoDevResult = await fetchAutoDevVinDecode(sanitizedVin)
+
+    let vehicleDataForInsert: Record<string, unknown> | null = null
+    let vehicleMake: string | null = null
+    let vehicleModel: string | null = null
+    let vehicleYear: number | null = null
+
+    if (autoDevResult.success && autoDevResult.data) {
+      const decoded = autoDevResult.data
+      vehicleMake = decoded.make
+      vehicleModel = decoded.model
+      vehicleYear = decoded.vehicle.year
+      vehicleDataForInsert = {
+        vin: sanitizedVin,
+        mileage: mileageNum,
+        zipCode,
+        year: decoded.vehicle.year.toString(),
+        make: decoded.make,
+        model: decoded.model,
+        trim: decoded.trim,
+      }
+    }
+
     // Check if user is authenticated (for existing users coming from login flow)
     let authenticatedUserId: string | null = null
     try {
@@ -146,8 +177,7 @@ export async function POST(request: Request) {
       : null
 
     // Create report in database (link to authenticated user if available)
-    // Vehicle data (VIN decode) is populated later by the LemonSqueezy webhook
-    // using auto.dev, which is more reliable than the deprecated VinAudit endpoint.
+    // Vehicle data (VIN decode) is populated above at submission time via Auto.dev.
     const { data: report, error: insertError } = await supabase
       .from('reports')
       .insert({
@@ -157,7 +187,11 @@ export async function POST(request: Request) {
         email: normalizedEmail, // Store normalized email for later account linking
         dealer_type: 'private', // Default value — updated by webhook after VIN decode
         status: 'pending', // Reports start as pending until payment received
-        vehicle_data: null, // Populated by webhook after payment
+        vehicle_data: vehicleDataForInsert,
+        autodev_vin_data: autoDevResult.success ? (autoDevResult.data ?? null) : null,
+        vehicle_make: vehicleMake,
+        vehicle_model: vehicleModel,
+        vehicle_year: vehicleYear,
         user_id: authenticatedUserId, // Link to user if authenticated, otherwise null
         source: source ?? null,
         kb_source_slug: kbSourceSlug ?? null,
@@ -180,10 +214,46 @@ export async function POST(request: Request) {
       )
     }
 
+    // Log the Auto.dev call now that we have a report id to attach it to
+    if (autoDevResult.success && autoDevResult.data) {
+      await logApiCall({
+        reportId: report.id,
+        provider: 'autodev',
+        endpoint: '/vin/{vin}',
+        success: true,
+        responseTimeMs: Date.now() - decodeStartTime,
+        cost: 0.0,
+        requestData: { vin: sanitizedVin },
+        responseData: {
+          make: autoDevResult.data.make,
+          model: autoDevResult.data.model,
+          year: autoDevResult.data.vehicle.year,
+          vinValid: autoDevResult.data.vinValid,
+        },
+      })
+    } else {
+      await logApiCall({
+        reportId: report.id,
+        provider: 'autodev',
+        endpoint: '/vin/{vin}',
+        success: false,
+        responseTimeMs: Date.now() - decodeStartTime,
+        cost: 0.0,
+        requestData: { vin: sanitizedVin },
+        errorMessage: autoDevResult.error,
+      })
+    }
+
     // Capture form_submitted lead — non-fatal
     if (normalizedEmail) {
       try {
-        await upsertLead(supabaseAdmin, normalizedEmail, 'form_submitted', { source, kbSourceSlug })
+        await upsertLead(supabaseAdmin, normalizedEmail, 'form_submitted', {
+          source,
+          kbSourceSlug,
+          vehicleMake: vehicleMake ?? undefined,
+          vehicleModel: vehicleModel ?? undefined,
+          vehicleYear: vehicleYear ?? undefined,
+        })
       } catch (leadErr) {
         console.error('[create-anonymous] Lead capture failed (non-fatal):', leadErr)
       }
@@ -207,7 +277,7 @@ export async function POST(request: Request) {
         zip_code: report.zip_code,
         email: report.email,
         status: report.status,
-        vehicle_data: report.vehicle_data,
+        vehicle_data: vehicleDataForInsert,
         marketcheck_valuation: report.marketcheck_valuation || null,
         created_at: report.created_at,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
