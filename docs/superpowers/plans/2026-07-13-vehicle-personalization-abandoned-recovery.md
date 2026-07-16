@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace `%%VIN%%` in the Abandoned Report Recovery emails with a human-readable vehicle description ("2019 Honda Civic") by decoding the VIN via Auto.dev at report-submission time (not just post-payment), storing it as flat columns, and threading it through the recovery cron into Zoho Campaigns.
+**Goal:** Replace `%%VIN%%` in the Abandoned Report Recovery emails with a human-readable vehicle description ("2019 Honda Civic") by decoding the VIN via Auto.dev at report-submission time (not just post-payment), storing it as flat columns, and threading it through the recovery cron into Zoho Campaigns. Also (Task 8, added 2026-07-16) stop the LemonSqueezy webhook from unconditionally re-decoding the VIN once submission-time decode already did it.
 
 **Architecture:** Implements the approved-but-unbuilt `docs/superpowers/specs/2026-07-12-vin-decode-at-submission-design.md` spec (Tasks 1-5: new `vehicle_make`/`vehicle_model`/`vehicle_year` columns on `reports` and `leads`, `upsert_lead` extended, all three report-creation routes populate them), then extends it with the follow-up work that spec explicitly deferred (Tasks 6-7: wiring these fields into the Abandoned Report Recovery cron and Zoho templates). Auto.dev is called once per report at submission; its result populates both the existing `vehicle_data` JSONB blob (already expected by pre-existing tests on the anonymous route — see Task 3) and the new flat columns.
 
@@ -842,9 +842,239 @@ git commit -m "docs: personalize abandoned-report-recovery emails by vehicle ins
 
 ---
 
+## Task 8: Webhook — guard the Auto.dev re-fetch instead of always re-running it
+
+**Added 2026-07-16**, after discovering this plan during a repo-alignment check before starting related work. Not part of the original 2026-07-12 spec (which explicitly left the webhook's Auto.dev call untouched/out of scope) — added because Tasks 1-5 now make the webhook's unconditional re-fetch pure waste in the common case: once `create`/`create-anonymous`/`create-free` all decode at submission (Tasks 3-5), `report.autodev_vin_data` is already populated by the time the webhook runs for the vast majority of reports.
+
+**Files:**
+
+- Modify: `app/api/lemonsqueezy/webhook/route.ts`
+- Modify: `__tests__/app/api/lemonsqueezy/webhook/route.test.ts`
+
+**Interfaces:** No new interfaces — reuses `fetchAutoDevVinDecode` and the existing `report` fetch inside the `after()` callback.
+
+**MarketCheck is untouched by this task.** Its own `if (!marketcheckData)` guard, retry logic, and fallback behavior are not modified in any way.
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `__tests__/app/api/lemonsqueezy/webhook/route.test.ts`, in a new `describe` block:
+
+```ts
+describe('POST /api/lemonsqueezy/webhook — Auto.dev guard', () => {
+  it('skips fetchAutoDevVinDecode when report.autodev_vin_data is already present', async () => {
+    const mockSingle = jest.fn().mockResolvedValue({
+      data: {
+        vin: '1HGBH41JXMN109186',
+        mileage: 35000,
+        zip_code: '90210',
+        vehicle_data: { year: '2021', make: 'Honda', model: 'Accord' },
+        autodev_vin_data: {
+          make: 'Honda',
+          model: 'Accord',
+          vehicle: { year: 2021 },
+          vinValid: true,
+        },
+        marketcheck_valuation: null,
+      },
+      error: null,
+    })
+    mockFrom.mockImplementation(() => ({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: mockSingle,
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    }))
+
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body: makeOrderCreatedBody(),
+    })
+
+    await POST(request)
+    await drainAfterCallbacks()
+
+    expect(autodev.fetchAutoDevVinDecode).not.toHaveBeenCalled()
+    // MarketCheck's own guard is untouched — still driven by marketcheck_valuation, not this change
+    expect(marketcheck.fetchMarketCheckData).toHaveBeenCalled()
+  })
+
+  it('still fetches via Auto.dev when report.autodev_vin_data is null (fallback path)', async () => {
+    // Uses the existing default mock (autodev_vin_data absent) already set up in beforeEach
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body: makeOrderCreatedBody(),
+    })
+
+    await POST(request)
+    await drainAfterCallbacks()
+
+    expect(autodev.fetchAutoDevVinDecode).toHaveBeenCalledWith('1HGBH41JXMN109186')
+  })
+})
+```
+
+(Match whichever `mockFrom`/`drainAfterCallbacks`/`makeOrderCreatedBody` helper names the existing test file actually uses — this file already has equivalent scaffolding for the "returns the response before running heavy API calls" test; reuse it rather than inventing new helpers.)
+
+- [ ] **Step 2: Run to confirm they fail**
+
+```bash
+npm test -- __tests__/app/api/lemonsqueezy/webhook/route.test.ts -t "Auto.dev guard"
+```
+
+Expected: FAIL on the first new test — `fetchAutoDevVinDecode` is currently called unconditionally regardless of `autodev_vin_data`.
+
+- [ ] **Step 3: Update the report SELECT to include `autodev_vin_data`**
+
+In `app/api/lemonsqueezy/webhook/route.ts`, inside `handleOrderCreated`'s `after()` callback, change:
+
+```ts
+const { data: report, error: fetchError } = await supabase
+  .from('reports')
+  .select('vin, mileage, zip_code, vehicle_data, marketcheck_valuation')
+  .eq('id', reportId)
+  .single()
+```
+
+to:
+
+```ts
+const { data: report, error: fetchError } = await supabase
+  .from('reports')
+  .select('vin, mileage, zip_code, vehicle_data, marketcheck_valuation, autodev_vin_data')
+  .eq('id', reportId)
+  .single()
+```
+
+- [ ] **Step 4: Guard the Auto.dev fetch**
+
+Replace the unconditional decode block:
+
+```ts
+let autodevVinData = null
+console.log(`[Webhook] Fetching Auto.dev VIN decode for report ${reportId}`)
+const vinStartTime = Date.now()
+const vinResult = await fetchAutoDevVinDecode(report.vin)
+const vinResponseTime = Date.now() - vinStartTime
+
+if (vinResult.success && vinResult.data) {
+  // ... existing success logging ...
+} else {
+  // ... existing failure logging ...
+}
+```
+
+with a guarded version — skip the fetch (and its `logApiCall`) entirely when `report.autodev_vin_data` already exists, since that means submission-time decode (Tasks 3-5) already succeeded:
+
+```ts
+let autodevVinData = report.autodev_vin_data ?? null
+let vinResult: { success: boolean; data?: typeof autodevVinData } = {
+  success: !!autodevVinData,
+  data: autodevVinData ?? undefined,
+}
+
+if (!autodevVinData) {
+  console.log(
+    `[Webhook] No existing autodev_vin_data — fetching Auto.dev VIN decode for report ${reportId} (fallback)`
+  )
+  const vinStartTime = Date.now()
+  vinResult = await fetchAutoDevVinDecode(report.vin)
+  const vinResponseTime = Date.now() - vinStartTime
+
+  if (vinResult.success && vinResult.data) {
+    console.log(`[Webhook] Auto.dev VIN decode success for report ${reportId}:`, {
+      make: vinResult.data.make,
+      model: vinResult.data.model,
+      year: vinResult.data.vehicle?.year,
+      responseTimeMs: vinResponseTime,
+    })
+    autodevVinData = {
+      ...vinResult.data,
+      generatedAt: new Date().toISOString(),
+    }
+    await logApiCall({
+      reportId,
+      provider: 'autodev',
+      endpoint: '/vin/{vin}',
+      success: true,
+      responseTimeMs: vinResponseTime,
+      cost: 0.0,
+      requestData: { vin: report.vin },
+      responseData: {
+        make: vinResult.data.make,
+        model: vinResult.data.model,
+        year: vinResult.data.vehicle?.year,
+        vinValid: vinResult.data.vinValid,
+      },
+    })
+  } else {
+    console.warn(`[Webhook] Auto.dev VIN decode failed for report ${reportId}:`, vinResult.error)
+    await logApiCall({
+      reportId,
+      provider: 'autodev',
+      endpoint: '/vin/{vin}',
+      success: false,
+      responseTimeMs: vinResponseTime,
+      cost: 0.0,
+      requestData: { vin: report.vin },
+      errorMessage: vinResult.error,
+    })
+  }
+} else {
+  console.log(
+    `[Webhook] autodev_vin_data already present for report ${reportId} — skipping re-fetch`
+  )
+}
+```
+
+(Exact variable typing left to the implementer — match whatever type `fetchAutoDevVinDecode`'s return value already has in this file; the point is `vinResult.success`/`vinResult.data` must still feed the existing `subjectVehicle` construction immediately below this block, unchanged.)
+
+- [ ] **Step 5: Update the report UPDATE to avoid clobbering existing data with the same value**
+
+The existing `if (autodevVinData) { updateData.autodev_vin_data = autodevVinData }` line still works correctly unchanged — when the guard skips the fetch, `autodevVinData` is just re-assigned the same value already on the row, so the update is a harmless no-op write. No change needed here.
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+```bash
+npm test -- __tests__/app/api/lemonsqueezy/webhook/route.test.ts
+```
+
+Expected: PASS, full file including both new tests. Pay particular attention to any existing test that asserted `fetchAutoDevVinDecode` was always called — those use the default mock (`autodev_vin_data` absent from the fixture), so they hit the fallback branch and should still pass unchanged.
+
+- [ ] **Step 7: Run full suite + type-check**
+
+```bash
+npm run test:ci
+npm run type-check
+```
+
+Expected: no regressions, especially zero diff in MarketCheck-related assertions anywhere in the suite.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add "Vehicle Comparison Site/app/api/lemonsqueezy/webhook/route.ts" "Vehicle Comparison Site/__tests__/app/api/lemonsqueezy/webhook/route.test.ts"
+git commit -m "perf: skip webhook Auto.dev re-fetch when already decoded at submission"
+```
+
+---
+
 ## Self-Review Notes
 
-- **Spec coverage:** Tasks 1-5 implement all of `docs/superpowers/specs/2026-07-12-vin-decode-at-submission-design.md`'s "Design" section (schema, `upsert_lead`, all 3 call sites) exactly as specified. Tasks 6-7 implement the spec's explicitly-deferred "wiring these fields into Zoho Campaigns" non-goal.
+- **Spec coverage:** Tasks 1-5 implement all of `docs/superpowers/specs/2026-07-12-vin-decode-at-submission-design.md`'s "Design" section (schema, `upsert_lead`, all 3 call sites) exactly as specified. Tasks 6-7 implement the spec's explicitly-deferred "wiring these fields into Zoho Campaigns" non-goal. Task 8 is a 2026-07-16 addition, not part of the original spec — see Task 8's own note.
 - **Existing red tests:** Confirmed by actually running the suite during planning (not assumed) — `create-anonymous/route.test.ts` has 2 pre-existing failing tests this plan resolves as a side effect of Task 3, rather than needing separate new tests for that behavior.
 - **Backward compatibility:** Existing paid reports created before this migration have `vehicle_year`/`vehicle_make`/`vehicle_model` all `NULL` — Task 6's fallback (`'your vehicle'`) and Task 4/5's non-fatal `?? null` handling both account for this; no backfill migration is in scope (out of scope — could be a fast-follow if backfilling old rows via the existing `autodev_vin_data` JSONB is later judged worthwhile).
 - **Cross-plan dependency:** Flagged explicitly in Global Constraints and again inline in Task 6 Step 3 — this plan and the resume-checkout plan both edit the same cron file's enrollment block; whoever implements second should merge, not overwrite.
+- **Task 8 dependency on Tasks 1-5:** Task 8's guard is only correct once Tasks 1-5 are live — before that, `autodev_vin_data` is never populated at submission for anonymous reports, so the guard would always take the fallback branch (harmless, but pointless to implement first). Implement Tasks 1-5 before Task 8.
+- **Tasks 6-7 gating condition (unchanged from original plan):** Global Constraints still says not to implement Tasks 6-7 until the 3-email drip is confirmed live and running in the Zoho console — that's a manual/operational check, not something verifiable from the codebase. Confirm with the user before executing those two tasks specifically; Tasks 1-5 and 8 have no such gate.
