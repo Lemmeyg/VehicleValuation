@@ -230,6 +230,9 @@ export async function POST(request: Request) {
         mileage,
         zip_code: zipCode,
         dealer_type: dealerType,
+        vehicle_make: vehicleData?.make ?? null,
+        vehicle_model: vehicleData?.model ?? null,
+        vehicle_year: vehicleData?.vehicle.year ?? null,
         data_retrieval_status: vehicleData ? 'completed' : 'failed',
       })
       .eq('id', report.id)

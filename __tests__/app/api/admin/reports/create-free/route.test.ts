@@ -177,6 +177,18 @@ describe('POST /api/admin/reports/create-free', () => {
       expect(data.reportId).toBe('report-abc-123')
     })
 
+    it('writes vehicle_make/model/year to the report update when decode succeeds', async () => {
+      await POST(makeRequest({ vin: VALID_VIN, mileage: 35000, zipCode: '10001' }))
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          vehicle_make: 'Honda',
+          vehicle_model: 'Civic',
+          vehicle_year: 2020,
+        })
+      )
+    })
+
     it('logs autodev and marketcheck api calls with correct fields', async () => {
       mockLogApiCall.mockResolvedValue(undefined)
 
