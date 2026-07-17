@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   const now = Date.now()
   const { data: reports, error } = await supabaseAdmin
     .from('reports')
-    .select('id, email, vin')
+    .select('id, email, vehicle_year, vehicle_make, vehicle_model')
     .is('abandoned_recovery_sent_at', null)
     .is('price_paid', null)
     .not('email', 'is', null)
@@ -42,11 +42,23 @@ export async function GET(request: NextRequest) {
   for (const report of reports ?? []) {
     if (!report.email) continue
 
+    // Combine into one phrase so the email's single %%Model%% merge tag always
+    // reads naturally, even when VIN decode failed for this report (Year/Make
+    // still get sent separately, raw, for potential future Zoho segmentation).
+    const vehicleDescription =
+      report.vehicle_year && report.vehicle_make && report.vehicle_model
+        ? `${report.vehicle_year} ${report.vehicle_make} ${report.vehicle_model}`
+        : 'your vehicle'
+
     try {
       const success = await addContactToList({
         listKey,
         email: report.email,
-        customFields: { VIN: report.vin ?? '' },
+        customFields: {
+          Year: report.vehicle_year?.toString() ?? '',
+          Make: report.vehicle_make ?? '',
+          Model: vehicleDescription,
+        },
       })
       if (!success) continue
 
