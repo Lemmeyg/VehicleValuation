@@ -28,12 +28,14 @@ export interface AddContactToListParams {
 }
 
 // listsubscribe (contactinfo-based) is the only endpoint that supports custom
-// fields like VIN, needed for the abandoned-report-recovery list's %%VIN%%
-// merge tag. It's been broken account-wide since at least 2026-07-13 —
-// confirmed with Zoho support 2026-07-15 (ticket filed) — returning a raw
-// session/login error page instead of a real API response, on every request
-// shape and HTTP method tried. Kept only for the customFields case; do not
-// route the no-custom-field path through it.
+// fields. Confirmed 2026-07-17: it requires OAuth scope
+// ZohoCampaigns.contact.UPDATE specifically (not CREATE) — the production
+// refresh token was only ever granted CREATE, which is why every previous
+// attempt returned a raw session/login error page. Also handles create for
+// new contacts on its own, so no separate create step is needed before
+// calling this. Kept only for the customFields case; do not route the
+// no-custom-field path through it, since callAddListSubscribersInBulk needs
+// only CREATE scope.
 async function callListSubscribe(
   accessToken: string,
   params: AddContactToListParams
@@ -67,9 +69,10 @@ async function callListSubscribe(
   return true
 }
 
-// Working alternative to listsubscribe for the no-custom-field case. Doesn't
-// support custom fields (emailids only) so can't cover the VIN-personalized
-// list, but confirmed working 2026-07-15 for plain enrollment.
+// Alternative to listsubscribe for the no-custom-field case. Only needs
+// ZohoCampaigns.contact.CREATE scope (vs. listsubscribe's UPDATE) and doesn't
+// support custom fields (emailids only), so it can't cover a personalized
+// list — used by the dispute-letter route, which needs no custom fields.
 async function callAddListSubscribersInBulk(
   accessToken: string,
   params: AddContactToListParams
