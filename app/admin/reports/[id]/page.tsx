@@ -8,6 +8,7 @@ import { createServerSupabaseClient } from '@/lib/db/supabase'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ReassignReportForm } from '../../components/ReassignReportForm'
+import { getPaidReportType } from '@/lib/utils/payment-tier'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -32,6 +33,9 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
   const valuation = report.valuation_result as any
   const reportId = typeof report.id === 'string' ? report.id : String(report.id)
   const reportUserId = typeof report.user_id === 'string' ? report.user_id : null
+  // price_paid is the real tax-inclusive charged total, not a stable per-tier
+  // constant — payments.metadata.reportType (set at checkout) is authoritative.
+  const paidReportType = await getPaidReportType(supabase, reportId)
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -110,9 +114,9 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
             {report.price_paid ? formatCurrency(report.price_paid) : 'Not Paid'}
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            {report.price_paid === 2900
+            {paidReportType === 'BASIC'
               ? 'Basic Report'
-              : report.price_paid === 4900
+              : paidReportType === 'PREMIUM'
                 ? 'Premium Report'
                 : ''}
           </p>

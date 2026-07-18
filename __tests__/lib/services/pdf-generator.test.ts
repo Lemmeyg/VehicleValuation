@@ -1,4 +1,111 @@
-import { ADMIN_URL_TTL_SECONDS } from '@/lib/services/pdf-generator'
+import {
+  ADMIN_URL_TTL_SECONDS,
+  generatePDFBuffer,
+  generateAndUploadPDF,
+} from '@/lib/services/pdf-generator'
+
+jest.mock('@/lib/db/supabase')
+
+import { supabaseAdmin } from '@/lib/db/supabase'
+import { renderToBuffer } from '@react-pdf/renderer'
+
+const mockRenderToBuffer = renderToBuffer as jest.Mock
+
+const baseReportRow = {
+  id: 'report-1',
+  vin: '1HGBH41JXMN109186',
+  user_id: 'user-1',
+  status: 'completed',
+  created_at: '2026-07-01T12:00:00Z',
+}
+
+// reports.select('*').eq('id',..).single()
+// payments.select('metadata').eq('report_id',..).eq('status','succeeded').order(..).limit(1).maybeSingle()
+function mockReportAndPayment(
+  reportRow: Record<string, unknown>,
+  paymentReportType: string | null
+) {
+  ;(supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
+    if (table === 'reports') {
+      return {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: reportRow, error: null }),
+      }
+    }
+    if (table === 'payments') {
+      const paymentData = paymentReportType ? { metadata: { reportType: paymentReportType } } : null
+      return {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: paymentData, error: null }),
+      }
+    }
+    throw new Error(`Unexpected table: ${table}`)
+  })
+}
+
+describe('generatePDFBuffer — report type detection', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockRenderToBuffer.mockResolvedValue(Buffer.from(''))
+  })
+
+  it('passes reportType BASIC to the PDF template for a Basic-tier payment', async () => {
+    mockReportAndPayment({ ...baseReportRow, price_paid: 1900 }, 'BASIC')
+
+    await generatePDFBuffer('report-1')
+
+    const dataProp = mockRenderToBuffer.mock.calls[0][0].props.data
+    expect(dataProp.reportType).toBe('BASIC')
+  })
+
+  it('passes reportType PREMIUM to the PDF template for a Premium-tier payment', async () => {
+    mockReportAndPayment({ ...baseReportRow, price_paid: 2650 }, 'PREMIUM')
+
+    await generatePDFBuffer('report-1')
+
+    const dataProp = mockRenderToBuffer.mock.calls[0][0].props.data
+    expect(dataProp.reportType).toBe('PREMIUM')
+  })
+
+  it('defaults to reportType BASIC when there is no matching payment (e.g. admin free report)', async () => {
+    mockReportAndPayment({ ...baseReportRow, price_paid: 0 }, null)
+
+    await generatePDFBuffer('report-1')
+
+    const dataProp = mockRenderToBuffer.mock.calls[0][0].props.data
+    expect(dataProp.reportType).toBe('BASIC')
+  })
+})
+
+describe('generateAndUploadPDF — report type detection', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockRenderToBuffer.mockResolvedValue(Buffer.from(''))
+  })
+
+  it('passes reportType PREMIUM to the PDF template for a Premium-tier payment', async () => {
+    mockReportAndPayment({ ...baseReportRow, price_paid: 2650 }, 'PREMIUM')
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    const dataProp = mockRenderToBuffer.mock.calls[0][0].props.data
+    expect(dataProp.reportType).toBe('PREMIUM')
+  })
+
+  it('passes reportType BASIC to the PDF template for a Basic-tier payment', async () => {
+    mockReportAndPayment({ ...baseReportRow, price_paid: 1900 }, 'BASIC')
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    const dataProp = mockRenderToBuffer.mock.calls[0][0].props.data
+    expect(dataProp.reportType).toBe('BASIC')
+  })
+})
 
 describe('PDF filename generation', () => {
   function buildFilename(
