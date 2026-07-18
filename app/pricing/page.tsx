@@ -1058,6 +1058,9 @@ function PricingContent() {
       <ExitIntentPopup
         vin={report.vin}
         reportId={report.id}
+        vehicleYear={report.vehicle_data?.year}
+        vehicleMake={report.vehicle_data?.make}
+        vehicleModel={report.vehicle_data?.model}
         onSelectPlan={discountCode => handleSelectPlan(PRICING_TIERS[0], discountCode)}
       />
     </div>

@@ -143,12 +143,12 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
     )
     // Trigger popup
     fireEvent.click(screen.getByText('Home'))
-    expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
 
     // Click the backdrop (outside the card)
     fireEvent.click(screen.getByTestId('popup-backdrop'))
     // Popup must still be visible — and no navigation should have fired
-    expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
     expect(mockPush).not.toHaveBeenCalled()
   })
 
@@ -160,10 +160,10 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
       </>
     )
     fireEvent.click(screen.getByText('Home'))
-    expect(screen.getByText(/insurance company/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
-    expect(screen.queryByText(/insurance company/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
     expect(mockPush).toHaveBeenCalledWith('/home')
   })
 })
@@ -172,6 +172,55 @@ describe('ExitIntentPopup — back button trigger', () => {
   it('shows the popup when popstate fires', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
     fireEvent(window, new PopStateEvent('popstate'))
-    expect(screen.queryByText(/insurance company/i)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+  })
+})
+
+describe('ExitIntentPopup — personalized copy', () => {
+  it('shows the personalized headline when vehicle data is complete', () => {
+    render(
+      <>
+        <ExitIntentPopup
+          vin="1HGCM82633A123456"
+          reportId="r1"
+          vehicleYear={2019}
+          vehicleMake="Honda"
+          vehicleModel="Civic"
+          onSelectPlan={jest.fn()}
+        />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    expect(
+      screen.getByText(/before you go — your 2019 Honda Civic may be undervalued/i)
+    ).toBeInTheDocument()
+  })
+
+  it('falls back to generic headline when vehicle data is incomplete', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    expect(
+      screen.getByText(/before you go — your insurance company doesn't want you to have this/i)
+    ).toBeInTheDocument()
+  })
+
+  it('shows a text dismiss option that triggers the same dismiss behavior', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    fireEvent.click(screen.getByText(/no thanks, i'll take what the insurance company offers/i))
+    expect(
+      screen.queryByText(/insurance company doesn't want you to have this/i)
+    ).not.toBeInTheDocument()
   })
 })
