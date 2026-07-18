@@ -98,8 +98,14 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     expect(body.enrolled).toBe(0)
   })
 
-  it('enrolls an abandoned report and marks it flagged', async () => {
-    const report = { id: 'report-1', email: 'user@example.com', vin: '1HGBH41JXMN109186' }
+  it('enrolls an abandoned report with Year/Make/Model and marks it flagged', async () => {
+    const report = {
+      id: 'report-1',
+      email: 'user@example.com',
+      vehicle_year: 2019,
+      vehicle_make: 'Honda',
+      vehicle_model: 'Civic',
+    }
     mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
 
     const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
@@ -109,7 +115,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     expect(mockAddContactToList).toHaveBeenCalledWith({
       listKey: 'abandoned-list-key',
       email: 'user@example.com',
-      customFields: { VIN: '1HGBH41JXMN109186' },
+      customFields: { Year: '2019', Make: 'Honda', Model: '2019 Honda Civic' },
     })
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ abandoned_recovery_sent_at: expect.any(String) })
@@ -118,10 +124,62 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     expect(body.enrolled).toBe(1)
   })
 
+  it('falls back to "your vehicle" for Model and empty strings for Year/Make when decode data is missing', async () => {
+    const report = {
+      id: 'report-1',
+      email: 'user@example.com',
+      vehicle_year: null,
+      vehicle_make: null,
+      vehicle_model: null,
+    }
+    mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
+
+    const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
+    await GET(makeRequest())
+
+    expect(mockAddContactToList).toHaveBeenCalledWith({
+      listKey: 'abandoned-list-key',
+      email: 'user@example.com',
+      customFields: { Year: '', Make: '', Model: 'your vehicle' },
+    })
+  })
+
+  it('falls back to "your vehicle" when only some decode fields are present', async () => {
+    const report = {
+      id: 'report-1',
+      email: 'user@example.com',
+      vehicle_year: 2019,
+      vehicle_make: null,
+      vehicle_model: null,
+    }
+    mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
+
+    const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
+    await GET(makeRequest())
+
+    expect(mockAddContactToList).toHaveBeenCalledWith({
+      listKey: 'abandoned-list-key',
+      email: 'user@example.com',
+      customFields: { Year: '2019', Make: '', Model: 'your vehicle' },
+    })
+  })
+
   it('continues processing other reports if one enrollment throws', async () => {
     const reports = [
-      { id: 'report-1', email: 'fail@example.com', vin: 'VIN1' },
-      { id: 'report-2', email: 'ok@example.com', vin: 'VIN2' },
+      {
+        id: 'report-1',
+        email: 'fail@example.com',
+        vehicle_year: 2019,
+        vehicle_make: 'Honda',
+        vehicle_model: 'Civic',
+      },
+      {
+        id: 'report-2',
+        email: 'ok@example.com',
+        vehicle_year: 2020,
+        vehicle_make: 'Toyota',
+        vehicle_model: 'Camry',
+      },
     ]
     mockFrom.mockImplementation(() => ({ ...makeQueryChain(reports), update: mockUpdate }))
     mockAddContactToList.mockRejectedValueOnce(new Error('Zoho down')).mockResolvedValueOnce(true)
@@ -137,7 +195,13 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
 
   it('returns enrolled:0 without calling Zoho when the list key env var is missing', async () => {
     delete process.env.ZOHO_CAMPAIGNS_ABANDONED_REPORT_LIST_KEY
-    const report = { id: 'report-1', email: 'user@example.com', vin: 'VIN1' }
+    const report = {
+      id: 'report-1',
+      email: 'user@example.com',
+      vehicle_year: 2019,
+      vehicle_make: 'Honda',
+      vehicle_model: 'Civic',
+    }
     mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
 
     const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
@@ -149,7 +213,13 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
   })
 
   it('does not update the DB or count the report when addContactToList resolves false', async () => {
-    const report = { id: 'report-1', email: 'user@example.com', vin: 'VIN1' }
+    const report = {
+      id: 'report-1',
+      email: 'user@example.com',
+      vehicle_year: 2019,
+      vehicle_make: 'Honda',
+      vehicle_model: 'Civic',
+    }
     mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
     mockAddContactToList.mockResolvedValueOnce(false)
 
@@ -165,8 +235,20 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
 
   it('does not count a report as enrolled if the update call returns an error', async () => {
     const reports = [
-      { id: 'report-1', email: 'error@example.com', vin: 'VIN1' },
-      { id: 'report-2', email: 'ok@example.com', vin: 'VIN2' },
+      {
+        id: 'report-1',
+        email: 'error@example.com',
+        vehicle_year: 2019,
+        vehicle_make: 'Honda',
+        vehicle_model: 'Civic',
+      },
+      {
+        id: 'report-2',
+        email: 'ok@example.com',
+        vehicle_year: 2020,
+        vehicle_make: 'Toyota',
+        vehicle_model: 'Camry',
+      },
     ]
     mockFrom.mockImplementation(() => ({ ...makeQueryChain(reports), update: mockUpdate }))
 
