@@ -1285,15 +1285,17 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
           </Text>
         </View>
 
-        {/* ── MONEY-BACK GUARANTEE ─────────────────────────── */}
-        <View style={styles.guaranteeBox}>
-          <Text style={styles.guaranteeTitle}>100% Money-Back Guarantee</Text>
-          <Text style={styles.guaranteeText}>
-            If the insurance settlement falls short of our valuation, request a full refund within
-            90 days. We&apos;re confident in our valuations and stand behind every report we
-            generate.
-          </Text>
-        </View>
+        {/* ── MONEY-BACK GUARANTEE — Premium tier only ──────── */}
+        {data.reportType === 'PREMIUM' && (
+          <View style={styles.guaranteeBox}>
+            <Text style={styles.guaranteeTitle}>100% Money-Back Guarantee</Text>
+            <Text style={styles.guaranteeText}>
+              If the insurance settlement falls short of our valuation, request a full refund within
+              90 days. We&apos;re confident in our valuations and stand behind every report we
+              generate.
+            </Text>
+          </View>
+        )}
 
         {/* ── DISCLAIMER ───────────────────────────────────── */}
         <View>

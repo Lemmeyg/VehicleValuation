@@ -7,6 +7,7 @@ import { PostHogPurchaseTracker } from './PostHogPurchaseTracker'
 import { ReportReadyPoller } from './ReportReadyPoller'
 import { AuthenticatedPaymentPoller } from './AuthenticatedPaymentPoller'
 import { SUPPORT_EMAIL } from '@/lib/constants'
+import { getPaidReportType } from '@/lib/utils/payment-tier'
 /**
  * Payment Success Page
  *
@@ -64,7 +65,11 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
     return <AuthenticatedPaymentPoller reportId={reportId} />
   }
 
-  const planType = report.price_paid === 2900 ? 'basic' : 'premium'
+  // price_paid is the real tax-inclusive charged total, not a stable per-tier
+  // constant — it drifts with pricing changes and can't be compared for equality.
+  // payments.metadata.reportType (set at checkout) is the authoritative signal.
+  const paidReportType = await getPaidReportType(supabase, reportId)
+  const planType = paidReportType === 'PREMIUM' ? 'premium' : 'basic'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -145,7 +150,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
                 <div className="flex justify-between">
                   <span className="text-gray-600">Report Type:</span>
                   <span className="font-medium text-gray-900">
-                    {report.price_paid === 2900 ? 'Basic' : 'Premium'} Report
+                    {planType === 'premium' ? 'Premium' : 'Basic'} Report
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -254,17 +259,19 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
               </div>
             )}
 
-            {/* Money-Back Guarantee */}
-            <div className="bg-green-50 rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-semibold text-green-900 mb-2">
-                100% Money-Back Guarantee
-              </h2>
-              <p className="text-green-800 text-sm">
-                If the insurance settlement falls short of our valuation, you can request a full
-                refund within 90 days of receiving your report. We&apos;re confident in our
-                valuations.
-              </p>
-            </div>
+            {/* Money-Back Guarantee — Premium tier only */}
+            {planType === 'premium' && (
+              <div className="bg-green-50 rounded-lg p-6 mb-6">
+                <h2 className="text-lg font-semibold text-green-900 mb-2">
+                  100% Money-Back Guarantee
+                </h2>
+                <p className="text-green-800 text-sm">
+                  If the insurance settlement falls short of our valuation, you can request a full
+                  refund within 90 days of receiving your report. We&apos;re confident in our
+                  valuations.
+                </p>
+              </div>
+            )}
 
             {/* VIN Decode Failed — amber 48-hour notice */}
             {report.status === 'vin_decode_failed' ? (

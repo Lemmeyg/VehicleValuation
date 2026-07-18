@@ -8,6 +8,7 @@ import React from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { VehicleReportPDF } from '@/lib/pdf/report-template'
 import { supabaseAdmin } from '@/lib/db/supabase'
+import { getPaidReportType } from '@/lib/utils/payment-tier'
 
 interface GeneratePDFOptions {
   reportId: string
@@ -55,15 +56,16 @@ export async function generateAndUploadPDF(
 
     const reportData = report as ReportData
 
-    // Determine report type based on price_paid
-    const reportType = reportData.price_paid === 2900 ? 'BASIC' : 'PREMIUM'
+    // price_paid is the real tax-inclusive charged total, not a stable per-tier
+    // constant — payments.metadata.reportType (set at checkout) is authoritative.
+    const reportType = (await getPaidReportType(supabase, reportId)) ?? 'BASIC'
 
     // Prepare data for PDF template
     const pdfData = {
       id: reportData.id,
       vin: reportData.vin,
       mileage: reportData.mileage,
-      reportType: reportType as 'BASIC' | 'PREMIUM',
+      reportType,
       createdAt: reportData.created_at,
       autodevVinData: reportData.autodev_vin_data, // Auto.dev VIN decode data
       marketcheckValuation: reportData.marketcheck_valuation, // MarketCheck price prediction and comparables
@@ -166,13 +168,13 @@ export async function generatePDFBuffer(reportId: string): Promise<Buffer | null
     }
 
     const reportData = report as ReportData
-    const reportType = reportData.price_paid === 2900 ? 'BASIC' : 'PREMIUM'
+    const reportType = (await getPaidReportType(supabase, reportId)) ?? 'BASIC'
 
     const pdfData = {
       id: reportData.id,
       vin: reportData.vin,
       mileage: reportData.mileage,
-      reportType: reportType as 'BASIC' | 'PREMIUM',
+      reportType,
       createdAt: reportData.created_at,
       autodevVinData: reportData.autodev_vin_data, // Auto.dev VIN decode data
       marketcheckValuation: reportData.marketcheck_valuation, // MarketCheck price prediction and comparables
