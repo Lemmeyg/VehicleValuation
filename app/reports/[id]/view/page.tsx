@@ -16,18 +16,19 @@ import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listin
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintPdfButtons } from './print-pdf-buttons'
 import { ReportViewTracker } from '@/components/ReportViewTracker'
-import { ReportReadyWatcher } from './ReportReadyWatcher'
+import { NotReadySection } from './NotReadySection'
 import { TokenAccessBanner } from './TokenAccessBanner'
 
 interface PageProps {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ token?: string }>
+  searchParams: Promise<{ token?: string; checkout_status?: string; plan?: string; price?: string }>
 }
 
 export default async function ReportViewPage({ params, searchParams }: PageProps) {
   const user = await getUser()
   const { id } = await params
-  const { token } = await searchParams
+  const { token, checkout_status, plan, price } = await searchParams
+  const cancelled = checkout_status === 'cancelled'
 
   let isTokenAccess = false
 
@@ -238,42 +239,13 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
 
         {/* Valuation content — skeleton while report is generating, full content when ready */}
         {!isReady ? (
-          <>
-            <ReportReadyWatcher reportId={id} />
-            {/* Skeleton for value cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-              {[0, 1, 2].map(i => (
-                <div
-                  key={i}
-                  className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm animate-pulse"
-                >
-                  <div className="h-3 bg-slate-200 rounded w-24 mb-3" />
-                  <div className="h-10 bg-slate-200 rounded w-32 mb-2" />
-                  <div className="h-2 bg-slate-100 rounded w-20" />
-                </div>
-              ))}
-            </div>
-            {/* Skeleton for market analysis panel */}
-            <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8 animate-pulse">
-              <div className="h-6 bg-slate-200 rounded w-64 mb-4" />
-              <div className="h-4 bg-slate-100 rounded w-48 mb-8" />
-              <div className="h-48 bg-slate-100 rounded w-full" />
-            </div>
-            {/* Skeleton for comparables table */}
-            <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8 animate-pulse">
-              <div className="h-6 bg-slate-200 rounded w-48 mb-6" />
-              {[0, 1, 2, 3, 4].map(i => (
-                <div key={i} className="flex gap-4 py-4 border-b border-slate-100">
-                  <div className="w-24 h-16 bg-slate-200 rounded-lg" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-slate-200 rounded w-40" />
-                    <div className="h-3 bg-slate-100 rounded w-24" />
-                  </div>
-                  <div className="h-4 bg-slate-200 rounded w-20" />
-                </div>
-              ))}
-            </div>
-          </>
+          <NotReadySection
+            reportId={id}
+            token={token}
+            plan={(plan === 'premium' ? 'premium' : 'basic') as 'basic' | 'premium'}
+            price={price ? Number(price) : 19}
+            initialCancelled={cancelled}
+          />
         ) : (
           <>
             {/* Market Value Cards */}

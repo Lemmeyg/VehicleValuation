@@ -104,4 +104,42 @@ describe('POST /api/lemonsqueezy/create-checkout', () => {
 
     delete process.env.LEMONSQUEEZY_TEST_MODE
   })
+
+  it('sets cancelUrl to the view page with checkout_status, plan, price and the access_token for anonymous users', async () => {
+    const req = makeRequest({ reportId: 'report-1', reportType: 'BASIC' })
+    await POST(req)
+
+    expect(mockCreateCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cancelUrl:
+          'https://example.com/reports/report-1/view?token=token-abc&checkout_status=cancelled&plan=basic&price=19',
+      })
+    )
+  })
+
+  it('sets cancelUrl to the view page with checkout_status, plan, price and no token for authenticated users', async () => {
+    mockGetUser.mockResolvedValue({ id: 'user-1' } as never)
+
+    const req = makeRequest({ reportId: 'report-1', reportType: 'BASIC' })
+    await POST(req)
+
+    expect(mockCreateCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cancelUrl:
+          'https://example.com/reports/report-1/view?checkout_status=cancelled&plan=basic&price=19',
+      })
+    )
+  })
+
+  it('uses the premium price in cancelUrl when reportType is PREMIUM', async () => {
+    const req = makeRequest({ reportId: 'report-1', reportType: 'PREMIUM' })
+    await POST(req)
+
+    expect(mockCreateCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cancelUrl:
+          'https://example.com/reports/report-1/view?token=token-abc&checkout_status=cancelled&plan=premium&price=25',
+      })
+    )
+  })
 })
