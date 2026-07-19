@@ -37,6 +37,9 @@ export type PaymentEvent = {
   variantId?: string
   email?: string
   vin?: string
+  drip_utm_source?: string
+  drip_utm_medium?: string
+  drip_utm_content?: string
 }
 
 export type UserIdentificationEvent = {
@@ -82,6 +85,9 @@ export type ReportWorkflowEvent = {
   kb_source_slug?: string
   kb_source_title?: string
   kb_source_visited_at?: string
+  drip_utm_source?: string
+  drip_utm_medium?: string
+  drip_utm_content?: string
 }
 
 export type CheckoutEvent = {
@@ -92,6 +98,9 @@ export type CheckoutEvent = {
   kb_source_slug?: string
   kb_source_title?: string
   kb_source_visited_at?: string
+  drip_utm_source?: string
+  drip_utm_medium?: string
+  drip_utm_content?: string
 }
 
 export type EmailCaptureEvent = {

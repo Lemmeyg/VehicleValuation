@@ -115,7 +115,12 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     expect(mockAddContactToList).toHaveBeenCalledWith({
       listKey: 'abandoned-list-key',
       email: 'user@example.com',
-      customFields: { Year: '2019', Make: 'Honda', Model: '2019 Honda Civic' },
+      customFields: {
+        Year: '2019',
+        Make: 'Honda',
+        Model: '2019 Honda Civic',
+        ReportId: 'report-1',
+      },
     })
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ abandoned_recovery_sent_at: expect.any(String) })
@@ -140,7 +145,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     expect(mockAddContactToList).toHaveBeenCalledWith({
       listKey: 'abandoned-list-key',
       email: 'user@example.com',
-      customFields: { Year: '', Make: '', Model: 'your vehicle' },
+      customFields: { Year: '', Make: '', Model: 'your vehicle', ReportId: 'report-1' },
     })
   })
 
@@ -160,7 +165,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     expect(mockAddContactToList).toHaveBeenCalledWith({
       listKey: 'abandoned-list-key',
       email: 'user@example.com',
-      customFields: { Year: '2019', Make: '', Model: 'your vehicle' },
+      customFields: { Year: '2019', Make: '', Model: 'your vehicle', ReportId: 'report-1' },
     })
   })
 
