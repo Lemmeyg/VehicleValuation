@@ -86,10 +86,8 @@ describe('PricingPage — drip attribution capture', () => {
     // spyOn must target the same CommonJS module object the mocked component reads
     // from; an ES `import * as ns` produces a shallow-copy namespace object under
     // esModuleInterop, and mocking that copy does not patch the real module.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mockedNextNavigation = require('next/navigation')
     jest
-      .spyOn(mockedNextNavigation, 'useSearchParams')
+      .spyOn(jest.requireMock('next/navigation'), 'useSearchParams')
       .mockReturnValue(new URLSearchParams('utm_source=zoho&utm_medium=email&utm_content=step_2'))
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
@@ -110,5 +108,58 @@ describe('PricingPage — drip attribution capture', () => {
 
     await screen.findByText(/2019 Honda Civic/i)
     expect(localStorage.getItem('drip_last_touch')).toBeNull()
+  })
+})
+
+describe('PricingPage — reportId flow via the new preview endpoint', () => {
+  const originalFetch = global.fetch
+
+  afterEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    jest.clearAllMocks()
+    global.fetch = originalFetch
+  })
+
+  it('loads and renders the report when the preview endpoint returns report data', async () => {
+    jest
+      .spyOn(jest.requireMock('next/navigation'), 'useSearchParams')
+      .mockReturnValue(
+        new URLSearchParams('reportId=r1&utm_source=zoho&utm_medium=email&utm_content=step_2')
+      )
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        report: {
+          id: 'r1',
+          vin: '1HGCM82633A004352',
+          mileage: 50000,
+          zip_code: '90210',
+          dealer_type: 'private',
+          vehicle_data: { year: 2019, make: 'Honda', model: 'Civic' },
+          marketcheck_valuation: null,
+        },
+      }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    expect(await screen.findByText(/2019 Honda Civic/i)).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledWith('/api/reports/r1/preview')
+  })
+
+  it('shows an already-purchased message, not a redirect, when the report is already paid', async () => {
+    jest
+      .spyOn(jest.requireMock('next/navigation'), 'useSearchParams')
+      .mockReturnValue(new URLSearchParams('reportId=r1'))
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ alreadyPurchased: true }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    expect(await screen.findByText(/already purchased this report/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /return to homepage/i })).toBeInTheDocument()
   })
 })
