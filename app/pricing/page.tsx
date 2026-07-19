@@ -19,6 +19,7 @@ import {
 } from '@/lib/analytics/events'
 import { trackRedditViewContent, trackRedditAddToCart } from '@/lib/analytics/reddit-events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
+import { getPersonalizedVehicleLabel } from '@/lib/personalization/vehicle-label'
 
 const CORE_FEATURES = [
   'Real market data from 450M+ vehicle listings',
@@ -577,12 +578,32 @@ function PricingContent() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Hero Headline */}
           <div className="text-center mb-6">
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
-              Get Paid What Your Vehicle Is Worth
-            </h1>
-            <p className="text-slate-600 text-base max-w-xl mx-auto">
-              Insurance adjusters use professional market data. Now you can too — before you settle.
-            </p>
+            {(() => {
+              const vehicleLabel = getPersonalizedVehicleLabel(report.vehicle_data)
+              return vehicleLabel ? (
+                <>
+                  <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
+                    Your {vehicleLabel} may be undervalued by your insurer.
+                  </h1>
+                  <p className="text-slate-600 text-base max-w-xl mx-auto">
+                    Industry data shows 9 out of 10 total-loss claims are undervalued by insurers —
+                    most owners never push back. Our report gives you 10 real comparable sales to
+                    dispute your carrier&apos;s number and recover what you&apos;re owed.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
+                    Get Paid What Your Vehicle Is Worth
+                  </h1>
+                  <p className="text-slate-600 text-base max-w-xl mx-auto">
+                    Industry data shows 9 out of 10 total-loss claims are undervalued by insurers.
+                    Our report gives you 10 real comparable sales to dispute the number and recover
+                    what you&apos;re owed.
+                  </p>
+                </>
+              )
+            })()}
           </div>
 
           {/* Stat Strip */}
@@ -1037,6 +1058,9 @@ function PricingContent() {
       <ExitIntentPopup
         vin={report.vin}
         reportId={report.id}
+        vehicleYear={report.vehicle_data?.year}
+        vehicleMake={report.vehicle_data?.make}
+        vehicleModel={report.vehicle_data?.model}
         onSelectPlan={discountCode => handleSelectPlan(PRICING_TIERS[0], discountCode)}
       />
     </div>

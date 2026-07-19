@@ -4,21 +4,37 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import { trackEvent } from '@/lib/analytics/events'
+import { getPersonalizedVehicleLabel } from '@/lib/personalization/vehicle-label'
 
 interface ExitIntentPopupProps {
   vin: string
   reportId: string
+  vehicleYear?: number
+  vehicleMake?: string
+  vehicleModel?: string
   onSelectPlan: (discountCode: string) => void
 }
 
 const DISCOUNT_CODE = process.env.NEXT_PUBLIC_EXIT_INTENT_DISCOUNT_CODE ?? 'STAY15'
 
-export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitIntentPopupProps) {
+export default function ExitIntentPopup({
+  vin,
+  reportId,
+  vehicleYear,
+  vehicleMake,
+  vehicleModel,
+  onSelectPlan,
+}: ExitIntentPopupProps) {
   const [visible, setVisible] = useState(false)
   const pendingHrefRef = useRef<string | null>(null)
   const isBackButtonRef = useRef(false)
   const hasTriggeredRef = useRef(false)
   const router = useRouter()
+
+  const vehicleLabel =
+    vehicleYear && vehicleMake && vehicleModel
+      ? getPersonalizedVehicleLabel({ year: vehicleYear, make: vehicleMake, model: vehicleModel })
+      : null
 
   useEffect(() => {
     history.pushState(null, '', window.location.href)
@@ -103,18 +119,40 @@ export default function ExitIntentPopup({ vin, reportId, onSelectPlan }: ExitInt
         </button>
 
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">
-            Before you go — your insurance company doesn&apos;t want you to have this.
-          </h2>
-          <p className="text-slate-500 text-sm mb-6">
-            The average settlement gap is $2,800. Don&apos;t leave without the data to fight back.
-          </p>
+          {vehicleLabel ? (
+            <>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                Before you go — your {vehicleLabel} may be undervalued by your insurer.
+              </h2>
+              <p className="text-slate-500 text-sm mb-6">
+                Industry data shows 9 out of 10 total-loss claims are undervalued. Our report gives
+                you 10 comparable sales to fight back.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                Before you go — your insurance company doesn&apos;t want you to have this.
+              </h2>
+              <p className="text-slate-500 text-sm mb-6">
+                The average settlement gap is $2,800. Don&apos;t leave without the data to fight
+                back.
+              </p>
+            </>
+          )}
 
           <button
             onClick={handleCTA}
             className="w-full py-4 px-6 bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 text-white rounded-xl font-semibold text-base transition-all shadow-lg"
           >
             Get My Report — $15
+          </button>
+
+          <button
+            onClick={handleDismiss}
+            className="mt-3 text-sm text-slate-400 hover:text-slate-600 transition-colors underline underline-offset-2"
+          >
+            No thanks, I&apos;ll take what the insurance company offers
           </button>
         </div>
       </div>
