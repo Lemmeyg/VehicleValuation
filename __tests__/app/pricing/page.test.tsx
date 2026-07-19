@@ -60,6 +60,6 @@ describe('PricingPage — personalized headline', () => {
     setPendingReport({ year: 0, make: '', model: '' })
     render(<PricingPage />)
 
-    expect(await screen.findByText(/industry data shows 9 out of 10/i)).toBeInTheDocument()
+    expect(await screen.findByText(/get paid what your vehicle is worth/i)).toBeInTheDocument()
   })
 })
