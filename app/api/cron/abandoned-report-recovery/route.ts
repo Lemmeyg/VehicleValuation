@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
           Year: report.vehicle_year?.toString() ?? '',
           Make: report.vehicle_make ?? '',
           Model: vehicleDescription,
+          ReportId: report.id,
         },
       })
       if (!success) continue
