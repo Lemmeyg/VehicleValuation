@@ -122,6 +122,7 @@ function PricingContent() {
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [alreadyPurchased, setAlreadyPurchased] = useState(false)
   const [processingPayment, setProcessingPayment] = useState(false)
   const [showBetaModal, setShowBetaModal] = useState(false)
   const [showExistingUserModal, setShowExistingUserModal] = useState(false)
@@ -231,10 +232,12 @@ function PricingContent() {
 
   const fetchExistingReport = async (id: string) => {
     try {
-      const response = await fetch(`/api/reports/${id}`)
+      const response = await fetch(`/api/reports/${id}/preview`)
       const data = await response.json()
 
-      if (response.ok) {
+      if (response.ok && data.alreadyPurchased) {
+        setAlreadyPurchased(true)
+      } else if (response.ok) {
         setReport(data.report)
         // Track pricing page view for existing report
         const kbAttr = getKBAttribution()
@@ -544,6 +547,26 @@ function PricingContent() {
               <h1 className="sr-only">Get Your Total Loss Vehicle Valuation Report</h1>
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
               <p className="text-slate-600">Loading your vehicle data...</p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
+
+  if (alreadyPurchased) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <main className="pt-24 pb-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center">
+              <h1 className="sr-only">Get Your Total Loss Vehicle Valuation Report</h1>
+              <p className="text-slate-700 mb-4">
+                You&apos;ve already purchased this report. Check your email for the download link.
+              </p>
+              <Button onClick={() => router.push('/')}>Return to Homepage</Button>
             </div>
           </div>
         </main>
