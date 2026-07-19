@@ -63,3 +63,52 @@ describe('PricingPage — personalized headline', () => {
     expect(await screen.findByText(/get paid what your vehicle is worth/i)).toBeInTheDocument()
   })
 })
+
+describe('PricingPage — drip attribution capture', () => {
+  afterEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    jest.clearAllMocks()
+    // jest.clearAllMocks() clears call state but does NOT undo a mockReturnValue
+    // set via jest.spyOn (only mockRestore()/restoreAllMocks() does). The first
+    // test below spies on useSearchParams with mockReturnValue; without restoring
+    // it here, that mocked URL leaks into the next test.
+    jest.restoreAllMocks()
+  })
+
+  it('persists utm_source/utm_medium/utm_content from the URL into drip_last_touch', async () => {
+    // Note: intentionally omits reportId — with it present, initializePricingPage
+    // takes the fetchExistingReport branch (Option A) and never reaches the
+    // pending_report hydration path this test relies on for the personalized
+    // headline completion signal. Global fetch is blocked in tests (see
+    // __tests__/setup.ts), so that branch would always fail regardless of the
+    // drip-attribution feature under test here.
+    // spyOn must target the same CommonJS module object the mocked component reads
+    // from; an ES `import * as ns` produces a shallow-copy namespace object under
+    // esModuleInterop, and mocking that copy does not patch the real module.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mockedNextNavigation = require('next/navigation')
+    jest
+      .spyOn(mockedNextNavigation, 'useSearchParams')
+      .mockReturnValue(new URLSearchParams('utm_source=zoho&utm_medium=email&utm_content=step_2'))
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+
+    await screen.findByText(/2019 Honda Civic/i)
+
+    const raw = localStorage.getItem('drip_last_touch')
+    expect(raw).not.toBeNull()
+    const parsed = JSON.parse(raw!)
+    expect(parsed.utm_source).toBe('zoho')
+    expect(parsed.utm_medium).toBe('email')
+    expect(parsed.utm_content).toBe('step_2')
+  })
+
+  it('does not write drip_last_touch when no utm params are present', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+
+    await screen.findByText(/2019 Honda Civic/i)
+    expect(localStorage.getItem('drip_last_touch')).toBeNull()
+  })
+})

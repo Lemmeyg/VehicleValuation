@@ -19,6 +19,7 @@ import {
 } from '@/lib/analytics/events'
 import { trackRedditViewContent, trackRedditAddToCart } from '@/lib/analytics/reddit-events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
+import { setDripAttribution, getDripAttribution } from '@/lib/analytics/drip-attribution'
 import { getPersonalizedVehicleLabel } from '@/lib/personalization/vehicle-label'
 
 const CORE_FEATURES = [
@@ -148,6 +149,13 @@ function PricingContent() {
   }, [])
 
   const initializePricingPage = async () => {
+    const utmSource = searchParams?.get('utm_source')
+    const utmMedium = searchParams?.get('utm_medium')
+    const utmContent = searchParams?.get('utm_content')
+    if (utmSource && utmMedium && utmContent) {
+      setDripAttribution(utmSource, utmMedium, utmContent)
+    }
+
     // Option A: Existing reportId flow (authenticated users with existing report)
     if (reportId) {
       await fetchExistingReport(reportId)
@@ -215,6 +223,7 @@ function PricingContent() {
       vehicleModel: reportData.vehicle_data?.model,
     })
     const kbAttr = getKBAttribution()
+    const dripAttr = getDripAttribution()
     trackReportWorkflow({
       step: 'pricing_viewed',
       reportId: reportData.id,
@@ -222,6 +231,11 @@ function PricingContent() {
         kb_source_slug: kbAttr.slug,
         kb_source_title: kbAttr.title,
         kb_source_visited_at: kbAttr.visited_at,
+      }),
+      ...(dripAttr && {
+        drip_utm_source: dripAttr.utm_source,
+        drip_utm_medium: dripAttr.utm_medium,
+        drip_utm_content: dripAttr.utm_content,
       }),
     })
     trackRedditViewContent()
@@ -238,6 +252,7 @@ function PricingContent() {
         setReport(data.report)
         // Track pricing page view for existing report
         const kbAttr = getKBAttribution()
+        const dripAttr = getDripAttribution()
         trackReportWorkflow({
           step: 'pricing_viewed',
           reportId: id,
@@ -245,6 +260,11 @@ function PricingContent() {
             kb_source_slug: kbAttr.slug,
             kb_source_title: kbAttr.title,
             kb_source_visited_at: kbAttr.visited_at,
+          }),
+          ...(dripAttr && {
+            drip_utm_source: dripAttr.utm_source,
+            drip_utm_medium: dripAttr.utm_medium,
+            drip_utm_content: dripAttr.utm_content,
           }),
         })
         trackRedditViewContent()
@@ -359,6 +379,7 @@ function PricingContent() {
 
     // Track checkout initiation before any processing
     const kbAttrCheckout = getKBAttribution()
+    const dripAttrCheckout = getDripAttribution()
     trackCheckoutInitiated({
       reportId: report.id,
       plan: tier.id.toLowerCase() as 'basic' | 'premium',
@@ -370,6 +391,11 @@ function PricingContent() {
         kb_source_slug: kbAttrCheckout.slug,
         kb_source_title: kbAttrCheckout.title,
         kb_source_visited_at: kbAttrCheckout.visited_at,
+      }),
+      ...(dripAttrCheckout && {
+        drip_utm_source: dripAttrCheckout.utm_source,
+        drip_utm_medium: dripAttrCheckout.utm_medium,
+        drip_utm_content: dripAttrCheckout.utm_content,
       }),
     })
 
@@ -479,6 +505,7 @@ function PricingContent() {
 
     // Track payment initiation
     const kbAttrPayment = getKBAttribution()
+    const dripAttrPayment = getDripAttribution()
     trackPaymentInitiated({
       plan: tier.id.toLowerCase() as 'basic' | 'premium',
       amount: tier.price,
@@ -489,6 +516,11 @@ function PricingContent() {
         kb_source_slug: kbAttrPayment.slug,
         kb_source_title: kbAttrPayment.title,
         kb_source_visited_at: kbAttrPayment.visited_at,
+      }),
+      ...(dripAttrPayment && {
+        drip_utm_source: dripAttrPayment.utm_source,
+        drip_utm_medium: dripAttrPayment.utm_medium,
+        drip_utm_content: dripAttrPayment.utm_content,
       }),
     })
 
