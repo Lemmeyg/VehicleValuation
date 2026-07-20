@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
-import { trackReportWorkflow, trackPaymentSuccess } from '@/lib/analytics/events'
+import { trackReportWorkflow, trackPaymentSuccess, identifyUser } from '@/lib/analytics/events'
 import { SUPPORT_EMAIL } from '@/lib/constants'
 
 interface Props {
@@ -48,15 +48,25 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
           if (!purchaseTracked.current && data.pricePaid) {
             purchaseTracked.current = true
             const planType = data.pricePaid === 2900 ? 'basic' : 'premium'
+            const buyerEmail = data.email ?? checkoutEmail ?? undefined
             trackReportWorkflow({ step: 'report_created', reportId, planType })
             trackPaymentSuccess({
               plan: planType,
               amount: data.pricePaid / 100,
               currency: 'USD',
               paymentProcessor: 'lemonsqueezy',
-              email: data.email ?? checkoutEmail ?? undefined,
+              email: buyerEmail,
               vin: data.vin ?? undefined,
             })
+            // Anonymous buyers have no userId yet — identify by email so this
+            // session's events link to a named PostHog person profile.
+            if (buyerEmail) {
+              identifyUser(buyerEmail, {
+                email: buyerEmail,
+                vin: data.vin ?? undefined,
+                plan: planType,
+              })
+            }
           }
           setPollerState('setup')
           return
