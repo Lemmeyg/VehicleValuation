@@ -4,6 +4,7 @@
  * Verifies the polling loop, redirect behavior, and account setup form.
  */
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
+import * as events from '@/lib/analytics/events'
 import { ReportReadyPoller } from '@/app/reports/[id]/success/ReportReadyPoller'
 
 // Mock next/navigation
@@ -11,6 +12,14 @@ const mockPush = jest.fn()
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, refresh: jest.fn() }),
 }))
+
+jest.mock('@/lib/analytics/events', () => ({
+  trackReportWorkflow: jest.fn(),
+  trackPaymentSuccess: jest.fn(),
+  identifyUser: jest.fn(),
+}))
+
+const mockEvents = events as jest.Mocked<typeof events>
 
 // fetch is mocked globally in setup.ts — we override per test
 const mockFetch = global.fetch as jest.Mock
@@ -139,6 +148,34 @@ describe('ReportReadyPoller', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Check your email/i)).toBeInTheDocument()
+    })
+  })
+
+  it('identifies the buyer in PostHog by email once payment is confirmed', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ready: true,
+        pricePaid: 4900,
+        email: 'buyer@example.com',
+        vin: '1HGCM82633A123456',
+      }),
+    })
+
+    render(
+      <ReportReadyPoller reportId="report-abc" checkoutEmail="buyer@example.com" pricePaid={4900} />
+    )
+
+    await act(async () => {
+      jest.advanceTimersByTime(100)
+    })
+
+    await waitFor(() => {
+      expect(mockEvents.identifyUser).toHaveBeenCalledWith('buyer@example.com', {
+        email: 'buyer@example.com',
+        vin: '1HGCM82633A123456',
+        plan: 'premium',
+      })
     })
   })
 })
