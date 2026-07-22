@@ -37,6 +37,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': 'attachment; filename="total-loss-report.pdf"',
+        'Cache-Control': 'private, no-store',
       },
     })
   } catch (err) {
