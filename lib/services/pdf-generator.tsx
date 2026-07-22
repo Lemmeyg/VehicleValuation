@@ -164,10 +164,16 @@ export async function generateAndUploadPDF(
             },
           })
           if (enrolled) {
-            await supabase
+            const { error: flagUpdateError } = await supabase
               .from('reports')
               .update({ email_date_sent: new Date().toISOString() })
               .eq('id', reportId)
+            if (flagUpdateError) {
+              console.error(
+                '[pdf-generator] Failed to write email_date_sent after Zoho enrollment:',
+                flagUpdateError
+              )
+            }
           }
         } catch (err) {
           console.error('[pdf-generator] Zoho report-delivery enrollment error:', err)
