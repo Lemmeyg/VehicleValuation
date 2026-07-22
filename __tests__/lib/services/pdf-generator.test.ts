@@ -230,10 +230,16 @@ describe('generateAndUploadPDF — Zoho report-delivery enrollment', () => {
     }
   })
 
-  it('enrolls the contact in Zoho with vehicle and report-url custom fields for a fresh paid report', async () => {
+  it('enrolls the contact in Zoho with vehicle info and a totallosstoolkit.com download link (not the raw Supabase URL)', async () => {
+    const ORIGINAL_APP_URL = process.env.NEXT_PUBLIC_APP_URL
+    delete process.env.NEXT_PUBLIC_APP_URL
+
     mockReportRow(REPORT_ROW)
 
     await generateAndUploadPDF({ reportId: 'report-1' })
+
+    const updateCallArgs = updateSpy.mock.calls[0][0]
+    const token = updateCallArgs.pdf_download_token
 
     expect(mockAddContactToList).toHaveBeenCalledWith({
       listKey: 'test-list-key',
@@ -242,9 +248,27 @@ describe('generateAndUploadPDF — Zoho report-delivery enrollment', () => {
         Year: '2019',
         Make: 'Honda',
         Model: 'Civic',
-        ReportUrl: 'https://mock.url',
+        ReportUrl: `https://www.totallosstoolkit.com/api/reports/download/${token}`,
       },
     })
+
+    if (ORIGINAL_APP_URL === undefined) delete process.env.NEXT_PUBLIC_APP_URL
+    else process.env.NEXT_PUBLIC_APP_URL = ORIGINAL_APP_URL
+  })
+
+  it('sets pdf_download_token to a UUID and pdf_download_token_expires_at to approximately 7 days from now', async () => {
+    mockReportRow(REPORT_ROW)
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    const updateCallArgs = updateSpy.mock.calls[0][0]
+    expect(updateCallArgs.pdf_download_token).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    )
+
+    const expiresAt = new Date(updateCallArgs.pdf_download_token_expires_at).getTime()
+    const expectedExpiry = Date.now() + 7 * 24 * 60 * 60 * 1000
+    expect(Math.abs(expiresAt - expectedExpiry)).toBeLessThan(5000)
   })
 
   it('writes email_date_sent only after Zoho confirms enrollment succeeded', async () => {

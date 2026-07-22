@@ -126,6 +126,13 @@ export async function generateAndUploadPDF(
       .from('vehicle-reports')
       .createSignedUrl(filepath, ADMIN_URL_TTL_SECONDS)
 
+    // Opaque token for the customer-facing secure download route
+    // (app/api/reports/download/[token]/route.ts). The 7-day window is
+    // enforced by application code checking this expiry column, not by any
+    // underlying Supabase signed URL.
+    const pdfDownloadToken = crypto.randomUUID()
+    const pdfDownloadTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
     // Update report: store the storage path (permanent) and mark completed
     const { error: updateError } = await supabase
       .from('reports')
@@ -133,6 +140,8 @@ export async function generateAndUploadPDF(
         pdf_url: signedUrlData.signedUrl,
         pdf_storage_path: filepath,
         pdf_admin_url: adminUrlData?.signedUrl ?? null,
+        pdf_download_token: pdfDownloadToken,
+        pdf_download_token_expires_at: pdfDownloadTokenExpiresAt,
         status: 'completed',
         updated_at: new Date().toISOString(),
       })
@@ -160,7 +169,7 @@ export async function generateAndUploadPDF(
               Year: reportData.vehicle_year?.toString() ?? '',
               Make: reportData.vehicle_make ?? '',
               Model: reportData.vehicle_model ?? '',
-              ReportUrl: adminUrlData?.signedUrl ?? '',
+              ReportUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.totallosstoolkit.com'}/api/reports/download/${pdfDownloadToken}`,
             },
           })
           if (enrolled) {
