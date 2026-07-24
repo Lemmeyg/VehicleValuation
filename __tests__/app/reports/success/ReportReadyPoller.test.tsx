@@ -151,6 +151,41 @@ describe('ReportReadyPoller', () => {
     })
   })
 
+  it('shows a guidance message instead of auto-sending a magic link when the account already exists', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ready: true }) }) // poll
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ error: 'User already registered' }),
+      }) // signup attempt
+
+    render(
+      <ReportReadyPoller reportId="report-abc" checkoutEmail="buyer@example.com" pricePaid={4900} />
+    )
+
+    await act(async () => {
+      jest.advanceTimersByTime(100)
+    })
+    await waitFor(() => screen.getByText(/Your report is ready/i))
+
+    fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: 'password123' } })
+    fireEvent.change(screen.getByLabelText(/Confirm password/i), {
+      target: { value: 'password123' },
+    })
+    fireEvent.click(screen.getByLabelText(/I agree to the/i))
+
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Create account & view report/i))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(/account already exists for this email/i)).toBeInTheDocument()
+    })
+
+    // No automatic magic-link request — only the poll and the signup attempt happened.
+    expect(mockFetch).not.toHaveBeenCalledWith('/api/auth/magic-link', expect.anything())
+  })
+
   it('identifies the buyer in PostHog by email once payment is confirmed', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
