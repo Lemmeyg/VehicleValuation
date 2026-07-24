@@ -112,12 +112,15 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
       const data = await res.json()
 
       if (!res.ok) {
-        // Account already exists (created by webhook) — send magic link instead
+        // Account already exists (created by the checkout webhook) — guide the
+        // buyer to the explicit magic-link option instead of auto-sending one.
         if (
           data.error?.toLowerCase().includes('already registered') ||
           data.error?.toLowerCase().includes('already exists')
         ) {
-          await sendMagicLink()
+          setFormError(
+            "An account already exists for this email. Use 'Email me a sign-in link' below, or sign in if you already have a password."
+          )
           return
         }
         setFormError(data.error || 'Failed to create account')

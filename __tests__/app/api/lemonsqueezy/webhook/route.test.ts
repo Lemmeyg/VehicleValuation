@@ -112,7 +112,7 @@ function makeOrderCreatedBody(overrides = {}) {
   })
 }
 
-describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
+describe('POST /api/lemonsqueezy/webhook — order processing', () => {
   beforeEach(() => {
     pendingAfterCallbacks = []
     jest.clearAllMocks()
@@ -177,15 +177,13 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     }))
   })
 
-  it('uses x-forwarded-host when NEXT_PUBLIC_APP_URL is not set', async () => {
-    delete process.env.NEXT_PUBLIC_APP_URL
-
-    const signInWithOtpMock = jest.fn().mockResolvedValue({ error: null })
+  it('does not send a magic link for an anonymous purchase', async () => {
+    const signInWithOtpMock = jest.fn()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockAdmin.auth.signInWithOtp = signInWithOtpMock as any
 
     const body = makeOrderCreatedBody()
-    const request = new Request('http://internal-vercel-url/api/lemonsqueezy/webhook', {
+    const request = new Request('http://internal/api/lemonsqueezy/webhook', {
       method: 'POST',
       headers: {
         'x-signature': 'valid',
@@ -198,28 +196,10 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     await POST(request)
     await drainAfterCallbacks()
 
-    expect(signInWithOtpMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        options: expect.objectContaining({
-          emailRedirectTo:
-            'https://www.totallosstoolkit.com/auth/callback?next=/reports/report-abc/view',
-        }),
-      })
-    )
-
-    expect(mockLogApiCall).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: 'autodev',
-        responseData: expect.objectContaining({ vinValid: expect.any(Boolean) }),
-      })
-    )
-    expect(mockLogApiCall).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: 'marketcheck',
-        responseData: expect.objectContaining({
-          recent_comparables_found: expect.any(Number),
-        }),
-      })
+    expect(signInWithOtpMock).not.toHaveBeenCalled()
+    // The account is still created/found — only the email send is gone.
+    expect(mockAdmin.auth.admin.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'buyer@example.com' })
     )
   })
 
@@ -247,95 +227,6 @@ describe('POST /api/lemonsqueezy/webhook — appUrl resolution', () => {
     // Once drained, the deferred work has actually run.
     expect(autodev.fetchAutoDevVinDecode).toHaveBeenCalled()
     expect(marketcheck.fetchMarketCheckData).toHaveBeenCalled()
-  })
-
-  it('uses NEXT_PUBLIC_APP_URL when set', async () => {
-    process.env.NEXT_PUBLIC_APP_URL = 'https://totallosstoolkit.com'
-
-    const signInWithOtpMock = jest.fn().mockResolvedValue({ error: null })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockAdmin.auth.signInWithOtp = signInWithOtpMock as any
-
-    const body = makeOrderCreatedBody()
-    const request = new Request('http://internal/api/lemonsqueezy/webhook', {
-      method: 'POST',
-      headers: { 'x-signature': 'valid' },
-      body,
-    })
-
-    await POST(request)
-    await drainAfterCallbacks()
-
-    expect(signInWithOtpMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        options: expect.objectContaining({
-          emailRedirectTo:
-            'https://totallosstoolkit.com/auth/callback?next=/reports/report-abc/view',
-        }),
-      })
-    )
-
-    delete process.env.NEXT_PUBLIC_APP_URL
-  })
-
-  it('prefers x-forwarded-host over NEXT_PUBLIC_APP_URL when both are present', async () => {
-    process.env.NEXT_PUBLIC_APP_URL = 'https://www.totallosstoolkit.com'
-
-    const signInWithOtpMock = jest.fn().mockResolvedValue({ error: null })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockAdmin.auth.signInWithOtp = signInWithOtpMock as any
-
-    const body = makeOrderCreatedBody()
-    const request = new Request('http://internal/api/lemonsqueezy/webhook', {
-      method: 'POST',
-      headers: {
-        'x-signature': 'valid',
-        'x-forwarded-host': 'my-preview-branch.vercel.app',
-        'x-forwarded-proto': 'https',
-      },
-      body,
-    })
-
-    await POST(request)
-    await drainAfterCallbacks()
-
-    expect(signInWithOtpMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        options: expect.objectContaining({
-          emailRedirectTo:
-            'https://my-preview-branch.vercel.app/api/auth/callback?next=/reports/report-abc/view',
-        }),
-      })
-    )
-
-    delete process.env.NEXT_PUBLIC_APP_URL
-  })
-
-  it('magic link redirects to /reports/{id}/view not /reports/{id}', async () => {
-    delete process.env.NEXT_PUBLIC_APP_URL
-
-    const signInWithOtpMock = jest.fn().mockResolvedValue({ error: null })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockAdmin.auth.signInWithOtp = signInWithOtpMock as any
-
-    const body = makeOrderCreatedBody()
-    const request = new Request('http://internal/api/lemonsqueezy/webhook', {
-      method: 'POST',
-      headers: {
-        'x-signature': 'valid',
-        'x-forwarded-host': 'www.totallosstoolkit.com',
-        'x-forwarded-proto': 'https',
-      },
-      body,
-    })
-
-    await POST(request)
-    await drainAfterCallbacks()
-
-    const callArgs = signInWithOtpMock.mock.calls[0][0]
-    expect(callArgs.options.emailRedirectTo).toContain('/auth/callback')
-    expect(callArgs.options.emailRedirectTo).toContain('next=')
-    expect(callArgs.options.emailRedirectTo).toContain('/view')
   })
 
   it('should write customer name to user_profiles on order_created', async () => {
