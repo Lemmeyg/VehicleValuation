@@ -44,26 +44,27 @@ export function TokenAccessBanner({ reportId, token: _token, email, hasAccount }
           <span className="font-semibold">This link expires in 24 hours.</span>{' '}
           {hasAccount && email ? (
             <>
-              We&apos;ve already created an account for you using <strong>{email}</strong> — check
-              that inbox for a link to sign in anytime, or{' '}
+              We&apos;ve also emailed a permanent link to this report to your inbox (
+              <strong>{email}</strong>) — check there anytime, or{' '}
               <Link
                 href={`/auth?redirect=/reports/${reportId}/view`}
                 className="underline font-medium hover:text-amber-700"
               >
                 sign in now
-              </Link>
-              .
+              </Link>{' '}
+              using the account we created for you.
             </>
           ) : (
             <>
-              After that,{' '}
+              We&apos;ve also emailed a permanent link to this report to your inbox — check there
+              anytime. You can also{' '}
               <Link
                 href={`/auth?redirect=/reports/${reportId}/view`}
                 className="underline font-medium hover:text-amber-700"
               >
                 sign in or create an account
               </Link>{' '}
-              to access your report anytime.
+              for full access.
             </>
           )}{' '}
           <span className="text-amber-700">Tip: export to PDF using the button above.</span>

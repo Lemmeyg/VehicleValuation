@@ -395,6 +395,9 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
         <h1 className="text-2xl font-bold text-slate-900 mb-2">Payment Successful!</h1>
         <p className="text-slate-600 mb-2">Fetching your vehicle&apos;s valuation data&hellip;</p>
         <p className="text-sm text-slate-400">This takes about 10 seconds.</p>
+        <p className="text-sm text-slate-400 mt-1">
+          We&apos;ll also email you a secure link to your report within 24 hours.
+        </p>
       </div>
     </div>
   )
