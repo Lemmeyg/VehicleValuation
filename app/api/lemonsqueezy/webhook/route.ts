@@ -39,20 +39,6 @@ export async function POST(request: NextRequest) {
     }
     console.log('[WH-1] Signature verified OK')
 
-    // Resolve the public app URL (needed for magic link emails). Prefer the
-    // request's actual host first — Vercel's proxy always sets x-forwarded-host
-    // to whatever domain the browser actually hit, so this is correct in every
-    // environment. NEXT_PUBLIC_APP_URL is only a fallback for a request that
-    // arrives with no forwarding headers at all — preferring it first would
-    // mean every magic link sent after a purchase on a Preview deployment
-    // silently redirects back to whatever fixed URL that env var holds.
-    const forwardedHost = request.headers.get('x-forwarded-host')
-    const forwardedProto = request.headers.get('x-forwarded-proto') || 'https'
-    const appUrl =
-      (forwardedHost ? `${forwardedProto}://${forwardedHost}` : null) ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      request.nextUrl.origin
-
     // Parse the event
     const event: LemonSqueezyWebhookEvent = JSON.parse(rawBody)
     const eventName = event.meta.event_name
@@ -62,7 +48,7 @@ export async function POST(request: NextRequest) {
     // Handle different event types
     switch (eventName) {
       case 'order_created':
-        await handleOrderCreated(event, appUrl)
+        await handleOrderCreated(event)
         break
       case 'order_refunded':
         await handleOrderRefunded(event)
@@ -83,7 +69,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: string) {
+async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
   try {
     // Extract custom data from the webhook
     const customData = event.meta.custom_data
@@ -109,7 +95,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent, appUrl: strin
     let resolvedUserId: string | null = rawUserId ?? null
     if (!resolvedUserId && customerEmail) {
       console.log(`[WH-3] Anonymous purchase — resolving user from email: ${customerEmail}`)
-      resolvedUserId = await resolveUserFromEmail(customerEmail, reportId, appUrl)
+      resolvedUserId = await resolveUserFromEmail(customerEmail, reportId)
       console.log(`[WH-3] resolveUserFromEmail result: ${resolvedUserId ?? 'NULL'}`)
       await logApiCall({
         reportId,
@@ -572,17 +558,12 @@ async function handleOrderRefunded(event: LemonSqueezyWebhookEvent) {
 }
 
 /**
- * For anonymous purchases: find or create the Supabase user for the given email,
- * then send them a magic link to access their report.
+ * For anonymous purchases: find or create the Supabase user for the given email.
  *
  * Uses admin.createUser to get the user ID directly (no listUsers scan needed).
  * Falls back to listUsers only when the user already exists (createUser returns error).
  */
-async function resolveUserFromEmail(
-  email: string,
-  reportId: string,
-  appUrl: string
-): Promise<string | null> {
+async function resolveUserFromEmail(email: string, reportId: string): Promise<string | null> {
   let resolvedUserId: string | null = null
 
   // Try to create the user — returns the user object with ID on success
@@ -656,22 +637,6 @@ async function resolveUserFromEmail(
       email,
       userId: resolvedUserId,
     })
-  }
-
-  // Send magic link — user now guaranteed to exist in DB
-  const { error: otpError } = await supabaseAdmin.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: `${appUrl}/api/auth/callback?next=/reports/${reportId}/view`,
-      shouldCreateUser: false, // User already exists — no need to create again
-    },
-  })
-
-  if (otpError) {
-    // Non-fatal — payment succeeded; user can request a new magic link later
-    console.error('[Webhook] Failed to send magic link to', email, ':', otpError)
-  } else {
-    console.log('[Webhook] Magic link sent to', email)
   }
 
   return resolvedUserId
