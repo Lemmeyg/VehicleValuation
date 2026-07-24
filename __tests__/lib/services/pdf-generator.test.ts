@@ -6,10 +6,16 @@ import {
 
 jest.mock('@/lib/db/supabase')
 
+jest.mock('@/lib/zoho-campaigns', () => ({
+  addContactToList: jest.fn().mockResolvedValue(true),
+}))
+
 import { supabaseAdmin } from '@/lib/db/supabase'
 import { renderToBuffer } from '@react-pdf/renderer'
+import { addContactToList } from '@/lib/zoho-campaigns'
 
 const mockRenderToBuffer = renderToBuffer as jest.Mock
+const mockAddContactToList = addContactToList as jest.Mock
 
 const baseReportRow = {
   id: 'report-1',
@@ -163,5 +169,151 @@ describe('PDF filename generation', () => {
 describe('PDF admin URL TTL constant', () => {
   it('is 10 years in seconds', () => {
     expect(ADMIN_URL_TTL_SECONDS).toBe(10 * 365 * 24 * 60 * 60)
+  })
+})
+
+describe('generateAndUploadPDF — Zoho report-delivery enrollment', () => {
+  const REPORT_ROW = {
+    id: 'report-1',
+    vin: '1HGBH41JXMN109186',
+    user_id: 'user-1',
+    status: 'pending',
+    created_at: '2026-07-01T12:00:00Z',
+    email: 'buyer@example.com',
+    vehicle_year: 2019,
+    vehicle_make: 'Honda',
+    vehicle_model: 'Civic',
+    price_paid: 1900,
+    email_date_sent: null,
+  }
+
+  let updateSpy: jest.Mock
+
+  function mockReportRow(reportRow: Record<string, unknown>) {
+    updateSpy = jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) })
+    ;(supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
+      if (table === 'reports') {
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          single: jest.fn().mockResolvedValue({ data: reportRow, error: null }),
+          update: updateSpy,
+        }
+      }
+      if (table === 'payments') {
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          order: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockReturnThis(),
+          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        }
+      }
+      throw new Error(`Unexpected table: ${table}`)
+    })
+  }
+
+  const ORIGINAL_LIST_KEY = process.env.ZOHO_CAMPAIGNS_REPORT_DELIVERY_LIST_KEY
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockRenderToBuffer.mockResolvedValue(Buffer.from(''))
+    mockAddContactToList.mockResolvedValue(true)
+    process.env.ZOHO_CAMPAIGNS_REPORT_DELIVERY_LIST_KEY = 'test-list-key'
+  })
+
+  afterEach(() => {
+    if (ORIGINAL_LIST_KEY === undefined) {
+      delete process.env.ZOHO_CAMPAIGNS_REPORT_DELIVERY_LIST_KEY
+    } else {
+      process.env.ZOHO_CAMPAIGNS_REPORT_DELIVERY_LIST_KEY = ORIGINAL_LIST_KEY
+    }
+  })
+
+  it('enrolls the contact in Zoho with vehicle info and a totallosstoolkit.com download link (not the raw Supabase URL)', async () => {
+    const ORIGINAL_APP_URL = process.env.NEXT_PUBLIC_APP_URL
+    delete process.env.NEXT_PUBLIC_APP_URL
+
+    mockReportRow(REPORT_ROW)
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    const updateCallArgs = updateSpy.mock.calls[0][0]
+    const token = updateCallArgs.pdf_download_token
+
+    expect(mockAddContactToList).toHaveBeenCalledWith({
+      listKey: 'test-list-key',
+      email: 'buyer@example.com',
+      customFields: {
+        Year: '2019',
+        Make: 'Honda',
+        Model: 'Civic',
+        ReportUrl: `https://www.totallosstoolkit.com/api/reports/download/${token}`,
+      },
+    })
+
+    if (ORIGINAL_APP_URL === undefined) delete process.env.NEXT_PUBLIC_APP_URL
+    else process.env.NEXT_PUBLIC_APP_URL = ORIGINAL_APP_URL
+  })
+
+  it('sets pdf_download_token to a UUID and pdf_download_token_expires_at to approximately 7 days from now', async () => {
+    mockReportRow(REPORT_ROW)
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    const updateCallArgs = updateSpy.mock.calls[0][0]
+    expect(updateCallArgs.pdf_download_token).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    )
+
+    const expiresAt = new Date(updateCallArgs.pdf_download_token_expires_at).getTime()
+    const expectedExpiry = Date.now() + 7 * 24 * 60 * 60 * 1000
+    expect(Math.abs(expiresAt - expectedExpiry)).toBeLessThan(5000)
+  })
+
+  it('writes email_date_sent only after Zoho confirms enrollment succeeded', async () => {
+    mockReportRow(REPORT_ROW)
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ email_date_sent: expect.any(String) })
+    )
+  })
+
+  it('does not write email_date_sent when Zoho enrollment returns false', async () => {
+    mockReportRow(REPORT_ROW)
+    mockAddContactToList.mockResolvedValueOnce(false)
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    expect(updateSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ email_date_sent: expect.any(String) })
+    )
+  })
+
+  it('does not enroll the contact when price_paid is null (admin free report)', async () => {
+    mockReportRow({ ...REPORT_ROW, price_paid: null })
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    expect(mockAddContactToList).not.toHaveBeenCalled()
+  })
+
+  it('does not enroll the contact when email_date_sent is already set (regeneration)', async () => {
+    mockReportRow({ ...REPORT_ROW, email_date_sent: '2026-07-01T13:00:00Z' })
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    expect(mockAddContactToList).not.toHaveBeenCalled()
+  })
+
+  it('still returns success when the Zoho enrollment call rejects', async () => {
+    mockReportRow(REPORT_ROW)
+    mockAddContactToList.mockRejectedValueOnce(new Error('zoho down'))
+
+    const result = await generateAndUploadPDF({ reportId: 'report-1' })
+
+    expect(result.success).toBe(true)
   })
 })
