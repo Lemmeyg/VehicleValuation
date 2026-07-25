@@ -8,13 +8,13 @@ export interface KBAttribution {
 
 export function setKBAttribution(slug: string, title: string): void {
   if (typeof window === 'undefined') return
-  localStorage.setItem(KEY, JSON.stringify({ slug, title, visited_at: new Date().toISOString() }))
+  sessionStorage.setItem(KEY, JSON.stringify({ slug, title, visited_at: new Date().toISOString() }))
 }
 
 export function getKBAttribution(): KBAttribution | null {
   if (typeof window === 'undefined') return null
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = sessionStorage.getItem(KEY)
     return raw ? (JSON.parse(raw) as KBAttribution) : null
   } catch {
     return null
