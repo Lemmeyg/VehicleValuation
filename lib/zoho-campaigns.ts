@@ -66,6 +66,14 @@ async function callListSubscribe(
     return false
   }
 
+  // listsubscribe returns HTTP 200 even on failure (e.g. an invalid/empty
+  // listkey) — the real result is in the JSON body, not the status code.
+  const data = (await response.json()) as { status?: string; code?: string; message?: string }
+  if (data.status !== 'success') {
+    console.error('[zoho-campaigns] listsubscribe did not enroll contact:', data)
+    return false
+  }
+
   return true
 }
 
