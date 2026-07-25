@@ -227,11 +227,12 @@ export default function PrivacyPolicyPage() {
                 </ul>
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">
-                  Future Marketing Communications (With Your Consent)
+                  Marketing Communications (With Your Consent)
                 </h3>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
                   <li>
-                    We may send promotional emails, newsletters, or special offers in the future
+                    We send promotional emails, newsletters, and related updates about your total
+                    loss claim and our services
                   </li>
                   <li>
                     You will have the ability to opt-out of marketing communications at any time
@@ -430,7 +431,7 @@ export default function PrivacyPolicyPage() {
 
                 <h3 className="text-xl font-semibold text-slate-900 mb-3">Right to Opt-Out</h3>
                 <ul className="list-disc pl-6 mb-4 text-slate-600 space-y-2">
-                  <li>You can opt-out of future marketing communications (when implemented)</li>
+                  <li>You can opt-out of marketing communications at any time</li>
                   <li>You can request that we stop processing your data for certain purposes</li>
                 </ul>
 
