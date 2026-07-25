@@ -16,6 +16,7 @@ import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import { trackRedditLead } from '@/lib/analytics/reddit-events'
 import { trackEmailCapture } from '@/lib/analytics/events'
 import { getEmailValidationError, sanitizeEmail } from '@/lib/utils/email-validator'
+import { MarketingConsentNotice } from '@/components/MarketingConsentNotice'
 
 export default function Hero() {
   const router = useRouter()
@@ -505,9 +506,7 @@ export default function Hero() {
                   {loading ? 'Processing...' : 'Get My Independent Valuation'}
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
-                <p className="text-xs text-slate-500 mt-2 text-center">
-                  By submitting, you agree to receive occasional emails from TotalLossToolkit.com
-                </p>
+                <MarketingConsentNotice className="mt-2 text-center" />
               </div>
             </div>
           </form>
