@@ -119,6 +119,36 @@ describe('addContactToList (Zoho Campaigns)', () => {
     expect(result).toBe(true)
   })
 
+  it('returns false when listsubscribe responds 200 with a non-success status (e.g. invalid listkey)', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.toString().includes('accounts.zoho.com')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ access_token: 'test-access-token' }),
+        })
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: async () =>
+          '{"code":"2501","message":"Listkey is empty or Invalid Listkey.","status":"error"}',
+        json: async () => ({
+          code: '2501',
+          message: 'Listkey is empty or Invalid Listkey.',
+          status: 'error',
+        }),
+      })
+    })
+
+    const result = await addContactToList({
+      listKey: '',
+      email: 'user@example.com',
+      customFields: { VIN: '1HGBH41JXMN109186' },
+    })
+    expect(result).toBe(false)
+  })
+
   it('does not call fetch when ZOHO_CAMPAIGNS_CLIENT_ID is missing', async () => {
     delete process.env.ZOHO_CAMPAIGNS_CLIENT_ID
     const result = await addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
