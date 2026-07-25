@@ -54,7 +54,7 @@ describe('Hero', () => {
 
   it('renders permission text', () => {
     render(<Hero />)
-    expect(screen.getByText(/agree to receive occasional emails/i)).toBeInTheDocument()
+    expect(screen.getByText(/unsubscribe at any time/i)).toBeInTheDocument()
   })
 
   it('disables submit when email is empty', () => {

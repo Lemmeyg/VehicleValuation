@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { FileDown, Loader2, CheckCircle2 } from 'lucide-react'
 import { trackEvent } from '@/lib/analytics/events'
+import { MarketingConsentNotice } from '@/components/MarketingConsentNotice'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -103,9 +104,7 @@ export default function DisputeLetterForm() {
           {errorMessage}
         </p>
       )}
-      <p className="text-xs text-slate-500 text-center">
-        No spam. We&apos;ll only use your email to send you relevant resources.
-      </p>
+      <MarketingConsentNotice className="text-center" />
     </form>
   )
 }

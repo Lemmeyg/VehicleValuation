@@ -11,6 +11,7 @@ import {
 } from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import { getEmailValidationError, sanitizeEmail } from '@/lib/utils/email-validator'
+import { MarketingConsentNotice } from '@/components/MarketingConsentNotice'
 
 interface ArticleReportBarProps {
   articleSlug: string
@@ -270,9 +271,7 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
 
         {/* Button + disclaimer row */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[11px] text-white/55">
-            By submitting, you agree to receive occasional emails from TotalLossToolkit.com
-          </p>
+          <MarketingConsentNotice variant="dark" />
           <button
             type="submit"
             disabled={!isSubmittable || loading}

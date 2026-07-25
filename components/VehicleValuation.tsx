@@ -10,6 +10,7 @@ import AuthModal from './AuthModal'
 import { trackFormSubmission, trackReportWorkflow, trackEmailCapture } from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import { getEmailValidationError, sanitizeEmail } from '@/lib/utils/email-validator'
+import { MarketingConsentNotice } from '@/components/MarketingConsentNotice'
 
 const PRICING_TIERS = [
   {
@@ -325,9 +326,7 @@ export default function VehicleValuation() {
             >
               {loading ? 'Creating Report...' : 'Get Your Valuation'}
             </Button>
-            <p className="text-xs text-slate-500 mt-3 text-center">
-              By submitting, you agree to receive occasional emails from TotalLossToolkit.com
-            </p>
+            <MarketingConsentNotice className="mt-3 text-center" />
           </div>
         </form>
 
