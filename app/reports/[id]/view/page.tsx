@@ -18,16 +18,17 @@ import { PrintPdfButtons } from './print-pdf-buttons'
 import { ReportViewTracker } from '@/components/ReportViewTracker'
 import { ReportReadyWatcher } from './ReportReadyWatcher'
 import { TokenAccessBanner } from './TokenAccessBanner'
+import { PurchaseCompleteTracker } from './PurchaseCompleteTracker'
 
 interface PageProps {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ token?: string }>
+  searchParams: Promise<{ token?: string; checkout?: string }>
 }
 
 export default async function ReportViewPage({ params, searchParams }: PageProps) {
   const user = await getUser()
   const { id } = await params
-  const { token } = await searchParams
+  const { token, checkout } = await searchParams
 
   let isTokenAccess = false
 
@@ -145,6 +146,39 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
     }
   }
 
+  // Anonymous buyer just landed here straight from LemonSqueezy checkout —
+  // fetch the payment record so PurchaseCompleteTracker can fire payment_success
+  // (this route otherwise has no purchase-tracking component; see
+  // PostHogPurchaseTracker on /success for the authenticated-buyer equivalent).
+  let purchaseTrackerProps: {
+    planType: 'basic' | 'premium'
+    amountCents: number
+    transactionId?: string
+  } | null = null
+
+  if (isTokenAccess && checkout === 'complete') {
+    const { data: payment } = await supabaseAdmin
+      .from('payments')
+      .select('amount, stripe_payment_id, metadata')
+      .eq('report_id', id)
+      .eq('status', 'succeeded')
+      .order('created_at', { ascending: false })
+      .maybeSingle()
+
+    if (payment) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const metadata = payment.metadata as any
+      const planType = (metadata?.reportType === 'PREMIUM' ? 'premium' : 'basic') as
+        | 'basic'
+        | 'premium'
+      purchaseTrackerProps = {
+        planType,
+        amountCents: payment.amount,
+        transactionId: payment.stripe_payment_id ?? undefined,
+      }
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const autodevData = report.autodev_vin_data as any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -196,6 +230,16 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
         vehicleMake={autodevData?.make}
         vehicleModel={autodevData?.model}
       />
+      {purchaseTrackerProps && (
+        <PurchaseCompleteTracker
+          reportId={id}
+          planType={purchaseTrackerProps.planType}
+          amountCents={purchaseTrackerProps.amountCents}
+          transactionId={purchaseTrackerProps.transactionId}
+          email={report.email ?? undefined}
+          vin={report.vin}
+        />
+      )}
       {/* Header Navigation */}
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

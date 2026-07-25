@@ -73,12 +73,15 @@ export async function POST(request: NextRequest) {
 
     // For anonymous users, successUrl goes straight to the view page with the token.
     // Authenticated users continue to the success page (no change).
+    // checkout=complete tells the view page to render PurchaseCompleteTracker once —
+    // /view is the buyer's permanent report link, so this marker (stripped after
+    // firing) is what stops a later revisit from re-firing payment_success.
     let successUrl = `${appUrl}/reports/${reportId}/success`
     if (!user) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const accessToken = (report as any).access_token as string | null
       if (accessToken) {
-        successUrl = `${appUrl}/reports/${reportId}/view?token=${accessToken}`
+        successUrl = `${appUrl}/reports/${reportId}/view?token=${accessToken}&checkout=complete`
       }
     }
 
