@@ -94,6 +94,9 @@ nul
 # Git worktrees
 .worktrees/
 
+# Subagent-driven-development scratch workspace (ledgers, briefs, review packages)
+.superpowers/
+
 # One-off KB article insertion/fix scripts (disposable, single-use)
 fetch-article-*.mjs
 fix-article-*.mjs
