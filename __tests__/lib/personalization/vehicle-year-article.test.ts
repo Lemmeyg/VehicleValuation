@@ -36,4 +36,31 @@ describe('resolveVehicleGuideSlug', () => {
     // Sanity check only — confirms the default-parameter wiring, not a specific bucket.
     expect(typeof resolveVehicleGuideSlug(2015)).toBe('string')
   })
+
+  // Boundary edge tests to catch off-by-one regressions
+  it('enforces lower boundary of Newer bucket (age 3)', () => {
+    expect(resolveVehicleGuideSlug(2023, FIXED_NOW)).toBe(
+      'financed-vehicle-total-loss-loan-payoff-negative-equity'
+    )
+  })
+
+  it('enforces upper boundary of Newer bucket (age 5)', () => {
+    expect(resolveVehicleGuideSlug(2021, FIXED_NOW)).toBe(
+      'financed-vehicle-total-loss-loan-payoff-negative-equity'
+    )
+  })
+
+  it('enforces lower boundary of Mid-age bucket (age 6)', () => {
+    expect(resolveVehicleGuideSlug(2020, FIXED_NOW)).toBe('total-loss-or-repair-how-to-decide')
+  })
+
+  it('enforces upper boundary of Mid-age bucket (age 9)', () => {
+    expect(resolveVehicleGuideSlug(2017, FIXED_NOW)).toBe('total-loss-or-repair-how-to-decide')
+  })
+
+  it('enforces lower boundary of Older bucket (age 10)', () => {
+    expect(resolveVehicleGuideSlug(2016, FIXED_NOW)).toBe(
+      'should-you-buy-back-your-totaled-car-hidden-costs'
+    )
+  })
 })
