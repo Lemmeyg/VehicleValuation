@@ -79,7 +79,12 @@ export async function GET(request: NextRequest) {
 
       const { error: updateError } = await supabaseAdmin
         .from('reports')
-        .update({ abandoned_recovery_sent_at: new Date().toISOString() })
+        .update({
+          abandoned_recovery_sent_at: new Date().toISOString(),
+          state_article_url: stateArticleUrl,
+          state_name: stateName,
+          vehicle_guide_url: vehicleGuideUrl,
+        })
         .eq('id', report.id)
       if (updateError) {
         console.error(

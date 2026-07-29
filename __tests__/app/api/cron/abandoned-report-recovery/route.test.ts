@@ -142,10 +142,39 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
       },
     })
     expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ abandoned_recovery_sent_at: expect.any(String) })
+      expect.objectContaining({
+        abandoned_recovery_sent_at: expect.any(String),
+        state_article_url:
+          'https://www.totallosstoolkit.com/knowledge-base/pennsylvania-total-loss-law-explained?utm_source=zoho&utm_medium=email&utm_content=state_article',
+        state_name: 'Pennsylvania',
+        vehicle_guide_url: `${PILLAR_URL.replace('vehicle-owners-guide-to-total-loss', 'should-you-buy-back-your-totaled-car-hidden-costs')}?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide`,
+      })
     )
     const body = await res.json()
     expect(body.enrolled).toBe(1)
+  })
+
+  it('persists the fallback pillar URLs and "your state" on the reports row when ZIP data is missing', async () => {
+    const report = {
+      id: 'report-1',
+      email: 'user@example.com',
+      vehicle_year: null,
+      vehicle_make: null,
+      vehicle_model: null,
+      zip_code: null,
+    }
+    mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
+
+    const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
+    await GET(makeRequest())
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state_article_url: `${PILLAR_URL}?utm_source=zoho&utm_medium=email&utm_content=state_article`,
+        state_name: 'your state',
+        vehicle_guide_url: `${PILLAR_URL}?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide`,
+      })
+    )
   })
 
   it('falls back to pillar URLs and "your state"/"your vehicle" when decode and ZIP data are missing', async () => {
