@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db/supabase'
 import { addContactToList } from '@/lib/zoho-campaigns'
+import { resolveStateCodeFromZip } from '@/lib/personalization/zip-to-state'
+import { resolveStateArticle } from '@/lib/personalization/state-article'
+import { resolveVehicleGuideSlug } from '@/lib/personalization/vehicle-year-article'
+import { buildKbArticleUrl } from '@/lib/personalization/kb-article-url'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -25,7 +29,7 @@ export async function GET(request: NextRequest) {
   const now = Date.now()
   const { data: reports, error } = await supabaseAdmin
     .from('reports')
-    .select('id, email, vehicle_year, vehicle_make, vehicle_model')
+    .select('id, email, vehicle_year, vehicle_make, vehicle_model, zip_code')
     .is('abandoned_recovery_sent_at', null)
     .is('price_paid', null)
     .not('email', 'is', null)
@@ -51,6 +55,13 @@ export async function GET(request: NextRequest) {
         : 'your vehicle'
 
     try {
+      const stateCode = resolveStateCodeFromZip(report.zip_code)
+      const { stateName, slug: stateSlug } = resolveStateArticle(stateCode)
+      const stateArticleUrl = buildKbArticleUrl(stateSlug, 'state_article')
+
+      const vehicleGuideSlug = resolveVehicleGuideSlug(report.vehicle_year)
+      const vehicleGuideUrl = buildKbArticleUrl(vehicleGuideSlug, 'vehicle_guide')
+
       const success = await addContactToList({
         listKey,
         email: report.email,
@@ -59,13 +70,21 @@ export async function GET(request: NextRequest) {
           Make: report.vehicle_make ?? '',
           Model: vehicleDescription,
           ReportId: report.id,
+          StateArticleURL: stateArticleUrl,
+          StateName: stateName,
+          VehicleGuideURL: vehicleGuideUrl,
         },
       })
       if (!success) continue
 
       const { error: updateError } = await supabaseAdmin
         .from('reports')
-        .update({ abandoned_recovery_sent_at: new Date().toISOString() })
+        .update({
+          abandoned_recovery_sent_at: new Date().toISOString(),
+          state_article_url: stateArticleUrl,
+          state_name: stateName,
+          vehicle_guide_url: vehicleGuideUrl,
+        })
         .eq('id', report.id)
       if (updateError) {
         console.error(

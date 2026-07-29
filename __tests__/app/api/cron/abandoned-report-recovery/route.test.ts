@@ -15,6 +15,14 @@ const mockAddContactToList = addContactToList as jest.Mock
 const CRON_SECRET = 'test-cron-secret'
 const ORIG_SECRET = process.env.CRON_SECRET
 const ORIG_LIST_KEY = process.env.ZOHO_CAMPAIGNS_ABANDONED_REPORT_LIST_KEY
+// .env.test sets NEXT_PUBLIC_APP_URL=http://localhost:3000 for all Jest suites (loaded via
+// next/jest). buildKbArticleUrl falls back to the production URL only when this var is unset,
+// so it must be cleared here — same workaround already used in kb-article-url.test.ts — to keep
+// the exact-match assertions below stable against the real https://www.totallosstoolkit.com URLs.
+const ORIG_APP_URL = process.env.NEXT_PUBLIC_APP_URL
+
+const PILLAR_URL =
+  'https://www.totallosstoolkit.com/knowledge-base/vehicle-owners-guide-to-total-loss'
 
 function makeRequest(secret = CRON_SECRET) {
   return new NextRequest('https://www.totallosstoolkit.com/api/cron/abandoned-report-recovery', {
@@ -59,6 +67,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     jest.clearAllMocks()
     process.env.CRON_SECRET = CRON_SECRET
     process.env.ZOHO_CAMPAIGNS_ABANDONED_REPORT_LIST_KEY = 'abandoned-list-key'
+    delete process.env.NEXT_PUBLIC_APP_URL
     mockAddContactToList.mockResolvedValue(true)
 
     mockUpdate = jest.fn(() => makeUpdateChain())
@@ -72,6 +81,8 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     else process.env.CRON_SECRET = ORIG_SECRET
     if (ORIG_LIST_KEY === undefined) delete process.env.ZOHO_CAMPAIGNS_ABANDONED_REPORT_LIST_KEY
     else process.env.ZOHO_CAMPAIGNS_ABANDONED_REPORT_LIST_KEY = ORIG_LIST_KEY
+    if (ORIG_APP_URL === undefined) delete process.env.NEXT_PUBLIC_APP_URL
+    else process.env.NEXT_PUBLIC_APP_URL = ORIG_APP_URL
   })
 
   it('returns 401 when Authorization header is missing', async () => {
@@ -98,13 +109,17 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     expect(body.enrolled).toBe(0)
   })
 
-  it('enrolls an abandoned report with Year/Make/Model and marks it flagged', async () => {
+  it('enrolls an abandoned report with Year/Make/Model/state/vehicle-guide fields and marks it flagged', async () => {
+    // vehicle_year 2010 is deliberately far enough in the past to stay in the
+    // "Older" bucket indefinitely (age > 9 for the foreseeable future),
+    // keeping this exact-match assertion stable regardless of when the suite runs.
     const report = {
       id: 'report-1',
       email: 'user@example.com',
-      vehicle_year: 2019,
+      vehicle_year: 2010,
       vehicle_make: 'Honda',
       vehicle_model: 'Civic',
+      zip_code: '19104',
     }
     mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
 
@@ -116,46 +131,60 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
       listKey: 'abandoned-list-key',
       email: 'user@example.com',
       customFields: {
-        Year: '2019',
+        Year: '2010',
         Make: 'Honda',
-        Model: '2019 Honda Civic',
+        Model: '2010 Honda Civic',
         ReportId: 'report-1',
+        StateArticleURL:
+          'https://www.totallosstoolkit.com/knowledge-base/pennsylvania-total-loss-law-explained?utm_source=zoho&utm_medium=email&utm_content=state_article',
+        StateName: 'Pennsylvania',
+        VehicleGuideURL: `${PILLAR_URL.replace('vehicle-owners-guide-to-total-loss', 'should-you-buy-back-your-totaled-car-hidden-costs')}?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide`,
       },
     })
     expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ abandoned_recovery_sent_at: expect.any(String) })
+      expect.objectContaining({
+        abandoned_recovery_sent_at: expect.any(String),
+        state_article_url:
+          'https://www.totallosstoolkit.com/knowledge-base/pennsylvania-total-loss-law-explained?utm_source=zoho&utm_medium=email&utm_content=state_article',
+        state_name: 'Pennsylvania',
+        vehicle_guide_url: `${PILLAR_URL.replace('vehicle-owners-guide-to-total-loss', 'should-you-buy-back-your-totaled-car-hidden-costs')}?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide`,
+      })
     )
     const body = await res.json()
     expect(body.enrolled).toBe(1)
   })
 
-  it('falls back to "your vehicle" for Model and empty strings for Year/Make when decode data is missing', async () => {
+  it('persists the fallback pillar URLs and "your state" on the reports row when ZIP data is missing', async () => {
     const report = {
       id: 'report-1',
       email: 'user@example.com',
       vehicle_year: null,
       vehicle_make: null,
       vehicle_model: null,
+      zip_code: null,
     }
     mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
 
     const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
     await GET(makeRequest())
 
-    expect(mockAddContactToList).toHaveBeenCalledWith({
-      listKey: 'abandoned-list-key',
-      email: 'user@example.com',
-      customFields: { Year: '', Make: '', Model: 'your vehicle', ReportId: 'report-1' },
-    })
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state_article_url: `${PILLAR_URL}?utm_source=zoho&utm_medium=email&utm_content=state_article`,
+        state_name: 'your state',
+        vehicle_guide_url: `${PILLAR_URL}?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide`,
+      })
+    )
   })
 
-  it('falls back to "your vehicle" when only some decode fields are present', async () => {
+  it('falls back to pillar URLs and "your state"/"your vehicle" when decode and ZIP data are missing', async () => {
     const report = {
       id: 'report-1',
       email: 'user@example.com',
-      vehicle_year: 2019,
+      vehicle_year: null,
       vehicle_make: null,
       vehicle_model: null,
+      zip_code: null,
     }
     mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
 
@@ -165,7 +194,45 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     expect(mockAddContactToList).toHaveBeenCalledWith({
       listKey: 'abandoned-list-key',
       email: 'user@example.com',
-      customFields: { Year: '2019', Make: '', Model: 'your vehicle', ReportId: 'report-1' },
+      customFields: {
+        Year: '',
+        Make: '',
+        Model: 'your vehicle',
+        ReportId: 'report-1',
+        StateArticleURL: `${PILLAR_URL}?utm_source=zoho&utm_medium=email&utm_content=state_article`,
+        StateName: 'your state',
+        VehicleGuideURL: `${PILLAR_URL}?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide`,
+      },
+    })
+  })
+
+  it('falls back to "your vehicle" for Model when only some decode fields are present, but still resolves a real state/vehicle-year link', async () => {
+    const report = {
+      id: 'report-1',
+      email: 'user@example.com',
+      vehicle_year: 2010,
+      vehicle_make: null,
+      vehicle_model: null,
+      zip_code: '44101', // Ohio
+    }
+    mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
+
+    const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
+    await GET(makeRequest())
+
+    expect(mockAddContactToList).toHaveBeenCalledWith({
+      listKey: 'abandoned-list-key',
+      email: 'user@example.com',
+      customFields: {
+        Year: '2010',
+        Make: '',
+        Model: 'your vehicle',
+        ReportId: 'report-1',
+        StateArticleURL:
+          'https://www.totallosstoolkit.com/knowledge-base/ohio-total-loss-law-explained?utm_source=zoho&utm_medium=email&utm_content=state_article',
+        StateName: 'Ohio',
+        VehicleGuideURL: `${PILLAR_URL.replace('vehicle-owners-guide-to-total-loss', 'should-you-buy-back-your-totaled-car-hidden-costs')}?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide`,
+      },
     })
   })
 
@@ -177,6 +244,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
         vehicle_year: 2019,
         vehicle_make: 'Honda',
         vehicle_model: 'Civic',
+        zip_code: '19104',
       },
       {
         id: 'report-2',
@@ -184,6 +252,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
         vehicle_year: 2020,
         vehicle_make: 'Toyota',
         vehicle_model: 'Camry',
+        zip_code: '44101',
       },
     ]
     mockFrom.mockImplementation(() => ({ ...makeQueryChain(reports), update: mockUpdate }))
@@ -206,6 +275,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
       vehicle_year: 2019,
       vehicle_make: 'Honda',
       vehicle_model: 'Civic',
+      zip_code: '19104',
     }
     mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
 
@@ -224,6 +294,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
       vehicle_year: 2019,
       vehicle_make: 'Honda',
       vehicle_model: 'Civic',
+      zip_code: '19104',
     }
     mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
     mockAddContactToList.mockResolvedValueOnce(false)
@@ -246,6 +317,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
         vehicle_year: 2019,
         vehicle_make: 'Honda',
         vehicle_model: 'Civic',
+        zip_code: '19104',
       },
       {
         id: 'report-2',
@@ -253,6 +325,7 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
         vehicle_year: 2020,
         vehicle_make: 'Toyota',
         vehicle_model: 'Camry',
+        zip_code: '44101',
       },
     ]
     mockFrom.mockImplementation(() => ({ ...makeQueryChain(reports), update: mockUpdate }))
