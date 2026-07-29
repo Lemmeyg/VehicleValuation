@@ -54,14 +54,14 @@ export async function GET(request: NextRequest) {
         ? `${report.vehicle_year} ${report.vehicle_make} ${report.vehicle_model}`
         : 'your vehicle'
 
-    const stateCode = resolveStateCodeFromZip(report.zip_code)
-    const { stateName, slug: stateSlug } = resolveStateArticle(stateCode)
-    const stateArticleUrl = buildKbArticleUrl(stateSlug, 'state_article')
-
-    const vehicleGuideSlug = resolveVehicleGuideSlug(report.vehicle_year)
-    const vehicleGuideUrl = buildKbArticleUrl(vehicleGuideSlug, 'vehicle_guide')
-
     try {
+      const stateCode = resolveStateCodeFromZip(report.zip_code)
+      const { stateName, slug: stateSlug } = resolveStateArticle(stateCode)
+      const stateArticleUrl = buildKbArticleUrl(stateSlug, 'state_article')
+
+      const vehicleGuideSlug = resolveVehicleGuideSlug(report.vehicle_year)
+      const vehicleGuideUrl = buildKbArticleUrl(vehicleGuideSlug, 'vehicle_guide')
+
       const success = await addContactToList({
         listKey,
         email: report.email,

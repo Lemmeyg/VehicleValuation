@@ -50,10 +50,12 @@ const STATE_ARTICLES: Record<string, StateArticleEntry> = {
   TN: { name: 'Tennessee', slug: 'tennessee-total-loss-law-explained' },
   TX: { name: 'Texas', slug: 'texas-total-loss-law-explained' },
   UT: { name: 'Utah', slug: 'utah-total-loss-law-explained' },
+  VT: { name: 'Vermont', slug: 'vermont-total-loss-law-explained' },
   VA: { name: 'Virginia', slug: 'virginia-total-loss-law-explained' },
   WA: { name: 'Washington', slug: 'washington-total-loss-law-explained' },
   WV: { name: 'West Virginia', slug: 'west-virginia-total-loss-law-explained' },
   WI: { name: 'Wisconsin', slug: 'wisconsin-total-loss-law-explained' },
+  WY: { name: 'Wyoming', slug: 'wyoming-total-loss-law-explained' },
 }
 
 export function resolveStateArticle(stateCode: string | null): { stateName: string; slug: string } {

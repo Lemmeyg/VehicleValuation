@@ -30,17 +30,17 @@ describe('resolveStateArticle', () => {
     })
   })
 
-  it('falls back to the pillar article for a state with no dedicated article yet (Vermont)', () => {
+  it('resolves Vermont to its article slug', () => {
     expect(resolveStateArticle('VT')).toEqual({
-      stateName: 'your state',
-      slug: PILLAR_ARTICLE_SLUG,
+      stateName: 'Vermont',
+      slug: 'vermont-total-loss-law-explained',
     })
   })
 
-  it('falls back to the pillar article for a state with no dedicated article yet (Wyoming)', () => {
+  it('resolves Wyoming to its article slug', () => {
     expect(resolveStateArticle('WY')).toEqual({
-      stateName: 'your state',
-      slug: PILLAR_ARTICLE_SLUG,
+      stateName: 'Wyoming',
+      slug: 'wyoming-total-loss-law-explained',
     })
   })
 
