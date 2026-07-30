@@ -43,8 +43,15 @@ const mockAutoDevData = {
   vehicle: { year: 2021 },
 }
 
+// .env.test sets NEXT_PUBLIC_APP_URL=http://localhost:3000 for all Jest suites
+// (loaded via next/jest). buildKbArticleUrl falls back to the production URL
+// only when this var is unset, so it must be cleared here to keep the
+// exact-match assertions on personalization URLs stable.
+const ORIG_APP_URL = process.env.NEXT_PUBLIC_APP_URL
+
 beforeEach(() => {
   jest.clearAllMocks()
+  delete process.env.NEXT_PUBLIC_APP_URL
 
   mockSingle.mockResolvedValue({
     data: {
@@ -78,6 +85,11 @@ beforeEach(() => {
   mockFetchAutoDevVinDecode.mockResolvedValue({ success: true, data: mockAutoDevData })
   mockLogApiCall.mockResolvedValue(undefined)
   ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
+})
+
+afterEach(() => {
+  if (ORIG_APP_URL === undefined) delete process.env.NEXT_PUBLIC_APP_URL
+  else process.env.NEXT_PUBLIC_APP_URL = ORIG_APP_URL
 })
 
 function makeRequest(body: object) {
@@ -288,6 +300,48 @@ describe('vehicle personalization (flat columns)', () => {
         vehicle_model: null,
         vehicle_year: null,
         autodev_vin_data: null,
+      })
+    )
+  })
+})
+
+describe('abandoned-recovery personalization links (state/vehicle-year)', () => {
+  it('sets state_article_url/state_name/vehicle_guide_url on the reports insert when decode succeeds', async () => {
+    // Override the shared mock's year to 2010 so the vehicle-guide bucket
+    // ("Older") stays stable regardless of when this suite runs.
+    mockFetchAutoDevVinDecode.mockResolvedValue({
+      success: true,
+      data: { ...mockAutoDevData, vehicle: { year: 2010 } },
+    })
+
+    await POST(makeRequest({ vin: '1HGBH41JXMN109186', mileage: 35000, zipCode: '10001' }))
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state_article_url:
+          'https://www.totallosstoolkit.com/knowledge-base/new-york-total-loss-law-explained?utm_source=zoho&utm_medium=email&utm_content=state_article',
+        state_name: 'New York',
+        vehicle_guide_url:
+          'https://www.totallosstoolkit.com/knowledge-base/should-you-buy-back-your-totaled-car-hidden-costs?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide',
+      })
+    )
+  })
+
+  it('falls back to the pillar URL and "your state" when decode fails (vehicle_year null)', async () => {
+    mockFetchAutoDevVinDecode.mockResolvedValue({ success: false, error: 'timeout' })
+
+    await POST(makeRequest({ vin: '1HGBH41JXMN109186', mileage: 35000, zipCode: '10001' }))
+
+    const PILLAR_URL =
+      'https://www.totallosstoolkit.com/knowledge-base/vehicle-owners-guide-to-total-loss'
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // ZIP 10001 still resolves to New York even though VIN decode failed —
+        // state resolution only depends on zipCode, not vehicle_year.
+        state_article_url:
+          'https://www.totallosstoolkit.com/knowledge-base/new-york-total-loss-law-explained?utm_source=zoho&utm_medium=email&utm_content=state_article',
+        state_name: 'New York',
+        vehicle_guide_url: `${PILLAR_URL}?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide`,
       })
     )
   })

@@ -4,6 +4,10 @@ import { sanitizeVin, getVinValidationError } from '@/lib/utils/vin-validator'
 import { upsertLead } from '@/lib/leads'
 import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import { logApiCall } from '@/lib/api/api-call-logger'
+import { resolveStateCodeFromZip } from '@/lib/personalization/zip-to-state'
+import { resolveStateArticle } from '@/lib/personalization/state-article'
+import { resolveVehicleGuideSlug } from '@/lib/personalization/vehicle-year-article'
+import { buildKbArticleUrl } from '@/lib/personalization/kb-article-url'
 
 /**
  * Create Anonymous Report Endpoint
@@ -148,6 +152,17 @@ export async function POST(request: Request) {
       }
     }
 
+    // Resolve the Abandoned Report Recovery personalization links at
+    // submission time (same static lookups the recovery cron used to run
+    // itself) so they're available immediately rather than only once the
+    // cron picks the report up hours later.
+    const stateCode = resolveStateCodeFromZip(zipCode)
+    const { stateName, slug: stateSlug } = resolveStateArticle(stateCode)
+    const stateArticleUrl = buildKbArticleUrl(stateSlug, 'state_article')
+
+    const vehicleGuideSlug = resolveVehicleGuideSlug(vehicleYear)
+    const vehicleGuideUrl = buildKbArticleUrl(vehicleGuideSlug, 'vehicle_guide')
+
     // Check if user is authenticated (for existing users coming from login flow)
     let authenticatedUserId: string | null = null
     try {
@@ -192,6 +207,9 @@ export async function POST(request: Request) {
         vehicle_make: vehicleMake,
         vehicle_model: vehicleModel,
         vehicle_year: vehicleYear,
+        state_article_url: stateArticleUrl,
+        state_name: stateName,
+        vehicle_guide_url: vehicleGuideUrl,
         user_id: authenticatedUserId, // Link to user if authenticated, otherwise null
         source: source ?? null,
         kb_source_slug: kbSourceSlug ?? null,
