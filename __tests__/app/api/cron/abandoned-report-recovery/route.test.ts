@@ -154,6 +154,44 @@ describe('GET /api/cron/abandoned-report-recovery', () => {
     expect(body.enrolled).toBe(1)
   })
 
+  it('reuses state_article_url/state_name/vehicle_guide_url already computed at submission time instead of recomputing', async () => {
+    // These values deliberately do NOT match what the ZIP/vehicle_year would
+    // resolve to (ZIP 19104 is Pennsylvania) — proving the route used the
+    // stored values as-is rather than recomputing from zip_code/vehicle_year.
+    const report = {
+      id: 'report-1',
+      email: 'user@example.com',
+      vehicle_year: 2010,
+      vehicle_make: 'Honda',
+      vehicle_model: 'Civic',
+      zip_code: '19104',
+      state_article_url: 'https://www.totallosstoolkit.com/knowledge-base/stored-value-test',
+      state_name: 'Stored State',
+      vehicle_guide_url: 'https://www.totallosstoolkit.com/knowledge-base/stored-guide-test',
+    }
+    mockFrom.mockImplementation(() => ({ ...makeQueryChain([report]), update: mockUpdate }))
+
+    const { GET } = await import('@/app/api/cron/abandoned-report-recovery/route')
+    await GET(makeRequest())
+
+    expect(mockAddContactToList).toHaveBeenCalledWith({
+      listKey: 'abandoned-list-key',
+      email: 'user@example.com',
+      customFields: expect.objectContaining({
+        StateArticleURL: 'https://www.totallosstoolkit.com/knowledge-base/stored-value-test',
+        StateName: 'Stored State',
+        VehicleGuideURL: 'https://www.totallosstoolkit.com/knowledge-base/stored-guide-test',
+      }),
+    })
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state_article_url: 'https://www.totallosstoolkit.com/knowledge-base/stored-value-test',
+        state_name: 'Stored State',
+        vehicle_guide_url: 'https://www.totallosstoolkit.com/knowledge-base/stored-guide-test',
+      })
+    )
+  })
+
   it('persists the fallback pillar URLs and "your state" on the reports row when ZIP data is missing', async () => {
     const report = {
       id: 'report-1',

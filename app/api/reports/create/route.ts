@@ -28,6 +28,10 @@ import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import { reportCreationLimiter } from '@/lib/rate-limit'
 import { logApiCall } from '@/lib/api/api-call-logger'
+import { resolveStateCodeFromZip } from '@/lib/personalization/zip-to-state'
+import { resolveStateArticle } from '@/lib/personalization/state-article'
+import { resolveVehicleGuideSlug } from '@/lib/personalization/vehicle-year-article'
+import { buildKbArticleUrl } from '@/lib/personalization/kb-article-url'
 
 const WEEKLY_LIMIT_HOURS = 168 // 7 days = 168 hours
 const DISABLE_RATE_LIMIT = process.env.DISABLE_RATE_LIMIT === 'true' // Development flag
@@ -193,6 +197,16 @@ export async function POST(request: Request) {
         errorMessage: autoDevVinResult.error,
       })
     }
+
+    // Resolve the Abandoned Report Recovery personalization links at
+    // submission time, same as create-anonymous, so they're available
+    // immediately rather than only once the recovery cron runs.
+    const stateCode = resolveStateCodeFromZip(zipCode)
+    const { stateName, slug: stateSlug } = resolveStateArticle(stateCode)
+    const stateArticleUrl = buildKbArticleUrl(stateSlug, 'state_article')
+
+    const vehicleGuideSlug = resolveVehicleGuideSlug(vehicleData?.vehicle.year ?? null)
+    const vehicleGuideUrl = buildKbArticleUrl(vehicleGuideSlug, 'vehicle_guide')
 
     // Determine dealer type for MarketCheck
     let dealerType: 'franchise' | 'independent' = 'franchise'
@@ -406,6 +420,9 @@ export async function POST(request: Request) {
         vehicle_make: vehicleData?.make ?? null,
         vehicle_model: vehicleData?.model ?? null,
         vehicle_year: vehicleData?.vehicle.year ?? null,
+        state_article_url: stateArticleUrl,
+        state_name: stateName,
+        vehicle_guide_url: vehicleGuideUrl,
         data_retrieval_status: vehicleData ? 'completed' : 'failed',
       })
       .eq('id', report.id)

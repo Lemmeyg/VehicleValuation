@@ -52,9 +52,16 @@ const mockSupabase = {
   from: jest.fn(),
 }
 
+// .env.test sets NEXT_PUBLIC_APP_URL=http://localhost:3000 for all Jest suites
+// (loaded via next/jest). buildKbArticleUrl falls back to the production URL
+// only when this var is unset, so it must be cleared here to keep the
+// exact-match assertions on personalization URLs stable.
+const ORIG_APP_URL = process.env.NEXT_PUBLIC_APP_URL
+
 describe('POST /api/reports/create', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    delete process.env.NEXT_PUBLIC_APP_URL
     ;(createServerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
     ;(createRouteHandlerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
 
@@ -71,6 +78,11 @@ describe('POST /api/reports/create', () => {
       prediction,
       supplemented: false,
     }))
+  })
+
+  afterEach(() => {
+    if (ORIG_APP_URL === undefined) delete process.env.NEXT_PUBLIC_APP_URL
+    else process.env.NEXT_PUBLIC_APP_URL = ORIG_APP_URL
   })
 
   describe('Authentication', () => {
@@ -683,6 +695,63 @@ describe('POST /api/reports/create', () => {
           vehicle_make: 'Honda',
           vehicle_model: 'Accord',
           vehicle_year: 2020,
+        })
+      )
+    })
+
+    it('writes state_article_url/state_name/vehicle_guide_url to the report update when decode succeeds', async () => {
+      // Override the shared mock's year to 2010 so the vehicle-guide bucket
+      // ("Older") stays stable regardless of when this suite runs.
+      mockFetchAutoDevVinDecode.mockResolvedValue({
+        success: true,
+        data: {
+          make: 'Honda',
+          model: 'Accord',
+          trim: 'EX',
+          body: 'Sedan',
+          engine: '2.0L',
+          transmission: 'Automatic',
+          drive: 'FWD',
+          type: 'Gasoline',
+          vinValid: true,
+          vehicle: { year: 2010 },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+
+      const mockUpdate = jest.fn().mockReturnThis()
+      const mockEq = jest.fn().mockResolvedValue({ error: null })
+      mockSupabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        eq: mockEq,
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        single: jest.fn().mockResolvedValue({ data: { id: 'test-report-123' }, error: null }),
+        insert: jest.fn().mockReturnThis(),
+        update: mockUpdate,
+      })
+
+      const request = new Request('http://localhost:3000/api/reports/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zipCode: '10001',
+          reportType: 'basic',
+        }),
+      })
+
+      await POST(request)
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state_article_url:
+            'https://www.totallosstoolkit.com/knowledge-base/new-york-total-loss-law-explained?utm_source=zoho&utm_medium=email&utm_content=state_article',
+          state_name: 'New York',
+          vehicle_guide_url:
+            'https://www.totallosstoolkit.com/knowledge-base/should-you-buy-back-your-totaled-car-hidden-costs?utm_source=zoho&utm_medium=email&utm_content=vehicle_guide',
         })
       )
     })
