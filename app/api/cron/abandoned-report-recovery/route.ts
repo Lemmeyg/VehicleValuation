@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
   const now = Date.now()
   const { data: reports, error } = await supabaseAdmin
     .from('reports')
-    .select('id, email, vehicle_year, vehicle_make, vehicle_model, zip_code')
+    .select(
+      'id, email, vehicle_year, vehicle_make, vehicle_model, zip_code, state_article_url, state_name, vehicle_guide_url'
+    )
     .is('abandoned_recovery_sent_at', null)
     .is('price_paid', null)
     .not('email', 'is', null)
@@ -55,12 +57,25 @@ export async function GET(request: NextRequest) {
         : 'your vehicle'
 
     try {
-      const stateCode = resolveStateCodeFromZip(report.zip_code)
-      const { stateName, slug: stateSlug } = resolveStateArticle(stateCode)
-      const stateArticleUrl = buildKbArticleUrl(stateSlug, 'state_article')
+      // Reports created after the personalization feature shipped already
+      // have these computed at submission time — reuse them instead of
+      // recomputing. Only reports that predate that change (state_article_url
+      // still null) need computing here, as a fallback.
+      let stateArticleUrl = report.state_article_url
+      let stateName = report.state_name
+      let vehicleGuideUrl = report.vehicle_guide_url
 
-      const vehicleGuideSlug = resolveVehicleGuideSlug(report.vehicle_year)
-      const vehicleGuideUrl = buildKbArticleUrl(vehicleGuideSlug, 'vehicle_guide')
+      if (!stateArticleUrl || !stateName) {
+        const stateCode = resolveStateCodeFromZip(report.zip_code)
+        const resolved = resolveStateArticle(stateCode)
+        stateName = resolved.stateName
+        stateArticleUrl = buildKbArticleUrl(resolved.slug, 'state_article')
+      }
+
+      if (!vehicleGuideUrl) {
+        const vehicleGuideSlug = resolveVehicleGuideSlug(report.vehicle_year)
+        vehicleGuideUrl = buildKbArticleUrl(vehicleGuideSlug, 'vehicle_guide')
+      }
 
       const success = await addContactToList({
         listKey,
