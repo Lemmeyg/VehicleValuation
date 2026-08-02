@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/db/supabase'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { SUPPORT_EMAIL } from '@/lib/constants'
-import { canViewReport } from '@/lib/utils/report-access'
+import { canViewReport, getPaymentGateStatus } from '@/lib/utils/report-access'
 import Image from 'next/image'
 import { Car, FileText } from 'lucide-react'
 import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
@@ -19,6 +19,7 @@ import { ReportViewTracker } from '@/components/ReportViewTracker'
 import { ReportReadyWatcher } from './ReportReadyWatcher'
 import { TokenAccessBanner } from './TokenAccessBanner'
 import { PurchaseCompleteTracker } from './PurchaseCompleteTracker'
+import { PaymentConfirmationWatcher } from './PaymentConfirmationWatcher'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -133,6 +134,14 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
 
   // Paid gate: skip for token access (token proves buyer paid; webhook fires async).
   // Admin free reports have price_paid=0 but have a succeeded payment record.
+  //
+  // IMPORTANT: this must never redirect() anywhere. /reports/[id] unconditionally
+  // redirects to /reports/[id]/view, so a redirect here for an unconfirmed payment
+  // creates an infinite loop between the two routes (see
+  // docs/superpowers/plans/2026-08-01-report-view-payment-gate-redirect-loop.md).
+  // Instead, render a terminal "pending confirmation" state that polls and
+  // self-refreshes once the payment shows up.
+  let hasSucceededPayment = false
   if (!isTokenAccess && (!report.price_paid || report.price_paid === 0)) {
     const { data: payment } = await supabaseAdmin
       .from('payments')
@@ -140,10 +149,35 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
       .eq('report_id', id)
       .eq('status', 'succeeded')
       .maybeSingle()
+    hasSucceededPayment = payment != null
+  }
 
-    if (!payment) {
-      redirect(`/reports/${id}`)
-    }
+  if (
+    getPaymentGateStatus(isTokenAccess, report.price_paid, hasSucceededPayment) ===
+    'pending_confirmation'
+  ) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <PaymentConfirmationWatcher reportId={id} />
+          <h1 className="text-2xl font-bold text-gray-900">Confirming Your Payment</h1>
+          <p className="mt-2 text-gray-600">
+            This page will update automatically once your payment is confirmed — usually within a
+            few seconds.
+          </p>
+          <p className="mt-4 text-sm text-gray-500">
+            Still seeing this after a few minutes? Contact{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-600 hover:text-blue-500">
+              {SUPPORT_EMAIL}
+            </a>{' '}
+            and we&apos;ll sort it out.
+          </p>
+          <Link href="/dashboard" className="mt-4 inline-block text-blue-600 hover:text-blue-500">
+            Back to Dashboard
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   // Anonymous buyer just landed here straight from LemonSqueezy checkout —
