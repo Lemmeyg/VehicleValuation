@@ -159,7 +159,6 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md">
-          <PaymentConfirmationWatcher reportId={id} />
           <h1 className="text-2xl font-bold text-gray-900">Confirming Your Payment</h1>
           <p className="mt-2 text-gray-600">
             This page will update automatically once your payment is confirmed — usually within a
@@ -175,6 +174,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
           <Link href="/dashboard" className="mt-4 inline-block text-blue-600 hover:text-blue-500">
             Back to Dashboard
           </Link>
+          <PaymentConfirmationWatcher reportId={id} />
         </div>
       </div>
     )

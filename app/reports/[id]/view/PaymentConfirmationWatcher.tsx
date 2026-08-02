@@ -42,6 +42,7 @@ export function PaymentConfirmationWatcher({ reportId }: Props) {
 
       attemptsRef.current += 1
       if (attemptsRef.current >= MAX_POLLS) {
+        if (timerRef.current) clearInterval(timerRef.current)
         setTimedOut(true)
       }
     }

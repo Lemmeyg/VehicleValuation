@@ -13,6 +13,8 @@ export function canViewReport(
   return userId === reportUserId
 }
 
+export type PaymentGateStatus = 'allowed' | 'pending_confirmation'
+
 /**
  * Decides whether the payment gate on /reports/[id]/view should let the
  * request through or show a "pending confirmation" state.
@@ -22,8 +24,6 @@ export function canViewReport(
  * bouncing to another route, to avoid recreating the redirect loop this
  * function replaces (see docs/superpowers/plans/2026-08-01-report-view-payment-gate-redirect-loop.md).
  */
-export type PaymentGateStatus = 'allowed' | 'pending_confirmation'
-
 export function getPaymentGateStatus(
   isTokenAccess: boolean,
   pricePaid: number | null,
