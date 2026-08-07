@@ -48,17 +48,12 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'How long does it take to receive my report?',
     answer:
-      'Reports are generated automatically and delivered to your inbox as soon as your payment is confirmed.',
-  },
-  {
-    question: 'Will my insurance company accept this?',
-    answer:
-      'Legally, they must consider relevant market data. Our reports are designed to be submitted as evidence of Actual Cash Value under the Appraisal Clause found in most standard insurance policies.',
+      "It takes less than a minute to create the report and you'll see it in your browser. You'll also be emailed a copy within 24 hours.",
   },
   {
     question: 'What if my car is rare or customized?',
     answer:
-      'For rare or highly modified vehicles, we recommend the Premium Report — it draws on a wider pool of comparable sales to better capture value that standard software alone can miss.',
+      "For rare or highly modified vehicles, we recommend the Premium Report — it draws on a wider pool of comparable sales to better capture value that standard software alone can miss. If we don't have sufficient data for your vehicle, we'll issue a full refund and notify you within 24 hours.",
   },
   {
     question: "What if I disagree with the report's value?",
