@@ -495,6 +495,9 @@ function PricingContent() {
       } else {
         setError(data.error || 'Failed to create checkout session')
         setProcessingPayment(false)
+        toast.error(
+          "We couldn't start checkout. Please try again — if this keeps happening, contact us."
+        )
         trackCheckoutAbandoned({
           reportId: report.id,
           plan: tier.id.toLowerCase() as 'basic' | 'premium',
@@ -507,6 +510,9 @@ function PricingContent() {
       console.error('Payment error:', err)
       setError('An error occurred while processing payment')
       setProcessingPayment(false)
+      toast.error(
+        "We couldn't start checkout. Please try again — if this keeps happening, contact us."
+      )
       trackCheckoutAbandoned({
         reportId: report.id,
         plan: tier.id.toLowerCase() as 'basic' | 'premium',
