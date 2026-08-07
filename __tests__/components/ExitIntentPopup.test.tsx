@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import ExitIntentPopup from '@/components/ExitIntentPopup'
 
 const mockPush = jest.fn()
@@ -14,6 +14,13 @@ jest.mock('@/lib/analytics/events', () => ({
 }))
 
 const pushStateSpy = jest.spyOn(window.history, 'pushState').mockImplementation(() => {})
+
+function setVisibilityState(state: 'visible' | 'hidden') {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => state,
+  })
+}
 
 afterEach(() => {
   sessionStorage.clear()
@@ -114,7 +121,7 @@ describe('ExitIntentPopup — copy', () => {
       </>
     )
     fireEvent.click(screen.getByText('Home'))
-    expect(screen.getByRole('button', { name: /get my report — \$19/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /get my report — \$15/i })).toBeInTheDocument()
   })
 })
 
@@ -129,7 +136,7 @@ describe('ExitIntentPopup — CTA action', () => {
     )
     fireEvent.click(screen.getByText('Home'))
     fireEvent.click(screen.getByRole('button', { name: /get my report/i }))
-    expect(mockSelectPlan).toHaveBeenCalledWith('STAY19')
+    expect(mockSelectPlan).toHaveBeenCalledWith('STAY15')
   })
 })
 
@@ -173,6 +180,104 @@ describe('ExitIntentPopup — back button trigger', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
     fireEvent(window, new PopStateEvent('popstate'))
     expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+  })
+})
+
+describe('ExitIntentPopup — mouse-leave trigger', () => {
+  it('shows the popup when the cursor exits through the top of the viewport', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    fireEvent.mouseOut(document, { clientY: -5, relatedTarget: null })
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+  })
+
+  it('does not show the popup for an ordinary mouseout within the page', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <div data-testid="inner">inner</div>
+      </>
+    )
+    fireEvent.mouseOut(document, { clientY: 400, relatedTarget: screen.getByTestId('inner') })
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+  })
+
+  it('does not show the popup when leaving the top edge onto another element', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <div data-testid="inner">inner</div>
+      </>
+    )
+    fireEvent.mouseOut(document, { clientY: -5, relatedTarget: screen.getByTestId('inner') })
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('ExitIntentPopup — armed dwell-timer fallback', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    setVisibilityState('visible')
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    setVisibilityState('visible')
+  })
+
+  it('does not show the popup before the arm delay elapses', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    act(() => {
+      jest.advanceTimersByTime(59_000)
+    })
+    fireEvent(window, new Event('blur'))
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the popup on window blur once armed', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    act(() => {
+      jest.advanceTimersByTime(60_000)
+    })
+    fireEvent(window, new Event('blur'))
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+  })
+
+  it('shows the popup on visibilitychange-to-hidden once armed', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    act(() => {
+      jest.advanceTimersByTime(60_000)
+    })
+    setVisibilityState('hidden')
+    fireEvent(document, new Event('visibilitychange'))
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+  })
+
+  it('shows the popup immediately if the tab is already hidden when the timer fires', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    setVisibilityState('hidden')
+    act(() => {
+      jest.advanceTimersByTime(60_000)
+    })
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+  })
+
+  it('does not re-show via the timer if the popup was already shown and dismissed', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+
+    act(() => {
+      jest.advanceTimersByTime(60_000)
+    })
+    fireEvent(window, new Event('blur'))
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
   })
 })
 
