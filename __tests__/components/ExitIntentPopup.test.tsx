@@ -114,7 +114,7 @@ describe('ExitIntentPopup — copy', () => {
       </>
     )
     fireEvent.click(screen.getByText('Home'))
-    expect(screen.getByRole('button', { name: /get my report — \$19/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /get my report — \$15/i })).toBeInTheDocument()
   })
 })
 
@@ -129,7 +129,7 @@ describe('ExitIntentPopup — CTA action', () => {
     )
     fireEvent.click(screen.getByText('Home'))
     fireEvent.click(screen.getByRole('button', { name: /get my report/i }))
-    expect(mockSelectPlan).toHaveBeenCalledWith('STAY19')
+    expect(mockSelectPlan).toHaveBeenCalledWith('STAY15')
   })
 })
 
@@ -173,6 +173,36 @@ describe('ExitIntentPopup — back button trigger', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
     fireEvent(window, new PopStateEvent('popstate'))
     expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+  })
+})
+
+describe('ExitIntentPopup — mouse-leave trigger', () => {
+  it('shows the popup when the cursor exits through the top of the viewport', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    fireEvent.mouseOut(document, { clientY: -5, relatedTarget: null })
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+  })
+
+  it('does not show the popup for an ordinary mouseout within the page', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <div data-testid="inner">inner</div>
+      </>
+    )
+    fireEvent.mouseOut(document, { clientY: 400, relatedTarget: screen.getByTestId('inner') })
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+  })
+
+  it('does not show the popup when leaving the top edge onto another element', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <div data-testid="inner">inner</div>
+      </>
+    )
+    fireEvent.mouseOut(document, { clientY: -5, relatedTarget: screen.getByTestId('inner') })
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
   })
 })
 

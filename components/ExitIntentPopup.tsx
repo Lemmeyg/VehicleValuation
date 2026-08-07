@@ -15,7 +15,12 @@ interface ExitIntentPopupProps {
   onSelectPlan: (discountCode: string) => void
 }
 
-const DISCOUNT_CODE = process.env.NEXT_PUBLIC_EXIT_INTENT_DISCOUNT_CODE ?? 'STAY15'
+// Hardcoded rather than env-var-driven on purpose: this must always match a real,
+// active LemonSqueezy coupon (currently STAY15, Basic-tier only). A misconfigured
+// or stale env var previously pointed this at a nonexistent code ("Stay19"),
+// silently breaking every discounted checkout attempt with a 422 from LemonSqueezy
+// that the user never saw any feedback for.
+const DISCOUNT_CODE = 'STAY15'
 
 export default function ExitIntentPopup({
   vin,
@@ -75,10 +80,28 @@ export default function ExitIntentPopup({
       showPopup()
     }
 
+    // Classic desktop exit-intent: the cursor leaving through the top of the
+    // viewport (toward the tab bar / address bar / window close button) is the
+    // strongest available signal of "about to leave," and doesn't depend on the
+    // user happening to click an internal link first. clientY <= 0 catches the
+    // cursor crossing the top edge; !relatedTarget confirms it left the document
+    // entirely rather than moving onto a child element (mouseout fires for both).
+    // No mobile equivalent exists — touch devices have no hover cursor to leave
+    // "toward," so the click/back-button triggers above remain the only signal there.
+    const handleMouseOut = (e: MouseEvent) => {
+      if (e.clientY <= 0 && !e.relatedTarget) {
+        pendingHrefRef.current = null
+        isBackButtonRef.current = false
+        showPopup()
+      }
+    }
+
     document.addEventListener('click', handleClick, { capture: true })
+    document.addEventListener('mouseout', handleMouseOut)
     window.addEventListener('popstate', handlePopState)
     return () => {
       document.removeEventListener('click', handleClick, { capture: true })
+      document.removeEventListener('mouseout', handleMouseOut)
       window.removeEventListener('popstate', handlePopState)
     }
   }, [vin, reportId])
