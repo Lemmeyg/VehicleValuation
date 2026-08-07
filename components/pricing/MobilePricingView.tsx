@@ -63,7 +63,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'Does this work for any vehicle make, model, or year?',
     answer:
-      "Yes — our data covers passenger vehicles across 25+ model years. If your vehicle is especially rare, customized, or a commercial/specialty vehicle, the Premium Report's wider comparable pool will give you the most accurate valuation.",
+      'Our data covers passenger vehicles across 25+ model years. If your vehicle is especially rare, customized, or a commercial/specialty vehicle, there may not be sufficient data to populate the report. If that is the case, you will be issued a refund and notified within 24 hours.',
   },
 ]
 
