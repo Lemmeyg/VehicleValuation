@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import PricingPage from '@/app/pricing/page'
+import { toast } from 'sonner'
 
 const mockPush = jest.fn()
 
@@ -8,6 +9,75 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => '/pricing',
 }))
+
+jest.mock('sonner', () => ({
+  toast: {
+    error: jest.fn(),
+    success: jest.fn(),
+    loading: jest.fn(),
+  },
+}))
+
+// handleSelectPlan treats a missing/placeholder variantId as "beta mode" and skips
+// the real checkout API call entirely (app/pricing/page.tsx's isBetaMode check).
+// The real lib/pricing/constants.ts reads NEXT_PUBLIC_LEMONSQUEEZY_*_VARIANT_ID at
+// module-load time, which is unset in the test environment. Mock with the same
+// values (verified against lib/pricing/constants.ts) but a real-looking variantId,
+// so tests that click a plan CTA exercise the real checkout path.
+jest.mock('@/lib/pricing/constants', () => {
+  const CORE_FEATURES = [
+    'Real market data from 450M+ vehicle listings',
+    'Valuations accurate to within 5% of actual sale price',
+    'High/low range with actual vehicle valuation',
+    '10 verified live listings for comparison',
+    'Covers 25+ model years with equipment-level precision',
+  ]
+  return {
+    PRICING_TIERS: [
+      {
+        id: 'BASIC',
+        name: 'Basic Report',
+        price: 19,
+        variantId: 'test-basic-variant-id',
+        features: CORE_FEATURES,
+      },
+      {
+        id: 'PREMIUM',
+        name: 'Premium Report',
+        price: 25,
+        variantId: 'test-premium-variant-id',
+        features: [
+          ...CORE_FEATURES,
+          'Two free report refreshes with updated listings',
+          "Money-back guarantee if we don't beat your insurer's offer",
+        ],
+        recommended: true,
+      },
+    ],
+    TESTIMONIALS: [
+      {
+        quote:
+          'First offer was $23.5K. I provided an updated list of comparable sales from the report and ended up receiving $28K — a $4,500 increase.',
+        attribution: 'M.R., California — 2020 Honda Civic',
+        outcome: '+$4,500',
+      },
+      {
+        quote:
+          'They initially tried to offer $9,800 for my car. An independent vehicle evaluation pegged it at $23,000. They cut me a check a week later.',
+        attribution: 'T.K., Texas — 2018 Toyota Camry',
+        outcome: '+$13,200',
+      },
+    ],
+    WHATS_INCLUDED: [
+      { label: 'Accurate market value from 450M+ real listings' },
+      { label: '10 verified comparable vehicles with prices and locations' },
+      { label: 'High/low value range with confidence score' },
+      { label: 'VIN-decoded equipment and trim-level precision' },
+      { label: 'Regional pricing factors specific to your ZIP code' },
+      { label: 'Negotiation-ready PDF format with professional layout' },
+    ],
+  }
+})
 
 jest.mock('@/lib/analytics/events', () => ({
   trackReportWorkflow: jest.fn(),
@@ -203,5 +273,70 @@ describe('PricingPage — desktop/mobile split', () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
     expect(await screen.findAllByText('Get Premium Report — $25')).toHaveLength(2) // one desktop, one mobile
+  })
+})
+
+describe('PricingPage — checkout failure feedback', () => {
+  const originalFetch = global.fetch
+  const originalBasicVariantId = process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID
+  const originalPremiumVariantId = process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID
+
+  beforeEach(() => {
+    // handleSelectPlan reads NEXT_PUBLIC_LEMONSQUEEZY_*_VARIANT_ID directly from
+    // process.env at call time (app/pricing/page.tsx's isBetaMode check) — not
+    // via PRICING_TIERS — to decide whether to skip payment entirely as "beta
+    // mode". Both are unset in the test environment, so without this, clicking
+    // a plan CTA never reaches the real checkout code path this suite tests.
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID = 'test-basic-variant-id'
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID = 'test-premium-variant-id'
+  })
+
+  afterEach(() => {
+    sessionStorage.clear()
+    jest.clearAllMocks()
+    global.fetch = originalFetch
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID = originalBasicVariantId
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID = originalPremiumVariantId
+  })
+
+  it('shows a visible toast when checkout creation fails (no checkoutUrl returned)', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ error: 'Failed to create checkout: Unprocessable Entity' }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    const [premiumButton] = await screen.findAllByRole('button', {
+      name: /get premium report — \$25/i,
+    })
+    fireEvent.click(premiumButton)
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "We couldn't start checkout. Please try again — if this keeps happening, contact us."
+      )
+    )
+  })
+
+  it('shows a visible toast when the checkout request itself throws', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(new Error('Network error')) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    const [premiumButton] = await screen.findAllByRole('button', {
+      name: /get premium report — \$25/i,
+    })
+    fireEvent.click(premiumButton)
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "We couldn't start checkout. Please try again — if this keeps happening, contact us."
+      )
+    )
   })
 })
