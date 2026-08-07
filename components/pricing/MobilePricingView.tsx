@@ -221,9 +221,6 @@ export default function MobilePricingView({
                 key={t.attribution}
                 className="relative rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
               >
-                <div className="absolute -right-2 -top-3 rounded-lg bg-primary-600 px-3 py-1 text-xs font-bold text-white shadow-md">
-                  {t.outcome} Recovered
-                </div>
                 <Quote className="mb-3 h-6 w-6 text-primary-300" />
                 <p className="mb-4 text-sm italic text-slate-700">&ldquo;{t.quote}&rdquo;</p>
                 <p className="text-xs text-slate-500">{t.attribution}</p>

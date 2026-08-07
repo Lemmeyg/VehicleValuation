@@ -48,7 +48,7 @@ export const TESTIMONIALS = [
   },
   {
     quote:
-      'They initially tried to offer $9,800 for my car. The independent vehicle evaluation pegged it at $23,000. They cut me a check a week later.',
+      'They initially tried to offer $9,800 for my car. An independent vehicle evaluation pegged it at $23,000. They cut me a check a week later.',
     attribution: 'T.K., Texas — 2018 Toyota Camry',
     outcome: '+$13,200',
   },
