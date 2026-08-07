@@ -53,14 +53,16 @@ describe('PricingPage — personalized headline', () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
 
-    expect(await screen.findByText(/2019 Honda Civic/i)).toBeInTheDocument()
+    // Personalized headline now renders in both the desktop and mobile trees
+    // (both are always in the DOM in jsdom; only CSS breakpoints hide one).
+    expect(await screen.findAllByText(/2019 Honda Civic/i)).toHaveLength(2)
   })
 
   it('renders fallback copy when vehicle data is missing', async () => {
     setPendingReport({ year: 0, make: '', model: '' })
     render(<PricingPage />)
 
-    expect(await screen.findByText(/get paid what your vehicle is worth/i)).toBeInTheDocument()
+    expect(await screen.findAllByText(/get paid what your vehicle is worth/i)).toHaveLength(2)
   })
 })
 
@@ -92,7 +94,9 @@ describe('PricingPage — drip attribution capture', () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
 
-    await screen.findByText(/2019 Honda Civic/i)
+    // Wait for hydration to complete; personalized headline renders in both
+    // the desktop and mobile trees (both are always in the DOM in jsdom).
+    await screen.findAllByText(/2019 Honda Civic/i)
 
     const raw = localStorage.getItem('drip_last_touch')
     expect(raw).not.toBeNull()
@@ -106,7 +110,7 @@ describe('PricingPage — drip attribution capture', () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
 
-    await screen.findByText(/2019 Honda Civic/i)
+    await screen.findAllByText(/2019 Honda Civic/i)
     expect(localStorage.getItem('drip_last_touch')).toBeNull()
   })
 })
@@ -144,7 +148,7 @@ describe('PricingPage — reportId flow via the new preview endpoint', () => {
 
     render(<PricingPage />)
 
-    expect(await screen.findByText(/2019 Honda Civic/i)).toBeInTheDocument()
+    expect(await screen.findAllByText(/2019 Honda Civic/i)).toHaveLength(2)
     expect(global.fetch).toHaveBeenCalledWith('/api/reports/r1/preview')
   })
 
@@ -161,5 +165,43 @@ describe('PricingPage — reportId flow via the new preview endpoint', () => {
 
     expect(await screen.findByText(/already purchased this report/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /return to homepage/i })).toBeInTheDocument()
+  })
+})
+
+describe('PricingPage — desktop/mobile split', () => {
+  beforeEach(() => {
+    // The preceding describe block's afterEach only calls jest.clearAllMocks(),
+    // which does not undo a jest.spyOn(...).mockReturnValue() override (only
+    // mockRestore()/restoreAllMocks() does — see the comment above in the
+    // "drip attribution capture" block). That leaves useSearchParams spied to
+    // return reportId=r1 from its last test, which leaks into whichever block
+    // runs next. Restore explicitly so these tests get the default
+    // `() => new URLSearchParams()` mock regardless of run order.
+    jest.restoreAllMocks()
+  })
+
+  afterEach(() => {
+    sessionStorage.clear()
+    jest.clearAllMocks()
+  })
+
+  it('renders both the desktop tree (hidden md:block) and the mobile tree (md:hidden) simultaneously', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+
+    // Desktop-only copy from the existing, untouched JSX
+    expect(await screen.findByText("What's in your report")).toBeInTheDocument()
+
+    // Mobile-only copy from MobilePricingView's FAQ section, which desktop doesn't render
+    expect(screen.getByText('Frequently Asked Questions')).toBeInTheDocument()
+
+    // Both trees show the same personalized headline text independently
+    expect(screen.getAllByText(/2019 Honda Civic/).length).toBe(2)
+  })
+
+  it('keeps the desktop pricing card CTA copy exactly as it is today', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+    expect(await screen.findAllByText('Get Premium Report — $25')).toHaveLength(2) // one desktop, one mobile
   })
 })
