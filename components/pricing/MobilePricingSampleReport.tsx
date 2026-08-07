@@ -118,7 +118,11 @@ const SPEC_ROWS: Array<[string, string]> = [
   ['Drive Type', 'AWD'],
 ]
 
-export default function MobilePricingSampleReport() {
+interface MobilePricingSampleReportProps {
+  onExpand?: () => void
+}
+
+export default function MobilePricingSampleReport({ onExpand }: MobilePricingSampleReportProps) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -172,7 +176,15 @@ export default function MobilePricingSampleReport() {
           {/* Expand toggle */}
           <button
             type="button"
-            onClick={() => setExpanded(prev => !prev)}
+            onClick={() =>
+              setExpanded(prev => {
+                const next = !prev
+                if (next) {
+                  onExpand?.()
+                }
+                return next
+              })
+            }
             aria-expanded={expanded}
             className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary-600 bg-primary-50 py-4 shadow-sm transition-transform active:scale-[0.98]"
           >

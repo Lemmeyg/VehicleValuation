@@ -837,6 +837,7 @@ function PricingContent() {
             tiers={PRICING_TIERS}
             onSelectPlan={handleSelectPlan}
             processingPayment={processingPayment}
+            reportId={report.id}
           />
         </div>
       </main>

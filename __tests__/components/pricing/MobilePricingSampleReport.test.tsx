@@ -24,4 +24,27 @@ describe('MobilePricingSampleReport', () => {
     expect(screen.getAllByText('YOUR VEHICLE').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Your Vehicle')).toBeInTheDocument()
   })
+
+  it('calls onExpand when the toggle transitions from collapsed to expanded', () => {
+    const onExpand = jest.fn()
+    render(<MobilePricingSampleReport onExpand={onExpand} />)
+    expect(onExpand).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /tap to see full report/i }))
+    expect(onExpand).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call onExpand when the toggle collapses the report again', () => {
+    const onExpand = jest.fn()
+    render(<MobilePricingSampleReport onExpand={onExpand} />)
+    fireEvent.click(screen.getByRole('button', { name: /tap to see full report/i }))
+    expect(onExpand).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: /collapse report/i }))
+    expect(onExpand).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call onExpand on initial render', () => {
+    const onExpand = jest.fn()
+    render(<MobilePricingSampleReport onExpand={onExpand} />)
+    expect(onExpand).not.toHaveBeenCalled()
+  })
 })

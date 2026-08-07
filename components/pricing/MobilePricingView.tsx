@@ -12,6 +12,7 @@ import {
   Quote,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { trackEvent } from '@/lib/analytics/events'
 import {
   getPersonalizedVehicleLabel,
   type PersonalizationVehicleData,
@@ -25,6 +26,7 @@ interface MobilePricingViewProps {
   tiers: PricingTier[]
   onSelectPlan: (tier: PricingTier) => void
   processingPayment: boolean
+  reportId?: string
 }
 
 interface FaqItem {
@@ -75,6 +77,7 @@ export default function MobilePricingView({
   tiers,
   onSelectPlan,
   processingPayment,
+  reportId,
 }: MobilePricingViewProps) {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0)
   const premiumCardRef = useRef<HTMLDivElement>(null)
@@ -137,7 +140,9 @@ export default function MobilePricingView({
       </div>
 
       {/* Sample report preview */}
-      <MobilePricingSampleReport />
+      <MobilePricingSampleReport
+        onExpand={() => trackEvent('report_preview_viewed', { reportId })}
+      />
 
       {/* Pricing cards */}
       <div className="mb-8">
@@ -194,12 +199,11 @@ export default function MobilePricingView({
                 ))}
               </ul>
               <Button
+                variant={tier.recommended ? 'primary' : 'outline'}
                 onClick={() => onSelectPlan(tier)}
                 disabled={processingPayment}
                 className={`w-full py-3.5 text-base font-semibold ${
-                  tier.recommended
-                    ? 'bg-primary-600 hover:bg-primary-700'
-                    : 'border-2 border-primary-600 bg-white text-primary-600 hover:bg-primary-50'
+                  tier.recommended ? 'bg-primary-600 hover:bg-primary-700' : ''
                 }`}
               >
                 {processingPayment ? 'Processing...' : `Get ${tier.name} — $${tier.price}`}

@@ -1,10 +1,21 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import MobilePricingView from '@/components/pricing/MobilePricingView'
 import { PRICING_TIERS } from '@/lib/pricing/constants'
+import { trackEvent } from '@/lib/analytics/events'
+
+jest.mock('@/lib/analytics/events', () => ({
+  trackEvent: jest.fn(),
+}))
 
 jest.mock('@/components/pricing/MobilePricingSampleReport', () => {
-  function MockMobilePricingSampleReport() {
-    return <div data-testid="sample-report" />
+  function MockMobilePricingSampleReport({ onExpand }: { onExpand?: () => void }) {
+    return (
+      <div data-testid="sample-report">
+        <button type="button" onClick={onExpand}>
+          Tap to See Full Report
+        </button>
+      </div>
+    )
   }
   return MockMobilePricingSampleReport
 })
@@ -82,5 +93,19 @@ describe('MobilePricingView', () => {
     const processingButtons = screen.getAllByRole('button', { name: /processing/i })
     expect(processingButtons).toHaveLength(2)
     processingButtons.forEach(button => expect(button).toBeDisabled())
+  })
+
+  it('tracks report_preview_viewed with the reportId when the sample report is expanded', () => {
+    render(
+      <MobilePricingView
+        vehicleData={null}
+        tiers={PRICING_TIERS}
+        onSelectPlan={onSelectPlan}
+        processingPayment={false}
+        reportId="report-123"
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /tap to see full report/i }))
+    expect(trackEvent).toHaveBeenCalledWith('report_preview_viewed', { reportId: 'report-123' })
   })
 })
