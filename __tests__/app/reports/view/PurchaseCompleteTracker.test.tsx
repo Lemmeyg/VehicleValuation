@@ -22,6 +22,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   ;(useRouter as jest.Mock).mockReturnValue({ replace: mockReplace })
   ;(usePathname as jest.Mock).mockReturnValue('/reports/rpt-1/view')
+  history.pushState(null, '', '/reports/rpt-1/view')
 })
 
 describe('PurchaseCompleteTracker', () => {
@@ -83,10 +84,29 @@ describe('PurchaseCompleteTracker', () => {
     expect(mockEvents.identifyUser).not.toHaveBeenCalled()
   })
 
-  it('strips the checkout=complete marker from the URL after tracking, via router.replace', () => {
+  it('strips the checkout=complete marker but preserves the token for anonymous buyers', () => {
+    history.pushState(null, '', '/reports/rpt-1/view?token=abc123&checkout=complete')
+    render(<PurchaseCompleteTracker reportId="rpt-1" planType="basic" amountCents={1900} />)
+
+    expect(mockReplace).toHaveBeenCalledWith('/reports/rpt-1/view?token=abc123')
+  })
+
+  it('drops the checkout marker down to the bare path when no other params are present', () => {
+    history.pushState(null, '', '/reports/rpt-1/view?checkout=complete')
     render(<PurchaseCompleteTracker reportId="rpt-1" planType="basic" amountCents={1900} />)
 
     expect(mockReplace).toHaveBeenCalledWith('/reports/rpt-1/view')
+  })
+
+  it('preserves every other param, not just token, alongside stripping checkout', () => {
+    history.pushState(
+      null,
+      '',
+      '/reports/rpt-1/view?token=abc123&utm_source=zoho&checkout=complete'
+    )
+    render(<PurchaseCompleteTracker reportId="rpt-1" planType="basic" amountCents={1900} />)
+
+    expect(mockReplace).toHaveBeenCalledWith('/reports/rpt-1/view?token=abc123&utm_source=zoho')
   })
 
   it('does not double-fire tracking or the URL replace on re-render', () => {
