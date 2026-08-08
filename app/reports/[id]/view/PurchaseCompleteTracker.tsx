@@ -60,7 +60,17 @@ export function PurchaseCompleteTracker({
       identifyUser(userId, { email, vin, plan: planType })
     }
 
-    router.replace(pathname)
+    // usePathname() returns only the path, with no query string — replacing
+    // with it directly (as this used to) drops every query param, including
+    // `token`. For anonymous (token-access) buyers, the very next server
+    // render of this page sees no token and redirects to /auth, since the
+    // page can no longer tell they're the report's paying owner. Only the
+    // `checkout` marker is meant to be removed; every other param, especially
+    // `token`, must survive the replace.
+    const params = new URLSearchParams(window.location.search)
+    params.delete('checkout')
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
