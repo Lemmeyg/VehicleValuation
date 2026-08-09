@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stop `/pricing` from silently auto-redirecting visitors home 3 seconds after arrival when their vehicle data hasn't loaded yet, and add a short retry window plus diagnostic tracking so real production frequency/cause can be measured going forward.
+**Goal:** Stop `/pricing` from silently auto-redirecting visitors home 3 seconds after arrival when their vehicle data hasn't loaded yet — both on first landing (a timing race) and, more commonly, on any return visit within the same tab (checking FAQ, dismissing the exit-intent popup, browser back from checkout) — and add diagnostic tracking so real production frequency/cause can be measured going forward.
 
-**Architecture:** `app/pricing/page.tsx`'s `initializePricingPage()` currently sets an error message *and* schedules `setTimeout(() => router.push('/'), 3000)` when neither a `reportId` URL param nor `sessionStorage.pending_report` (written by `Hero.tsx`/`ArticleReportBar.tsx` immediately before navigating here) is found. The error UI (with a manual "Return to Homepage" button) already exists further down the same component — the fix removes the auto-redirect, adds a bounded retry loop before declaring failure (defense-in-depth against a suspected but unconfirmed storage-timing race), and adds a `pricing_data_missing` PostHog event with a `reason` field so the three distinct failure paths (no data found, corrupted data, existing-report API failure) are distinguishable in production data.
+**Architecture:** `app/pricing/page.tsx`'s `initializePricingPage()` currently sets an error message *and* schedules `setTimeout(() => router.push('/'), 3000)` when neither a `reportId` URL param nor `sessionStorage.pending_report` (written by `Hero.tsx`/`ArticleReportBar.tsx` immediately before navigating here, and deleted the moment it's read once) is found — which includes every return visit to `/pricing` after the first successful load, since `pending_report` is single-use and React state doesn't survive a route unmount. The error UI (with a manual "Return to Homepage" button) already exists further down the same component — the fix removes the auto-redirect, adds a bounded retry loop for the first-landing race, adds a third fallback that resumes return visits via the already-persisted (but currently unused) `current_report_id` — reusing the existing anonymous-safe `fetchExistingReport` path so purchased-status is always re-checked rather than trusting a stale snapshot — and adds a `pricing_data_missing` PostHog event with a `reason` field so the distinct failure paths are distinguishable in production data.
 
 **Tech Stack:** Next.js 16 App Router (Client Component), `next/navigation` (`useRouter`, `useSearchParams`), PostHog via `lib/analytics/events.ts`'s `trackEvent`, Jest + React Testing Library (fake timers for time-based assertions, matching the existing `PaymentConfirmationWatcher.test.tsx` pattern in this repo).
 
@@ -16,7 +16,9 @@
 - Run `npm run type-check` and `npm run test:ci` before considering this done, per this repo's standard process (`CLAUDE.md`).
 - Spec: `docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md`.
 
-**Known, accepted limitation:** the retry loop in Task 2 has no unmount/cancellation guard. If a user navigates away from `/pricing` while a retry is still in flight (within ~1.2s of landing), the loop keeps running in the background and can fire a false-positive `pricing_data_missing` event for a user who simply left, not one who hit the bug. This is not a functional bug — React 19 makes state updates on an unmounted component a safe no-op, and the existing code already relies on this elsewhere (e.g. `fetchExistingReport`'s fetch has no unmount guard either). A correct fix (an incrementing "epoch" ref, checked at each resume point, to survive React StrictMode's dev-only mount→cleanup→remount cycle without falsely cancelling the real run) was considered and explicitly deferred as unnecessary complexity for a dev-only interaction with zero production impact. Revisit only if the diagnostic event's false-positive rate turns out to matter in practice.
+**Known, accepted limitation (Task 2):** the retry loop has no unmount/cancellation guard. If a user navigates away from `/pricing` while a retry is still in flight (within ~1.2s of landing), the loop keeps running in the background and can fire a false-positive `pricing_data_missing` event for a user who simply left, not one who hit the bug. This is not a functional bug — React 19 makes state updates on an unmounted component a safe no-op, and the existing code already relies on this elsewhere (e.g. `fetchExistingReport`'s fetch has no unmount guard either). A correct fix (an incrementing "epoch" ref, checked at each resume point, to survive React StrictMode's dev-only mount→cleanup→remount cycle without falsely cancelling the real run) was considered and explicitly deferred as unnecessary complexity for a dev-only interaction with zero production impact. Revisit only if the diagnostic event's false-positive rate turns out to matter in practice.
+
+**Known, accepted limitation (Task 4):** if a user successfully loads `/pricing` for vehicle A (setting `current_report_id`), then goes back and resubmits the form for a different vehicle B, and that new `pending_report` write loses the Task 2 retry-window race by more than ~1.2s, Option C would show vehicle A's stale data instead of waiting further or failing correctly. Requires two rare conditions to stack; the failure mode is mild (wrong-but-real report shown, user can resubmit) — accepted rather than adding more machinery to prevent it.
 
 ---
 
@@ -406,7 +408,175 @@ git commit -m "feat: track pricing_data_missing with a reason across all three /
 
 ---
 
-### Task 4: Full verification pass
+### Task 4: Resume return visits via the persisted `current_report_id` (Option C)
+
+**Files:**
+- Modify: `app/pricing/page.tsx` (insert a new branch between the `if (pendingReport) { ... }` block left by Task 3 and the final no-data fallback)
+- Test: `__tests__/app/pricing/page.test.tsx`
+
+**Interfaces:**
+- Consumes: `fetchExistingReport(id: string): Promise<void>` (already defined in this file, used today by the `reportId` URL-param flow / Option A).
+
+- [ ] **Step 1: Write the failing tests**
+
+Add a new `describe` block to `__tests__/app/pricing/page.test.tsx` (after the `'PricingPage — pricing_data_missing diagnostics'` block from Task 3):
+
+```tsx
+describe('PricingPage — resuming a return visit via current_report_id', () => {
+  const originalFetch = global.fetch
+
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    localStorage.clear()
+    jest.clearAllMocks()
+    global.fetch = originalFetch
+  })
+
+  it('loads the report via current_report_id when pending_report is gone and no reportId is in the URL', async () => {
+    sessionStorage.setItem('current_report_id', 'r1')
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        report: {
+          id: 'r1',
+          vin: '1HGCM82633A004352',
+          mileage: 50000,
+          zip_code: '90210',
+          dealer_type: 'private',
+          vehicle_data: { year: 2019, make: 'Honda', model: 'Civic' },
+          marketcheck_valuation: null,
+        },
+      }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findByText(/2019 Honda Civic/i)).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledWith('/api/reports/r1/preview')
+  })
+
+  it('shows the already-purchased message, not payment buttons, on a return visit after purchase', async () => {
+    sessionStorage.setItem('current_report_id', 'r1')
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ alreadyPurchased: true }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findByText(/already purchased this report/i)).toBeInTheDocument()
+  })
+})
+```
+
+(The retry loop from Task 2 runs first since `pending_report` isn't set in these tests — it exhausts its ~1.2s window before reaching the new Option C check, hence advancing fake timers by 1200ms before asserting.)
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `npx jest __tests__/app/pricing/page.test.tsx -t "resuming a return visit"`
+Expected: FAIL on both — with no Option C branch yet, the retry loop exhausts and falls straight to the "no data found" state; `global.fetch` is never called, so `findByText` times out.
+
+- [ ] **Step 3: Implement**
+
+In `app/pricing/page.tsx`, insert a new branch between the `if (pendingReport) { ... }` block (left in place by Task 3) and the final no-data fallback, from:
+
+```ts
+    if (pendingReport) {
+      try {
+        const rawReport = JSON.parse(pendingReport)
+        sessionStorage.removeItem('pending_report')
+        hydrateReportFromCreateResponse(rawReport)
+        return
+      } catch (err) {
+        console.error('[PricingPage] pending_report parse error:', err)
+        sessionStorage.removeItem('pending_report')
+        trackEvent('pricing_data_missing', { reason: 'parse_error' })
+        setError('No vehicle data found. Please submit the form on the homepage.')
+        setLoading(false)
+        return
+      }
+    }
+
+    // No data found — show a message instead of auto-redirecting. The user
+    // can return home via the button in the error state (see the render
+    // branch below); do NOT re-add a redirect() or setTimeout() here — see
+    // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
+    trackEvent('pricing_data_missing', { reason: 'no_data_after_retry' })
+    setError('No vehicle data found. Please submit the form on the homepage.')
+    setLoading(false)
+  }
+```
+
+to:
+
+```ts
+    if (pendingReport) {
+      try {
+        const rawReport = JSON.parse(pendingReport)
+        sessionStorage.removeItem('pending_report')
+        hydrateReportFromCreateResponse(rawReport)
+        return
+      } catch (err) {
+        console.error('[PricingPage] pending_report parse error:', err)
+        sessionStorage.removeItem('pending_report')
+        trackEvent('pricing_data_missing', { reason: 'parse_error' })
+        setError('No vehicle data found. Please submit the form on the homepage.')
+        setLoading(false)
+        return
+      }
+    }
+
+    // Option C: resume via the persisted current_report_id (written on every
+    // successful hydration, never cleared) — covers returning to /pricing
+    // within the same tab after pending_report has already been consumed
+    // (e.g. checking the FAQ and coming back, or the browser back button).
+    // Reuses fetchExistingReport so purchased-status and pricing are always
+    // re-checked against the server rather than trusting a stale snapshot.
+    // See docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
+    const currentReportId = sessionStorage.getItem('current_report_id')
+    if (currentReportId) {
+      await fetchExistingReport(currentReportId)
+      return
+    }
+
+    // No data found — show a message instead of auto-redirecting. The user
+    // can return home via the button in the error state (see the render
+    // branch below); do NOT re-add a redirect() or setTimeout() here — see
+    // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
+    trackEvent('pricing_data_missing', { reason: 'no_data_after_retry' })
+    setError('No vehicle data found. Please submit the form on the homepage.')
+    setLoading(false)
+  }
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `npx jest __tests__/app/pricing/page.test.tsx`
+Expected: PASS — every test in the file, including all of Tasks 1–3's tests (none of which set `current_report_id`, so they're unaffected by this new branch) plus both new Option C tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/pricing/page.tsx __tests__/app/pricing/page.test.tsx
+git commit -m "feat: resume /pricing return visits via the persisted current_report_id"
+```
+
+---
+
+### Task 5: Full verification pass
 
 - [ ] **Step 1: Run the full test suite**
 
@@ -420,4 +590,4 @@ Expected: no errors.
 
 - [ ] **Step 3: Manual verification note (for the PR description, not automated)**
 
-In a local/staging environment: navigate directly to `/pricing` with no `reportId` param and no prior form submission (simulating direct/bookmarked traffic). Confirm the page shows "No vehicle data found. Please submit the form on the homepage." with a working "Return to Homepage" button, and that the URL bar stays on `/pricing` for at least 10 seconds with no automatic navigation. Then submit the homepage vehicle-search form normally and confirm `/pricing` still loads the report data immediately, as before (no visible regression from the added retry logic on the happy path).
+In a local/staging environment: navigate directly to `/pricing` with no `reportId` param and no prior form submission (simulating direct/bookmarked traffic). Confirm the page shows "No vehicle data found. Please submit the form on the homepage." with a working "Return to Homepage" button, and that the URL bar stays on `/pricing` for at least 10 seconds with no automatic navigation. Then submit the homepage vehicle-search form normally and confirm `/pricing` still loads the report data immediately, as before (no visible regression from the added retry logic on the happy path). Finally, reproduce the return-visit case this plan was expanded to fix: from `/pricing`, navigate to `/faq`, then use the browser back button to return to `/pricing` — confirm it loads your report again (via the new Option C path) instead of showing the no-data error.
