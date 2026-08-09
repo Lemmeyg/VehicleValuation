@@ -1,6 +1,7 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import PricingPage from '@/app/pricing/page'
 import { toast } from 'sonner'
+import { trackEvent } from '@/lib/analytics/events'
 
 const mockPush = jest.fn()
 
@@ -117,6 +118,7 @@ describe('PricingPage — personalized headline', () => {
   afterEach(() => {
     sessionStorage.clear()
     jest.clearAllMocks()
+    jest.restoreAllMocks()
   })
 
   it('renders the personalized headline when vehicle data is complete', async () => {
@@ -192,6 +194,7 @@ describe('PricingPage — reportId flow via the new preview endpoint', () => {
     sessionStorage.clear()
     localStorage.clear()
     jest.clearAllMocks()
+    jest.restoreAllMocks()
     global.fetch = originalFetch
   })
 
@@ -235,6 +238,213 @@ describe('PricingPage — reportId flow via the new preview endpoint', () => {
 
     expect(await screen.findByText(/already purchased this report/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /return to homepage/i })).toBeInTheDocument()
+  })
+
+  it('tracks reason: existing_report_fetch_failed when the preview endpoint fails', async () => {
+    jest
+      .spyOn(jest.requireMock('next/navigation'), 'useSearchParams')
+      .mockReturnValue(new URLSearchParams('reportId=r1'))
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Report not found' }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    expect(await screen.findByText(/report not found/i)).toBeInTheDocument()
+    expect(trackEvent).toHaveBeenCalledWith('pricing_data_missing', {
+      reason: 'existing_report_fetch_failed',
+    })
+  })
+})
+
+describe('PricingPage — no vehicle data found', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    // Reset useSearchParams mock: previous tests spy on it with mockReturnValue,
+    // and jest.clearAllMocks() alone doesn't undo those spies. This test needs
+    // the base mock (empty URLSearchParams) to trigger the no-data error path.
+    jest
+      .spyOn(jest.requireMock('next/navigation'), 'useSearchParams')
+      .mockReturnValue(new URLSearchParams())
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    jest.clearAllMocks()
+    jest.restoreAllMocks()
+  })
+
+  it('does not automatically navigate home after showing the no-data message', async () => {
+    render(<PricingPage />)
+
+    // The pending_report retry window (Task 2) can take up to 1.2s
+    // (MAX_PENDING_REPORT_RETRIES * PENDING_REPORT_RETRY_DELAY_MS) before the
+    // no-data message appears. With jest.useFakeTimers() active, RTL's
+    // waitFor schedules its own default 1000ms timeout on the same faked
+    // clock and advances it in lockstep with its polling — so the default
+    // findByText timeout is a *fake-time* budget, not a real-time one, and
+    // 1000ms is no longer enough headroom for the up-to-1.2s retry path.
+    // Widen it so this assertion reflects the new legitimate delay rather
+    // than racing it.
+    expect(
+      await screen.findByText(/no vehicle data found/i, {}, { timeout: 2000 })
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      jest.advanceTimersByTime(4000)
+    })
+
+    expect(mockPush).not.toHaveBeenCalled()
+  })
+})
+
+describe('PricingPage — pending_report retry window', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    jest.clearAllMocks()
+    jest.restoreAllMocks()
+  })
+
+  it('hydrates successfully when pending_report appears shortly after mount', async () => {
+    render(<PricingPage />)
+
+    // Simulates Hero.tsx's sessionStorage write landing just after this
+    // page's first check — the suspected production race.
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findAllByText(/2019 Honda Civic/i)).toHaveLength(2)
+    expect(screen.queryByText(/no vehicle data found/i)).not.toBeInTheDocument()
+    // A successful hydration must never emit the pricing_data_missing
+    // diagnostic — a false positive there would corrupt the production
+    // signal this branch was built to collect.
+    expect(trackEvent).not.toHaveBeenCalledWith('pricing_data_missing', expect.anything())
+  })
+})
+
+describe('PricingPage — pricing_data_missing diagnostics', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    jest.clearAllMocks()
+    jest.restoreAllMocks()
+  })
+
+  it('tracks reason: no_data_after_retry when nothing is found after retries', async () => {
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findByText(/no vehicle data found/i)).toBeInTheDocument()
+    expect(trackEvent).toHaveBeenCalledWith('pricing_data_missing', {
+      reason: 'no_data_after_retry',
+    })
+  })
+
+  it('tracks reason: parse_error and clears the corrupted key when pending_report is malformed', async () => {
+    sessionStorage.setItem('pending_report', '{not valid json')
+
+    render(<PricingPage />)
+
+    expect(await screen.findByText(/no vehicle data found/i)).toBeInTheDocument()
+    expect(trackEvent).toHaveBeenCalledWith('pricing_data_missing', { reason: 'parse_error' })
+    expect(sessionStorage.getItem('pending_report')).toBeNull()
+  })
+})
+
+describe('PricingPage — resuming a return visit via current_report_id', () => {
+  const originalFetch = global.fetch
+
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    localStorage.clear()
+    jest.clearAllMocks()
+    jest.restoreAllMocks()
+    global.fetch = originalFetch
+  })
+
+  it('loads the report via current_report_id when pending_report is gone and no reportId is in the URL', async () => {
+    sessionStorage.setItem('current_report_id', 'r1')
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        report: {
+          id: 'r1',
+          vin: '1HGCM82633A004352',
+          mileage: 50000,
+          zip_code: '90210',
+          dealer_type: 'private',
+          vehicle_data: { year: 2019, make: 'Honda', model: 'Civic' },
+          marketcheck_valuation: null,
+        },
+      }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findAllByText(/2019 Honda Civic/i)).toHaveLength(2)
+    expect(global.fetch).toHaveBeenCalledWith('/api/reports/r1/preview')
+  })
+
+  it('shows the already-purchased message, not payment buttons, on a return visit after purchase', async () => {
+    sessionStorage.setItem('current_report_id', 'r1')
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ alreadyPurchased: true }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findByText(/already purchased this report/i)).toBeInTheDocument()
+  })
+
+  it('prefers pending_report over current_report_id when both are present', async () => {
+    // Both a valid pending_report (Option B) and a leftover current_report_id
+    // from an earlier visit (Option C) are present. Option B must win — this
+    // proves the precedence is enforced by behavior, not just code order.
+    // Note: global.fetch also gets a call to /api/auth/session from Navbar's
+    // own mount effect, unrelated to report hydration, so we assert on the
+    // specific preview URL rather than on fetch never being called at all.
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    sessionStorage.setItem('current_report_id', 'some-other-id')
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ user: null }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    expect(await screen.findAllByText(/2019 Honda Civic/i)).toHaveLength(2)
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/reports/some-other-id/preview')
   })
 })
 

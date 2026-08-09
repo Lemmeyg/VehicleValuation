@@ -61,6 +61,13 @@ interface Report {
   }
 }
 
+const PENDING_REPORT_RETRY_DELAY_MS = 400
+const MAX_PENDING_REPORT_RETRIES = 3
+
+function wait(ms: number) {
+  return new Promise<void>(resolve => setTimeout(resolve, ms))
+}
+
 function PricingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -97,6 +104,12 @@ function PricingContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const showNoVehicleDataError = (reason: string) => {
+    trackEvent('pricing_data_missing', { reason })
+    setError('No vehicle data found. Please submit the form on the homepage.')
+    setLoading(false)
+  }
+
   const initializePricingPage = async () => {
     const utmSource = searchParams?.get('utm_source')
     const utmMedium = searchParams?.get('utm_medium')
@@ -114,7 +127,20 @@ function PricingContent() {
     // Option B: report was already created server-side at form-submit time
     // (Hero.tsx / ArticleReportBar.tsx) — this is a same-tab sessionStorage
     // hand-off, not a fresh create-anonymous call.
-    const pendingReport = sessionStorage.getItem('pending_report')
+    //
+    // Retry a few times before giving up: Hero.tsx writes sessionStorage
+    // synchronously right before navigating here, so this should already be
+    // present, but a timing race (particularly on iOS Safari) has been
+    // observed in production. See
+    // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
+    let pendingReport = sessionStorage.getItem('pending_report')
+    let retries = 0
+    while (!pendingReport && retries < MAX_PENDING_REPORT_RETRIES) {
+      await wait(PENDING_REPORT_RETRY_DELAY_MS)
+      pendingReport = sessionStorage.getItem('pending_report')
+      retries++
+    }
+
     if (pendingReport) {
       try {
         const rawReport = JSON.parse(pendingReport)
@@ -123,15 +149,32 @@ function PricingContent() {
         return
       } catch (err) {
         console.error('[PricingPage] pending_report parse error:', err)
+        sessionStorage.removeItem('pending_report')
+        showNoVehicleDataError('parse_error')
+        return
       }
     }
 
-    // No data found - redirect to homepage
-    setError('No vehicle data found. Please submit the form on the homepage.')
-    setLoading(false)
-    setTimeout(() => {
-      router.push('/')
-    }, 3000)
+    // Option C: resume via the persisted current_report_id (written on every
+    // successful hydration via either Option A or Option B, and cleared on a
+    // failed fetch so a stale/broken ID doesn't get retried indefinitely) —
+    // covers returning to /pricing
+    // within the same tab after pending_report has already been consumed
+    // (e.g. checking the FAQ and coming back, or the browser back button).
+    // Reuses fetchExistingReport so purchased-status and pricing are always
+    // re-checked against the server rather than trusting a stale snapshot.
+    // See docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
+    const currentReportId = sessionStorage.getItem('current_report_id')
+    if (currentReportId) {
+      await fetchExistingReport(currentReportId)
+      return
+    }
+
+    // No data found — show a message instead of auto-redirecting. The user
+    // can return home via the button in the error state (see the render
+    // branch below); do NOT re-add a redirect() or setTimeout() here — see
+    // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
+    showNoVehicleDataError('no_data_after_retry')
   }
 
   const hydrateReportFromCreateResponse = (rawReport: {
@@ -194,13 +237,14 @@ function PricingContent() {
 
   const fetchExistingReport = async (id: string) => {
     try {
-      const response = await fetch(`/api/reports/${id}/preview`)
+      const response = await fetch(`/api/reports/${encodeURIComponent(id)}/preview`)
       const data = await response.json()
 
       if (response.ok && data.alreadyPurchased) {
         setAlreadyPurchased(true)
       } else if (response.ok) {
         setReport(data.report)
+        sessionStorage.setItem('current_report_id', id)
         // Track pricing page view for existing report
         const kbAttr = getKBAttribution()
         const dripAttr = getDripAttribution()
@@ -220,6 +264,10 @@ function PricingContent() {
         })
         trackRedditViewContent()
       } else {
+        trackEvent('pricing_data_missing', { reason: 'existing_report_fetch_failed' })
+        // Clear a stale/broken current_report_id so Option C doesn't keep
+        // retrying a report that will never load again on future visits.
+        sessionStorage.removeItem('current_report_id')
         setError(data.error || 'Failed to load report')
       }
     } catch (err) {
