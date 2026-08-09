@@ -24,9 +24,11 @@ This was confirmed via PostHog session replay + event SQL: a real visitor sessio
 
 Why the data is missing in the first place isn't fully confirmed — `Hero.tsx` writes `sessionStorage` synchronously, immediately before `router.push`, so by the code it should always be present by the time `/pricing` mounts. The leading theories (a storage-timing quirk on client-side navigation, particularly on iOS Safari) can't be distinguished from replay data alone. Rather than guess, this design adds diagnostics alongside the fix.
 
+**Scope expansion (2026-08-08, second re-review):** reviewing a further batch of real visitor activity (distinct_ids, not session replays) found the same failure signature is far more common than a one-time landing race. One real visitor (`019fd608-...`, mobile Safari) hit the exact ~3-second bounce **three separate times in one session** — every time they navigated away from `/pricing` (to `/faq`, or after the exit-intent popup) and came back. Root cause: `pending_report` is deleted from `sessionStorage` the moment it's successfully read once (line 173, unchanged by this design so far), and `/pricing`'s React state doesn't survive a route unmount — so *any* return trip to `/pricing` within the same tab (checking FAQ, dismissing the exit-intent popup and coming back later, browser back from checkout, reopening a stale tab) re-runs `initializePricingPage()` with nothing left to hydrate from. This is likely the dominant real-world trigger, not just the first-load timing race items 1–4 below address. Item 5 below closes this gap.
+
 ## Approach
 
-Four small, related changes, all in `app/pricing/page.tsx` (plus one new event in `lib/analytics/events.ts` usage — no new tracking function needed, `trackEvent` is already imported and used elsewhere in this same file, e.g. line 857 for `report_preview_viewed`).
+Five small, related changes, all in `app/pricing/page.tsx` (plus one new event in `lib/analytics/events.ts` usage — no new tracking function needed, `trackEvent` is already imported and used elsewhere in this same file, e.g. line 857 for `report_preview_viewed`).
 
 ### 1. Remove the auto-redirect
 
@@ -50,23 +52,34 @@ This gives real production signal on which case is actually occurring, so the un
 
 `JSON.parse(pendingReport)` failing currently does **not** clear `sessionStorage.removeItem('pending_report')` — only the success path clears it (line 173). A corrupted value is unusable and will fail to parse again on any retry, so clear it in the `catch` block too, matching the success path's cleanup.
 
+### 5. Resume return visits via the persisted `current_report_id` (Option C)
+
+`hydrateReportFromCreateResponse` already writes `sessionStorage.setItem('current_report_id', reportData.id)` (line 217) on every successful hydration — and nothing ever reads or clears it today. Add it as a third fallback, checked after the retry window (item 2) comes up empty and before declaring failure: if `current_report_id` is present, call the existing `fetchExistingReport(id)` — the same function already used for the `reportId` URL-param flow (Option A), already proven anonymous-safe (PR #97), and already gets Task 3's `existing_report_fetch_failed` tracking and `alreadyPurchased` handling for free.
+
+**Why re-fetch instead of just not deleting `pending_report` in the first place** (the simpler-looking alternative): `pending_report` is a snapshot taken at form-submit time. If the user already purchased the report in this tab and then navigates back to `/pricing` (e.g. via browser back from checkout), a stale snapshot would show the payment buttons again — a worse bug than the one being fixed. Re-fetching via `fetchExistingReport` always asks the server for current truth, so `alreadyPurchased` is correctly detected on return visits, not just first loads.
+
+**Accepted edge case:** if a user successfully loads `/pricing` for vehicle A (setting `current_report_id`), then goes back and resubmits the form for a *different* vehicle B, and that new `pending_report` write loses the retry-window race (item 2) by more than ~1.2s, Option C would show vehicle A's stale data instead of waiting further or failing correctly. This requires two rare conditions to stack (an already-completed prior lookup in the same tab, plus a slow-than-1.2s write race) and the failure mode is mild (wrong-but-real report shown, user can just resubmit) — accepted rather than adding more machinery to prevent it.
+
 ## Out of scope
 
 - Determining the exact browser-level cause of the storage-timing race — the new diagnostic event (change 3) is how that gets answered with real data, not this design.
 - The `reportId` branch (`fetchExistingReport`)'s network-error handling logic itself — only adding the missing tracking call to its existing `else` branch, not changing its control flow.
 - The other 5 items from the same backlog batch (Zoho merge-tag bug, exit-intent popup review, cold-traffic first-visit messaging, click-tracking instrumentation gap, and this same carousel's `article_viewed` heartbeat bug) — each is a separate spec/plan cycle.
+- A second finding from the same re-review — 7 rapid `form_submitted` events in 15 seconds from one visitor on the mobile `ArticleReportBar` form, suggesting validation-failure frustration or unclear submit feedback — is unrelated to this bug and belongs in its own backlog item, not this design.
 
 ## Testing
 
 Follow `__tests__/app/pricing/page.test.tsx`'s existing conventions (`sessionStorage.setItem`/`clear` in `beforeEach`/`afterEach`, mocked `fetch`). Add cases:
 
 - `pending_report` appears on retry attempt 2 (or 3) → page hydrates normally, no error state, no `pricing_data_missing` event.
-- No data at all, even after all retries → error state renders with "Return to Homepage" button, **no navigation occurs automatically** (assert `router.push` is not called, or use fake timers and advance well past 3000ms to prove no redirect fires), and `trackEvent` was called with `reason: 'no_data_after_retry'`.
+- No data at all, even after all retries and with no `current_report_id` either → error state renders with "Return to Homepage" button, **no navigation occurs automatically** (assert `router.push` is not called, or use fake timers and advance well past 3000ms to prove no redirect fires), and `trackEvent` was called with `reason: 'no_data_after_retry'`.
 - Malformed JSON in `pending_report` → error state renders, `trackEvent` called with `reason: 'parse_error'`, and `sessionStorage.getItem('pending_report')` returns `null` afterward (proving cleanup).
 - `fetchExistingReport`'s existing failure branch (mocked non-OK response) → `trackEvent` called with `reason: 'existing_report_fetch_failed'` (new assertion on an existing test case, or a new one alongside it).
+- `current_report_id` present with no `pending_report`/`reportId` → the report loads via the preview endpoint (same as the Option A test), proving return visits work.
+- `current_report_id` present but the report was already purchased (mocked `alreadyPurchased: true`) → the existing "already purchased" UI renders, not the payment buttons.
 
 Run `npm run type-check` and `npm run test:ci` before considering this done, per this repo's standard process (`CLAUDE.md`).
 
 ## Risks
 
-Low. Pure client-side state/timing change in one page component; no schema, API contract, or payment-flow changes. The retry window adds at most ~1.2s of delay before showing a failure state that previously would have appeared immediately — acceptable since it only affects the already-broken path, and legitimate hand-offs will resolve on the first check as before.
+Low. Pure client-side state/timing change in one page component; no schema, API contract, or payment-flow changes. The retry window adds at most ~1.2s of delay before showing a failure state that previously would have appeared immediately — acceptable since it only affects the already-broken path, and legitimate hand-offs will resolve on the first check as before. Option C adds one extra network round-trip (to an endpoint already used elsewhere on this same page) only for the return-visit case that currently shows a hard error — strictly an improvement, never a regression from today's behavior.
