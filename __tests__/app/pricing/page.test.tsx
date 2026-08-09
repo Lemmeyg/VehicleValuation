@@ -285,3 +285,62 @@ describe('PricingPage — pricing_data_missing diagnostics', () => {
     expect(sessionStorage.getItem('pending_report')).toBeNull()
   })
 })
+
+describe('PricingPage — resuming a return visit via current_report_id', () => {
+  const originalFetch = global.fetch
+
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    localStorage.clear()
+    jest.clearAllMocks()
+    global.fetch = originalFetch
+  })
+
+  it('loads the report via current_report_id when pending_report is gone and no reportId is in the URL', async () => {
+    sessionStorage.setItem('current_report_id', 'r1')
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        report: {
+          id: 'r1',
+          vin: '1HGCM82633A004352',
+          mileage: 50000,
+          zip_code: '90210',
+          dealer_type: 'private',
+          vehicle_data: { year: 2019, make: 'Honda', model: 'Civic' },
+          marketcheck_valuation: null,
+        },
+      }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findByText(/2019 Honda Civic/i)).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledWith('/api/reports/r1/preview')
+  })
+
+  it('shows the already-purchased message, not payment buttons, on a return visit after purchase', async () => {
+    sessionStorage.setItem('current_report_id', 'r1')
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ alreadyPurchased: true }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findByText(/already purchased this report/i)).toBeInTheDocument()
+  })
+})

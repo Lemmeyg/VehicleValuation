@@ -207,6 +207,19 @@ function PricingContent() {
       }
     }
 
+    // Option C: resume via the persisted current_report_id (written on every
+    // successful hydration, never cleared) — covers returning to /pricing
+    // within the same tab after pending_report has already been consumed
+    // (e.g. checking the FAQ and coming back, or the browser back button).
+    // Reuses fetchExistingReport so purchased-status and pricing are always
+    // re-checked against the server rather than trusting a stale snapshot.
+    // See docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
+    const currentReportId = sessionStorage.getItem('current_report_id')
+    if (currentReportId) {
+      await fetchExistingReport(currentReportId)
+      return
+    }
+
     // No data found — show a message instead of auto-redirecting. The user
     // can return home via the button in the error state (see the render
     // branch below); do NOT re-add a redirect() or setTimeout() here — see
