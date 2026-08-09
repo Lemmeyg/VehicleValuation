@@ -208,7 +208,9 @@ function PricingContent() {
     }
 
     // Option C: resume via the persisted current_report_id (written on every
-    // successful hydration, never cleared) — covers returning to /pricing
+    // successful hydration via either Option A or Option B, and cleared on a
+    // failed fetch so a stale/broken ID doesn't get retried indefinitely) —
+    // covers returning to /pricing
     // within the same tab after pending_report has already been consumed
     // (e.g. checking the FAQ and coming back, or the browser back button).
     // Reuses fetchExistingReport so purchased-status and pricing are always
@@ -287,13 +289,14 @@ function PricingContent() {
 
   const fetchExistingReport = async (id: string) => {
     try {
-      const response = await fetch(`/api/reports/${id}/preview`)
+      const response = await fetch(`/api/reports/${encodeURIComponent(id)}/preview`)
       const data = await response.json()
 
       if (response.ok && data.alreadyPurchased) {
         setAlreadyPurchased(true)
       } else if (response.ok) {
         setReport(data.report)
+        sessionStorage.setItem('current_report_id', id)
         // Track pricing page view for existing report
         const kbAttr = getKBAttribution()
         const dripAttr = getDripAttribution()
@@ -314,6 +317,9 @@ function PricingContent() {
         trackRedditViewContent()
       } else {
         trackEvent('pricing_data_missing', { reason: 'existing_report_fetch_failed' })
+        // Clear a stale/broken current_report_id so Option C doesn't keep
+        // retrying a report that will never load again on future visits.
+        sessionStorage.removeItem('current_report_id')
         setError(data.error || 'Failed to load report')
       }
     } catch (err) {

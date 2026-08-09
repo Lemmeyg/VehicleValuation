@@ -48,6 +48,7 @@ describe('PricingPage — personalized headline', () => {
   afterEach(() => {
     sessionStorage.clear()
     jest.clearAllMocks()
+    jest.restoreAllMocks()
   })
 
   it('renders the personalized headline when vehicle data is complete', async () => {
@@ -119,6 +120,7 @@ describe('PricingPage — reportId flow via the new preview endpoint', () => {
     sessionStorage.clear()
     localStorage.clear()
     jest.clearAllMocks()
+    jest.restoreAllMocks()
     global.fetch = originalFetch
   })
 
@@ -233,6 +235,7 @@ describe('PricingPage — pending_report retry window', () => {
     jest.useRealTimers()
     sessionStorage.clear()
     jest.clearAllMocks()
+    jest.restoreAllMocks()
   })
 
   it('hydrates successfully when pending_report appears shortly after mount', async () => {
@@ -248,6 +251,10 @@ describe('PricingPage — pending_report retry window', () => {
 
     expect(await screen.findByText(/2019 Honda Civic/i)).toBeInTheDocument()
     expect(screen.queryByText(/no vehicle data found/i)).not.toBeInTheDocument()
+    // A successful hydration must never emit the pricing_data_missing
+    // diagnostic — a false positive there would corrupt the production
+    // signal this branch was built to collect.
+    expect(trackEvent).not.toHaveBeenCalledWith('pricing_data_missing', expect.anything())
   })
 })
 
@@ -260,6 +267,7 @@ describe('PricingPage — pricing_data_missing diagnostics', () => {
     jest.useRealTimers()
     sessionStorage.clear()
     jest.clearAllMocks()
+    jest.restoreAllMocks()
   })
 
   it('tracks reason: no_data_after_retry when nothing is found after retries', async () => {
@@ -298,6 +306,7 @@ describe('PricingPage — resuming a return visit via current_report_id', () => 
     sessionStorage.clear()
     localStorage.clear()
     jest.clearAllMocks()
+    jest.restoreAllMocks()
     global.fetch = originalFetch
   })
 
@@ -342,5 +351,25 @@ describe('PricingPage — resuming a return visit via current_report_id', () => 
     })
 
     expect(await screen.findByText(/already purchased this report/i)).toBeInTheDocument()
+  })
+
+  it('prefers pending_report over current_report_id when both are present', async () => {
+    // Both a valid pending_report (Option B) and a leftover current_report_id
+    // from an earlier visit (Option C) are present. Option B must win — this
+    // proves the precedence is enforced by behavior, not just code order.
+    // Note: global.fetch also gets a call to /api/auth/session from Navbar's
+    // own mount effect, unrelated to report hydration, so we assert on the
+    // specific preview URL rather than on fetch never being called at all.
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    sessionStorage.setItem('current_report_id', 'some-other-id')
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ user: null }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    expect(await screen.findByText(/2019 Honda Civic/i)).toBeInTheDocument()
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/reports/some-other-id/preview')
   })
 })
