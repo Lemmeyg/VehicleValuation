@@ -178,12 +178,12 @@ function PricingContent() {
       }
     }
 
-    // No data found - redirect to homepage
+    // No data found — show a message instead of auto-redirecting. The user
+    // can return home via the button in the error state (see the render
+    // branch below); do NOT re-add a redirect() or setTimeout() here — see
+    // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
     setError('No vehicle data found. Please submit the form on the homepage.')
     setLoading(false)
-    setTimeout(() => {
-      router.push('/')
-    }, 3000)
   }
 
   const hydrateReportFromCreateResponse = (rawReport: {

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import PricingPage from '@/app/pricing/page'
 
 const mockPush = jest.fn()
@@ -161,5 +161,36 @@ describe('PricingPage — reportId flow via the new preview endpoint', () => {
 
     expect(await screen.findByText(/already purchased this report/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /return to homepage/i })).toBeInTheDocument()
+  })
+})
+
+describe('PricingPage — no vehicle data found', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    // Reset useSearchParams mock: previous tests spy on it with mockReturnValue,
+    // and jest.clearAllMocks() alone doesn't undo those spies. This test needs
+    // the base mock (empty URLSearchParams) to trigger the no-data error path.
+    jest
+      .spyOn(jest.requireMock('next/navigation'), 'useSearchParams')
+      .mockReturnValue(new URLSearchParams())
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    jest.clearAllMocks()
+    jest.restoreAllMocks()
+  })
+
+  it('does not automatically navigate home after showing the no-data message', async () => {
+    render(<PricingPage />)
+
+    expect(await screen.findByText(/no vehicle data found/i)).toBeInTheDocument()
+
+    await act(async () => {
+      jest.advanceTimersByTime(4000)
+    })
+
+    expect(mockPush).not.toHaveBeenCalled()
   })
 })
