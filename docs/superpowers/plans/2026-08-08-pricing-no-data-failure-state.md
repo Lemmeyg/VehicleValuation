@@ -245,7 +245,7 @@ git commit -m "feat: retry pending_report lookup for up to 1.2s before showing t
 
 **Interfaces:**
 - Consumes: `trackEvent` (already imported at the top of `app/pricing/page.tsx`).
-- Produces: a new PostHog event `pricing_data_missing` with `{ reason: 'no_data_after_retry' | 'parse_error' | 'existing_report_fetch_failed' }`, fired exactly once per failure.
+- Produces: a new PostHog event `pricing_data_missing` with `{ reason: 'no_data_after_retry' | 'parse_error' | 'existing_report_fetch_failed' }`, fired exactly once per failure. Also produces a local helper `showNoVehicleDataError(reason: string): void` inside `PricingContent` — Task 4 calls this same helper from its `catch` block (unchanged) and must not reintroduce the inline `trackEvent`/`setError`/`setLoading` sequence it replaces.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -323,7 +323,18 @@ Expected: FAIL on all three — `trackEvent` is never called with `'pricing_data
 
 - [ ] **Step 3: Implement**
 
-In `app/pricing/page.tsx`, replace the block that Task 2 left in place (the `if (pendingReport) { try { ... } catch ... }` followed by the no-data fallthrough), from:
+In `app/pricing/page.tsx`, add a small helper function immediately before `initializePricingPage` is declared (so both branches below can share it instead of duplicating the `trackEvent`/`setError`/`setLoading` sequence):
+
+```ts
+  const showNoVehicleDataError = (reason: string) => {
+    trackEvent('pricing_data_missing', { reason })
+    setError('No vehicle data found. Please submit the form on the homepage.')
+    setLoading(false)
+  }
+
+```
+
+Then replace the block that Task 2 left in place (the `if (pendingReport) { try { ... } catch ... }` followed by the no-data fallthrough), from:
 
 ```ts
     if (pendingReport) {
@@ -358,9 +369,7 @@ with:
       } catch (err) {
         console.error('[PricingPage] pending_report parse error:', err)
         sessionStorage.removeItem('pending_report')
-        trackEvent('pricing_data_missing', { reason: 'parse_error' })
-        setError('No vehicle data found. Please submit the form on the homepage.')
-        setLoading(false)
+        showNoVehicleDataError('parse_error')
         return
       }
     }
@@ -369,9 +378,7 @@ with:
     // can return home via the button in the error state (see the render
     // branch below); do NOT re-add a redirect() or setTimeout() here — see
     // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
-    trackEvent('pricing_data_missing', { reason: 'no_data_after_retry' })
-    setError('No vehicle data found. Please submit the form on the homepage.')
-    setLoading(false)
+    showNoVehicleDataError('no_data_after_retry')
   }
 ```
 
@@ -415,7 +422,7 @@ git commit -m "feat: track pricing_data_missing with a reason across all three /
 - Test: `__tests__/app/pricing/page.test.tsx`
 
 **Interfaces:**
-- Consumes: `fetchExistingReport(id: string): Promise<void>` (already defined in this file, used today by the `reportId` URL-param flow / Option A).
+- Consumes: `fetchExistingReport(id: string): Promise<void>` (already defined in this file, used today by the `reportId` URL-param flow / Option A). Also consumes `showNoVehicleDataError(reason: string): void`, the helper Task 3 introduced — reuse it verbatim in the unchanged `catch` block; do not reintroduce inline `trackEvent`/`setError`/`setLoading` duplication.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -503,9 +510,7 @@ In `app/pricing/page.tsx`, insert a new branch between the `if (pendingReport) {
       } catch (err) {
         console.error('[PricingPage] pending_report parse error:', err)
         sessionStorage.removeItem('pending_report')
-        trackEvent('pricing_data_missing', { reason: 'parse_error' })
-        setError('No vehicle data found. Please submit the form on the homepage.')
-        setLoading(false)
+        showNoVehicleDataError('parse_error')
         return
       }
     }
@@ -514,9 +519,7 @@ In `app/pricing/page.tsx`, insert a new branch between the `if (pendingReport) {
     // can return home via the button in the error state (see the render
     // branch below); do NOT re-add a redirect() or setTimeout() here — see
     // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
-    trackEvent('pricing_data_missing', { reason: 'no_data_after_retry' })
-    setError('No vehicle data found. Please submit the form on the homepage.')
-    setLoading(false)
+    showNoVehicleDataError('no_data_after_retry')
   }
 ```
 
@@ -532,9 +535,7 @@ to:
       } catch (err) {
         console.error('[PricingPage] pending_report parse error:', err)
         sessionStorage.removeItem('pending_report')
-        trackEvent('pricing_data_missing', { reason: 'parse_error' })
-        setError('No vehicle data found. Please submit the form on the homepage.')
-        setLoading(false)
+        showNoVehicleDataError('parse_error')
         return
       }
     }
@@ -556,9 +557,7 @@ to:
     // can return home via the button in the error state (see the render
     // branch below); do NOT re-add a redirect() or setTimeout() here — see
     // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
-    trackEvent('pricing_data_missing', { reason: 'no_data_after_retry' })
-    setError('No vehicle data found. Please submit the form on the homepage.')
-    setLoading(false)
+    showNoVehicleDataError('no_data_after_retry')
   }
 ```
 
