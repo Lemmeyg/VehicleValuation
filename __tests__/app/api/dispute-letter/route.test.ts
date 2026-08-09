@@ -109,11 +109,12 @@ describe('POST /api/dispute-letter', () => {
     expect(body.error).toContain('hello@totallosstoolkit.com')
   })
 
-  it('returns 429 after 3 requests from same IP within window', async () => {
-    await POST(makeRequest({ email: 'a@example.com' }, '5.5.5.5'))
-    await POST(makeRequest({ email: 'b@example.com' }, '5.5.5.5'))
-    await POST(makeRequest({ email: 'c@example.com' }, '5.5.5.5'))
-    const res = await POST(makeRequest({ email: 'd@example.com' }, '5.5.5.5'))
+  it('returns 429 after 20 requests from same IP within window', async () => {
+    // Route's RATE_LIMIT_MAX is 20 requests per hour (see app/api/dispute-letter/route.ts)
+    for (let i = 0; i < 20; i++) {
+      await POST(makeRequest({ email: `user${i}@example.com` }, '5.5.5.5'))
+    }
+    const res = await POST(makeRequest({ email: 'one-too-many@example.com' }, '5.5.5.5'))
     expect(res.status).toBe(429)
   })
 

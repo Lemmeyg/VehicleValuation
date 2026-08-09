@@ -20,7 +20,8 @@ interface MagicLinkRequest {
 export async function POST(request: Request) {
   try {
     const body: MagicLinkRequest = await request.json()
-    const { email, reportId } = body
+    const { email: rawEmail, reportId } = body
+    const email = rawEmail?.trim().toLowerCase()
 
     console.log('[magic-link] Request received:', { email, reportId })
 
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
-      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid email address format' }, { status: 400 })
     }
 
     // Derive callback base URL from the request's actual host first — Vercel's
