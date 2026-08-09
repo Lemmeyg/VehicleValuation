@@ -16,6 +16,8 @@
 - Run `npm run type-check` and `npm run test:ci` before considering this done, per this repo's standard process (`CLAUDE.md`).
 - Spec: `docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md`.
 
+**Known, accepted limitation:** the retry loop in Task 2 has no unmount/cancellation guard. If a user navigates away from `/pricing` while a retry is still in flight (within ~1.2s of landing), the loop keeps running in the background and can fire a false-positive `pricing_data_missing` event for a user who simply left, not one who hit the bug. This is not a functional bug — React 19 makes state updates on an unmounted component a safe no-op, and the existing code already relies on this elsewhere (e.g. `fetchExistingReport`'s fetch has no unmount guard either). A correct fix (an incrementing "epoch" ref, checked at each resume point, to survive React StrictMode's dev-only mount→cleanup→remount cycle without falsely cancelling the real run) was considered and explicitly deferred as unnecessary complexity for a dev-only interaction with zero production impact. Revisit only if the diagnostic event's false-positive rate turns out to matter in practice.
+
 ---
 
 ### Task 1: Remove the auto-redirect timer
