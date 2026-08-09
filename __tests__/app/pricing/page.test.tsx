@@ -185,12 +185,50 @@ describe('PricingPage — no vehicle data found', () => {
   it('does not automatically navigate home after showing the no-data message', async () => {
     render(<PricingPage />)
 
-    expect(await screen.findByText(/no vehicle data found/i)).toBeInTheDocument()
+    // The pending_report retry window (Task 2) can take up to 1.2s
+    // (MAX_PENDING_REPORT_RETRIES * PENDING_REPORT_RETRY_DELAY_MS) before the
+    // no-data message appears. With jest.useFakeTimers() active, RTL's
+    // waitFor schedules its own default 1000ms timeout on the same faked
+    // clock and advances it in lockstep with its polling — so the default
+    // findByText timeout is a *fake-time* budget, not a real-time one, and
+    // 1000ms is no longer enough headroom for the up-to-1.2s retry path.
+    // Widen it so this assertion reflects the new legitimate delay rather
+    // than racing it.
+    expect(
+      await screen.findByText(/no vehicle data found/i, {}, { timeout: 2000 })
+    ).toBeInTheDocument()
 
     await act(async () => {
       jest.advanceTimersByTime(4000)
     })
 
     expect(mockPush).not.toHaveBeenCalled()
+  })
+})
+
+describe('PricingPage — pending_report retry window', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    jest.clearAllMocks()
+  })
+
+  it('hydrates successfully when pending_report appears shortly after mount', async () => {
+    render(<PricingPage />)
+
+    // Simulates Hero.tsx's sessionStorage write landing just after this
+    // page's first check — the suspected production race.
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findByText(/2019 Honda Civic/i)).toBeInTheDocument()
+    expect(screen.queryByText(/no vehicle data found/i)).not.toBeInTheDocument()
   })
 })

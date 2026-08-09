@@ -113,6 +113,13 @@ interface Report {
   }
 }
 
+const PENDING_REPORT_RETRY_DELAY_MS = 400
+const MAX_PENDING_REPORT_RETRIES = 3
+
+function wait(ms: number) {
+  return new Promise<void>(resolve => setTimeout(resolve, ms))
+}
+
 function PricingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -166,7 +173,20 @@ function PricingContent() {
     // Option B: report was already created server-side at form-submit time
     // (Hero.tsx / ArticleReportBar.tsx) — this is a same-tab sessionStorage
     // hand-off, not a fresh create-anonymous call.
-    const pendingReport = sessionStorage.getItem('pending_report')
+    //
+    // Retry a few times before giving up: Hero.tsx writes sessionStorage
+    // synchronously right before navigating here, so this should already be
+    // present, but a timing race (particularly on iOS Safari) has been
+    // observed in production. See
+    // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
+    let pendingReport = sessionStorage.getItem('pending_report')
+    let retries = 0
+    while (!pendingReport && retries < MAX_PENDING_REPORT_RETRIES) {
+      await wait(PENDING_REPORT_RETRY_DELAY_MS)
+      pendingReport = sessionStorage.getItem('pending_report')
+      retries++
+    }
+
     if (pendingReport) {
       try {
         const rawReport = JSON.parse(pendingReport)
