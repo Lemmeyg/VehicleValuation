@@ -120,10 +120,11 @@ describe('Rate Limit', () => {
 
   describe('Time-based expiration', () => {
     it('should reset limit after interval expires', async () => {
-      jest.useFakeTimers()
-
+      // Uses a real (short) interval rather than fake timers — lru-cache's TTL
+      // tracking reads the system clock directly, which jest's fake timers
+      // don't intercept, so advanceTimersByTime never actually expires the entry.
       const limiter = rateLimit({
-        interval: 1000, // 1 second for testing
+        interval: 100, // 100ms for testing
         uniqueTokenPerInterval: 500,
       })
 
@@ -134,13 +135,11 @@ describe('Rate Limit', () => {
       await limiter.check(request, 2)
       await expect(limiter.check(request, 2)).rejects.toThrow()
 
-      // Advance time past interval
-      jest.advanceTimersByTime(1100)
+      // Wait past interval
+      await new Promise(resolve => setTimeout(resolve, 150))
 
       // Should be able to make requests again
       await expect(limiter.check(request, 2)).resolves.toBeUndefined()
-
-      jest.useRealTimers()
     })
   })
 

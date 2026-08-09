@@ -54,7 +54,7 @@ export function rateLimit(options?: Options) {
         tokenCount[0] += 1
 
         const currentUsage = tokenCount[0]
-        const isRateLimited = currentUsage >= limit
+        const isRateLimited = currentUsage > limit
 
         if (isRateLimited) {
           reject(new Error('Rate limit exceeded'))
