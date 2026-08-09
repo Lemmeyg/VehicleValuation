@@ -1,5 +1,6 @@
 import { render, screen, act } from '@testing-library/react'
 import PricingPage from '@/app/pricing/page'
+import { trackEvent } from '@/lib/analytics/events'
 
 const mockPush = jest.fn()
 
@@ -162,6 +163,23 @@ describe('PricingPage — reportId flow via the new preview endpoint', () => {
     expect(await screen.findByText(/already purchased this report/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /return to homepage/i })).toBeInTheDocument()
   })
+
+  it('tracks reason: existing_report_fetch_failed when the preview endpoint fails', async () => {
+    jest
+      .spyOn(jest.requireMock('next/navigation'), 'useSearchParams')
+      .mockReturnValue(new URLSearchParams('reportId=r1'))
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Report not found' }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    expect(await screen.findByText(/report not found/i)).toBeInTheDocument()
+    expect(trackEvent).toHaveBeenCalledWith('pricing_data_missing', {
+      reason: 'existing_report_fetch_failed',
+    })
+  })
 })
 
 describe('PricingPage — no vehicle data found', () => {
@@ -230,5 +248,40 @@ describe('PricingPage — pending_report retry window', () => {
 
     expect(await screen.findByText(/2019 Honda Civic/i)).toBeInTheDocument()
     expect(screen.queryByText(/no vehicle data found/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('PricingPage — pricing_data_missing diagnostics', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    jest.clearAllMocks()
+  })
+
+  it('tracks reason: no_data_after_retry when nothing is found after retries', async () => {
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    expect(await screen.findByText(/no vehicle data found/i)).toBeInTheDocument()
+    expect(trackEvent).toHaveBeenCalledWith('pricing_data_missing', {
+      reason: 'no_data_after_retry',
+    })
+  })
+
+  it('tracks reason: parse_error and clears the corrupted key when pending_report is malformed', async () => {
+    sessionStorage.setItem('pending_report', '{not valid json')
+
+    render(<PricingPage />)
+
+    expect(await screen.findByText(/no vehicle data found/i)).toBeInTheDocument()
+    expect(trackEvent).toHaveBeenCalledWith('pricing_data_missing', { reason: 'parse_error' })
+    expect(sessionStorage.getItem('pending_report')).toBeNull()
   })
 })

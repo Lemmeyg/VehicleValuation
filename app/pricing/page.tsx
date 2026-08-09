@@ -156,6 +156,12 @@ function PricingContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const showNoVehicleDataError = (reason: string) => {
+    trackEvent('pricing_data_missing', { reason })
+    setError('No vehicle data found. Please submit the form on the homepage.')
+    setLoading(false)
+  }
+
   const initializePricingPage = async () => {
     const utmSource = searchParams?.get('utm_source')
     const utmMedium = searchParams?.get('utm_medium')
@@ -195,6 +201,9 @@ function PricingContent() {
         return
       } catch (err) {
         console.error('[PricingPage] pending_report parse error:', err)
+        sessionStorage.removeItem('pending_report')
+        showNoVehicleDataError('parse_error')
+        return
       }
     }
 
@@ -202,8 +211,7 @@ function PricingContent() {
     // can return home via the button in the error state (see the render
     // branch below); do NOT re-add a redirect() or setTimeout() here — see
     // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
-    setError('No vehicle data found. Please submit the form on the homepage.')
-    setLoading(false)
+    showNoVehicleDataError('no_data_after_retry')
   }
 
   const hydrateReportFromCreateResponse = (rawReport: {
@@ -292,6 +300,7 @@ function PricingContent() {
         })
         trackRedditViewContent()
       } else {
+        trackEvent('pricing_data_missing', { reason: 'existing_report_fetch_failed' })
         setError(data.error || 'Failed to load report')
       }
     } catch (err) {
