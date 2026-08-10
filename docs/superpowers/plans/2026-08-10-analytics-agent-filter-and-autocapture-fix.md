@@ -228,6 +228,8 @@ git commit -m "feat: track FAQ accordion open/close on mobile pricing view"
 - Consumes: `trackButtonClick` from `lib/analytics/events.ts` (already imported in `page.tsx`) and, in `MobilePricingView.tsx` / its test file, the import and mock entry Task 2 adds — **this task must run after Task 2**, not in parallel with it, since both touch the same production file and the same test file's module mock. If for some reason Task 2 hasn't landed yet, add its Step 1 mock update and Step 3 import change first.
 - Produces: nothing consumed by other tasks
 
+**Discovered during implementation, resolved before writing this section:** `components/ExitIntentPopup.tsx` installs a `document`-level **capture-phase** `click` listener that calls `stopPropagation()` on nearly every `<a href>` click on this page (to intercept it and show the discount popup before navigating) — including these guarantee links, since they're plain anchors with no `data-buy-cta` escape hatch. Per DOM event order, a capture-phase `stopPropagation()` prevents the event from ever reaching a bubble-phase `onClick` — this is real in production, not a test artifact. The "Purchase Now" `<button>` is unaffected (the interceptor only walks up to `<a>` ancestors). Resolution (confirmed with the human partner): track the two "Full terms" links on **`mousedown`** instead of `onClick` — it fires before the `click` event the interceptor swallows, and doesn't change any existing behavior (the popup still shows on click, same as today). Trade-off accepted: this misses keyboard-only (Enter-key) activation of the link, and would fire on any mouse button unless guarded — guard it to the primary button only (`e.button === 0`), matching the same guard `ExitIntentPopup.tsx`'s own handler already uses. Do **not** add a `data-buy-cta` exemption or otherwise change `ExitIntentPopup.tsx`'s interception behavior as part of this task — that would be a real product-behavior change requiring its own decision, not a tracking fix.
+
 - [ ] **Step 1: Write the failing tests**
 
 In `__tests__/app/pricing/page.test.tsx`, add a new `describe` block (the file already mocks `trackButtonClick` in its top-level `jest.mock('@/lib/analytics/events', ...)` — no mock changes needed here). This test reuses the same report-hydration setup pattern as the existing `'PricingPage — desktop/mobile split'` describe block (see that block's `beforeEach` for the `setPendingReport` + render + `waitFor` pattern):
@@ -246,26 +248,28 @@ describe('PricingPage — guarantee link tracking', () => {
     jest.clearAllMocks()
   })
 
-  it('tracks guarantee_full_terms_link with viewport: desktop when the desktop link is clicked', async () => {
+  it('tracks guarantee_full_terms_link with viewport: desktop when the desktop link is pressed', async () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
 
     // Both the desktop (page.tsx) and mobile (MobilePricingView) trees render
     // simultaneously in jsdom (CSS hiding isn't enforced) — the desktop one is first.
+    // Tracked on mousedown, not click — see the "Discovered during implementation"
+    // note above the Interfaces block for why.
     const links = await screen.findAllByText(/full terms/i)
-    fireEvent.click(links[0])
+    fireEvent.mouseDown(links[0])
 
     expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_link', {
       viewport: 'desktop',
     })
   })
 
-  it('tracks guarantee_full_terms_link with viewport: mobile when the mobile link is clicked', async () => {
+  it('tracks guarantee_full_terms_link with viewport: mobile when the mobile link is pressed', async () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
 
     const links = await screen.findAllByText(/full terms/i)
-    fireEvent.click(links[1])
+    fireEvent.mouseDown(links[1])
 
     expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_link', {
       viewport: 'mobile',
@@ -302,7 +306,7 @@ In `__tests__/components/pricing/MobilePricingView.test.tsx`, add one more test 
     expect(trackButtonClick).toHaveBeenCalledWith('guarantee_banner_purchase_now')
   })
 
-  it('tracks guarantee_full_terms_link with viewport: mobile when its own "Full terms" link is clicked', () => {
+  it('tracks guarantee_full_terms_link with viewport: mobile when its own "Full terms" link is pressed', () => {
     render(
       <MobilePricingView
         vehicleData={null}
@@ -311,10 +315,26 @@ In `__tests__/components/pricing/MobilePricingView.test.tsx`, add one more test 
         processingPayment={false}
       />
     )
-    fireEvent.click(screen.getByText(/full terms/i))
+    fireEvent.mouseDown(screen.getByText(/full terms/i))
     expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_link', {
       viewport: 'mobile',
     })
+  })
+
+  it('does not track guarantee_full_terms_link on a non-primary mouse button', () => {
+    render(
+      <MobilePricingView
+        vehicleData={null}
+        tiers={PRICING_TIERS}
+        onSelectPlan={onSelectPlan}
+        processingPayment={false}
+      />
+    )
+    fireEvent.mouseDown(screen.getByText(/full terms/i), { button: 2 })
+    expect(trackButtonClick).not.toHaveBeenCalledWith(
+      'guarantee_full_terms_link',
+      expect.anything()
+    )
   })
 ```
 
@@ -343,7 +363,11 @@ to:
 ```tsx
                 <a
                   href="/guarantee"
-                  onClick={() => trackButtonClick('guarantee_full_terms_link', { viewport: 'desktop' })}
+                  onMouseDown={e => {
+                    if (e.button === 0) {
+                      trackButtonClick('guarantee_full_terms_link', { viewport: 'desktop' })
+                    }
+                  }}
                   className="flex-shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 transition-colors"
                 >
                   Full terms →
@@ -375,7 +399,11 @@ to:
 ```tsx
           <a
             href="/guarantee"
-            onClick={() => trackButtonClick('guarantee_full_terms_link', { viewport: 'mobile' })}
+            onMouseDown={e => {
+              if (e.button === 0) {
+                trackButtonClick('guarantee_full_terms_link', { viewport: 'mobile' })
+              }
+            }}
             className="text-sm font-semibold text-white underline underline-offset-2"
           >
             Full terms →
