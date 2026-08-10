@@ -12,7 +12,7 @@ import {
   Quote,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { trackEvent } from '@/lib/analytics/events'
+import { trackEvent, trackButtonClick } from '@/lib/analytics/events'
 import {
   getPersonalizedVehicleLabel,
   type PersonalizationVehicleData,
@@ -245,7 +245,13 @@ export default function MobilePricingView({
               >
                 <button
                   type="button"
-                  onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                  onClick={() => {
+                    trackButtonClick('pricing_faq_toggled', {
+                      question: item.question,
+                      action: isOpen ? 'close' : 'open',
+                    })
+                    setOpenFaqIndex(isOpen ? null : index)
+                  }}
                   aria-expanded={isOpen}
                   className="flex w-full items-center justify-between gap-2 p-4 text-left hover:bg-slate-50"
                 >
@@ -280,15 +286,21 @@ export default function MobilePricingView({
           </p>
           <a
             href="/guarantee"
+            onMouseDown={e => {
+              if (e.button === 0) {
+                trackButtonClick('guarantee_full_terms_clicked', { viewport: 'mobile' })
+              }
+            }}
             className="text-sm font-semibold text-white underline underline-offset-2"
           >
             Full terms →
           </a>
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              trackButtonClick('guarantee_purchase_now_clicked')
               premiumCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            }
+            }}
             className="w-full rounded-xl bg-white px-6 py-3.5 font-bold text-primary-600 shadow-lg transition-transform active:scale-95"
           >
             Purchase Now

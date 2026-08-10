@@ -63,3 +63,26 @@ describe('PostHogProvider — Vercel preview filter', () => {
     expect(mockPosthog.init).toHaveBeenCalled()
   })
 })
+
+describe('PostHogProvider — autocapture config', () => {
+  it('does not restrict autocapture to a url_allowlist, so it runs on every production URL', () => {
+    process.env.NEXT_PUBLIC_VERCEL_ENV = 'production'
+
+    render(<PostHogProvider>child</PostHogProvider>)
+
+    const [, options] = mockPosthog.init.mock.calls[0] as [
+      string,
+      { autocapture: Record<string, unknown> },
+    ]
+    expect(options.autocapture).not.toHaveProperty('url_allowlist')
+    expect(options.autocapture.dom_event_allowlist).toEqual(['click', 'change', 'submit'])
+    expect(options.autocapture.element_allowlist).toEqual([
+      'a',
+      'button',
+      'form',
+      'input',
+      'select',
+      'textarea',
+    ])
+  })
+})

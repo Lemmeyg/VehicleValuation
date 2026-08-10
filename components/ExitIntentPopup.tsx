@@ -148,9 +148,9 @@ export default function ExitIntentPopup({
     }
   }, [vin, reportId])
 
-  const handleDismiss = () => {
+  const handleDismiss = (method: 'close_button' | 'decline_link') => {
     setVisible(false)
-    trackEvent('exit_intent_popup_dismissed', { reportId, vin })
+    trackEvent('exit_intent_popup_dismissed', { reportId, vin, dismiss_method: method })
     if (isBackButtonRef.current) {
       router.back()
     } else if (pendingHrefRef.current) {
@@ -159,7 +159,7 @@ export default function ExitIntentPopup({
   }
 
   const handleCTA = () => {
-    trackEvent('exit_intent_popup_converted', { reportId, vin })
+    trackEvent('exit_intent_popup_converted', { reportId, vin, discount_code: DISCOUNT_CODE })
     onSelectPlan(DISCOUNT_CODE)
     setVisible(false)
   }
@@ -176,7 +176,7 @@ export default function ExitIntentPopup({
         onClick={e => e.stopPropagation()}
       >
         <button
-          onClick={handleDismiss}
+          onClick={() => handleDismiss('close_button')}
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
           aria-label="Close"
         >
@@ -214,7 +214,7 @@ export default function ExitIntentPopup({
           </button>
 
           <button
-            onClick={handleDismiss}
+            onClick={() => handleDismiss('decline_link')}
             className="mt-3 text-sm text-slate-400 hover:text-slate-600 transition-colors underline underline-offset-2"
           >
             No thanks, I&apos;ll take what the insurance company offers

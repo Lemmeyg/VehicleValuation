@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import ExitIntentPopup from '@/components/ExitIntentPopup'
+import { trackEvent } from '@/lib/analytics/events'
 
 const mockPush = jest.fn()
 const mockBack = jest.fn()
@@ -138,6 +139,23 @@ describe('ExitIntentPopup — CTA action', () => {
     fireEvent.click(screen.getByRole('button', { name: /get my report/i }))
     expect(mockSelectPlan).toHaveBeenCalledWith('STAY15')
   })
+
+  it('tracks exit_intent_popup_converted with the discount code', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    fireEvent.click(screen.getByRole('button', { name: /get my report/i }))
+
+    expect(trackEvent).toHaveBeenCalledWith('exit_intent_popup_converted', {
+      reportId: 'r1',
+      vin: '1HGCM82633A123456',
+      discount_code: 'STAY15',
+    })
+  })
 })
 
 describe('ExitIntentPopup — dismiss behaviour', () => {
@@ -172,6 +190,40 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
     expect(mockPush).toHaveBeenCalledWith('/home')
+  })
+
+  it('tracks exit_intent_popup_dismissed with dismiss_method: close_button for the X button', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+
+    expect(trackEvent).toHaveBeenCalledWith('exit_intent_popup_dismissed', {
+      reportId: 'r1',
+      vin: '1HGCM82633A123456',
+      dismiss_method: 'close_button',
+    })
+  })
+
+  it('tracks exit_intent_popup_dismissed with dismiss_method: decline_link for the "No thanks" link', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    fireEvent.click(screen.getByText(/no thanks, i'll take what the insurance company offers/i))
+
+    expect(trackEvent).toHaveBeenCalledWith('exit_intent_popup_dismissed', {
+      reportId: 'r1',
+      vin: '1HGCM82633A123456',
+      dismiss_method: 'decline_link',
+    })
   })
 })
 

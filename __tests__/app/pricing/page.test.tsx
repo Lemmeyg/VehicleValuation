@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import PricingPage from '@/app/pricing/page'
 import { toast } from 'sonner'
-import { trackEvent } from '@/lib/analytics/events'
+import { trackEvent, trackButtonClick } from '@/lib/analytics/events'
 
 const mockPush = jest.fn()
 
@@ -483,6 +483,61 @@ describe('PricingPage — desktop/mobile split', () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
     expect(await screen.findAllByText('Get Premium Report — $25')).toHaveLength(2) // one desktop, one mobile
+  })
+})
+
+describe('PricingPage — guarantee link tracking', () => {
+  beforeEach(() => {
+    // Same jest.restoreAllMocks() guard as the "desktop/mobile split" block above —
+    // undoes any leaked useSearchParams spyOn override from an earlier-run block so
+    // this block always gets the default `() => new URLSearchParams()` mock.
+    jest.restoreAllMocks()
+  })
+
+  afterEach(() => {
+    sessionStorage.clear()
+    jest.clearAllMocks()
+  })
+
+  it('tracks guarantee_full_terms_clicked with viewport: desktop when the desktop link is pressed', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+
+    // Both the desktop (page.tsx) and mobile (MobilePricingView) trees render
+    // simultaneously in jsdom (CSS hiding isn't enforced) — the desktop one is first.
+    // Tracked on mousedown, not click — see the "Discovered during implementation"
+    // note above the Interfaces block for why.
+    const links = await screen.findAllByText(/full terms/i)
+    fireEvent.mouseDown(links[0])
+
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_clicked', {
+      viewport: 'desktop',
+    })
+  })
+
+  it('tracks guarantee_full_terms_clicked with viewport: mobile when the mobile link is pressed', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+
+    const links = await screen.findAllByText(/full terms/i)
+    fireEvent.mouseDown(links[1])
+
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_clicked', {
+      viewport: 'mobile',
+    })
+  })
+
+  it('does not track guarantee_full_terms_clicked on a non-primary mouse button (desktop link)', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+
+    const links = await screen.findAllByText(/full terms/i)
+    fireEvent.mouseDown(links[0], { button: 2 })
+
+    expect(trackButtonClick).not.toHaveBeenCalledWith(
+      'guarantee_full_terms_clicked',
+      expect.anything()
+    )
   })
 })
 
