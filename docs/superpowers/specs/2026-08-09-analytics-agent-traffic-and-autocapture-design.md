@@ -1,0 +1,70 @@
+# Analytics data quality: agent-traffic filtering + autocapture repair
+
+**Date:** 2026-08-09
+**Backlog items:** BL-4 (filter Claude/agent traffic), BL-7 (near-zero autocapture click data)
+**Status:** Approved
+
+## Problem
+
+Two related PostHog data-quality gaps were flagged by the session-replay review on 2026-08-08:
+
+1. **BL-4** — 4 sessions / 23 events over 4 days carry a `Claude/` or `Electron` user agent (AI browsing agents, not real visitors), polluting analytics.
+2. **BL-7** — `$autocapture` fires 0–1 times per session across all 5 reviewed sessions, despite autocapture being enabled project-wide. This starves both this kind of manual analysis and PostHog's rage-click/dead-click detection.
+
+## Root cause findings
+
+**BL-4:** PostHog already computes a traffic classification from the user agent — `$virt_is_bot` (boolean) and `$virt_traffic_type` (`Regular` / `Bot` / `AI Agent` / `Automation` / ...). Querying real events confirmed the flagged Claude Desktop sessions come back with `$virt_traffic_type = 'AI Agent'` and `$virt_is_bot = true`, computed automatically — no manual UA regex needed.
+
+**BL-7:** `app/providers/posthog-provider.tsx` configures autocapture with:
+```js
+autocapture: {
+  dom_event_allowlist: ['click', 'change', 'submit'],
+  url_allowlist: ['localhost', 'vehicle-valuation'],
+  element_allowlist: ['a', 'button', 'form', 'input', 'select', 'textarea'],
+},
+```
+`url_allowlist` is a regex allowlist — pages only get autocapture if their URL contains one of those substrings. Production is `www.totallosstoolkit.com`, which matches neither. Querying 30 days of `$autocapture` events confirmed this: the overwhelming majority came from `*.vercel.app` preview-deployment URLs (subdomain contains "vehicle-valuation") plus one production KB article whose slug happens to contain the literal string "vehicle-valuation" (67 events). Nearly every other production page got zero. This is a stale leftover from the project's early working name, not a capacity/sampling issue.
+
+Also found: PostHog's `capture_dead_clicks` project setting (rage/dead-click detection) is currently `false` — off, not just data-starved.
+
+Also found, **out of scope for this work** (filed separately as BL-103): the `NEXT_PUBLIC_VERCEL_ENV === 'preview'` guard meant to stop PostHog from loading on Vercel preview deployments isn't effectively working — most `$autocapture` volume in the last 30 days came from preview URLs, meaning the SDK initializes there despite the guard.
+
+## Design
+
+### BL-4: PostHog project settings (no code change)
+
+Add one condition to the project's `test_account_filters` (Project Settings → "Filter out internal and test users"), alongside the existing `$host` localhost filter. These filters apply literally as "keep this" conditions when the toggle is on (confirmed via PostHog docs — not an inverted/negated group), matching the existing entry's pattern:
+
+```
+key: $virt_is_bot
+type: event
+operator: is_not
+value: ["true"]
+```
+
+Applied via the PostHog MCP (`project-settings-update`), verified by re-querying the previously-flagged Claude Desktop session with `filter_test_accounts` semantics and confirming it's excluded.
+
+No git changes. `backlog.md` moves BL-4 to Delivered once verified.
+
+### BL-7: website code changes (feature branch + PR)
+
+All in the `Vehicle Comparison Site` repo, on a new branch off `main`:
+
+1. **`app/providers/posthog-provider.tsx`** — remove the `url_allowlist` key from the `autocapture` config entirely (unset = capture on all URLs, per posthog-js default). `dom_event_allowlist` and `element_allowlist` continue to scope which DOM events/elements get captured.
+2. **PostHog project setting** — set `capture_dead_clicks: true` via the MCP (same settings object BL-4 touches, different field). Not a code change.
+3. **`app/pricing/page.tsx`** — add two `trackButtonClick()` calls (existing helper in `lib/analytics/events.ts`, no new tracking pattern):
+   - Mobile "See/Hide details" toggle per pricing card: `trackButtonClick('pricing_card_details_toggle', { tier: tier.id, action: isExpanded ? 'hide' : 'show' })`
+   - Guarantee "Full terms →" link: `trackButtonClick('guarantee_full_terms_link')`
+
+   The main "Get Basic/Premium Report" CTA is already tracked via `checkout_initiated` in `handleSelectPlan` — no change needed there. No FAQ section exists on the pricing page yet (that's the separate open BL-32), so nothing to instrument there.
+
+### Testing
+
+- Unit/existing test suite (`npm run test:ci`) must still pass — no behavior change to component logic beyond adding tracking calls and removing a config key.
+- Manual verification: load the production Vercel preview for the branch, open browser dev tools network tab, confirm `$autocapture` events fire on click for elements outside "vehicle-valuation"-containing URLs, and confirm the two new `button_clicked` events fire with correct properties.
+- Post-merge: re-check `$autocapture` volume in PostHog over the following few days to confirm it's no longer nearly zero on production hosts.
+
+### Out of scope
+
+- BL-103 (new): fix the non-working `NEXT_PUBLIC_VERCEL_ENV` preview guard so PostHog stops initializing on Vercel preview deployments. Filed to `backlog.md`, not implemented here.
+- BL-32 (existing, open): building a pricing-page FAQ section — once it exists, its accordion should get the same explicit click treatment as the rest of this page.
