@@ -288,7 +288,7 @@ export default function MobilePricingView({
             href="/guarantee"
             onMouseDown={e => {
               if (e.button === 0) {
-                trackButtonClick('guarantee_full_terms_link', { viewport: 'mobile' })
+                trackButtonClick('guarantee_full_terms_clicked', { viewport: 'mobile' })
               }
             }}
             className="text-sm font-semibold text-white underline underline-offset-2"
@@ -298,7 +298,7 @@ export default function MobilePricingView({
           <button
             type="button"
             onClick={() => {
-              trackButtonClick('guarantee_banner_purchase_now')
+              trackButtonClick('guarantee_purchase_now_clicked')
               premiumCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
             }}
             className="w-full rounded-xl bg-white px-6 py-3.5 font-bold text-primary-600 shadow-lg transition-transform active:scale-95"

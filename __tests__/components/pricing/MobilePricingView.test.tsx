@@ -136,7 +136,7 @@ describe('MobilePricingView', () => {
     })
   })
 
-  it('tracks guarantee_banner_purchase_now when "Purchase Now" is clicked', () => {
+  it('tracks guarantee_purchase_now_clicked when "Purchase Now" is clicked', () => {
     render(
       <MobilePricingView
         vehicleData={null}
@@ -146,10 +146,10 @@ describe('MobilePricingView', () => {
       />
     )
     fireEvent.click(screen.getByRole('button', { name: /purchase now/i }))
-    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_banner_purchase_now')
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_purchase_now_clicked')
   })
 
-  it('tracks guarantee_full_terms_link with viewport: mobile when its own "Full terms" link is pressed', () => {
+  it('tracks guarantee_full_terms_clicked with viewport: mobile when its own "Full terms" link is pressed', () => {
     render(
       <MobilePricingView
         vehicleData={null}
@@ -159,12 +159,12 @@ describe('MobilePricingView', () => {
       />
     )
     fireEvent.mouseDown(screen.getByText(/full terms/i))
-    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_link', {
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_clicked', {
       viewport: 'mobile',
     })
   })
 
-  it('does not track guarantee_full_terms_link on a non-primary mouse button', () => {
+  it('does not track guarantee_full_terms_clicked on a non-primary mouse button', () => {
     render(
       <MobilePricingView
         vehicleData={null}
@@ -175,7 +175,7 @@ describe('MobilePricingView', () => {
     )
     fireEvent.mouseDown(screen.getByText(/full terms/i), { button: 2 })
     expect(trackButtonClick).not.toHaveBeenCalledWith(
-      'guarantee_full_terms_link',
+      'guarantee_full_terms_clicked',
       expect.anything()
     )
   })

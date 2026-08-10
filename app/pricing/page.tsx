@@ -849,7 +849,7 @@ function PricingContent() {
                   href="/guarantee"
                   onMouseDown={e => {
                     if (e.button === 0) {
-                      trackButtonClick('guarantee_full_terms_link', { viewport: 'desktop' })
+                      trackButtonClick('guarantee_full_terms_clicked', { viewport: 'desktop' })
                     }
                   }}
                   className="flex-shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 transition-colors"

@@ -499,7 +499,7 @@ describe('PricingPage — guarantee link tracking', () => {
     jest.clearAllMocks()
   })
 
-  it('tracks guarantee_full_terms_link with viewport: desktop when the desktop link is pressed', async () => {
+  it('tracks guarantee_full_terms_clicked with viewport: desktop when the desktop link is pressed', async () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
 
@@ -510,21 +510,34 @@ describe('PricingPage — guarantee link tracking', () => {
     const links = await screen.findAllByText(/full terms/i)
     fireEvent.mouseDown(links[0])
 
-    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_link', {
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_clicked', {
       viewport: 'desktop',
     })
   })
 
-  it('tracks guarantee_full_terms_link with viewport: mobile when the mobile link is pressed', async () => {
+  it('tracks guarantee_full_terms_clicked with viewport: mobile when the mobile link is pressed', async () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
 
     const links = await screen.findAllByText(/full terms/i)
     fireEvent.mouseDown(links[1])
 
-    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_link', {
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_clicked', {
       viewport: 'mobile',
     })
+  })
+
+  it('does not track guarantee_full_terms_clicked on a non-primary mouse button (desktop link)', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+
+    const links = await screen.findAllByText(/full terms/i)
+    fireEvent.mouseDown(links[0], { button: 2 })
+
+    expect(trackButtonClick).not.toHaveBeenCalledWith(
+      'guarantee_full_terms_clicked',
+      expect.anything()
+    )
   })
 })
 

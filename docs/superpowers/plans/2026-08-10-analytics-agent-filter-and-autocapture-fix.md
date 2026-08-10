@@ -248,7 +248,7 @@ describe('PricingPage — guarantee link tracking', () => {
     jest.clearAllMocks()
   })
 
-  it('tracks guarantee_full_terms_link with viewport: desktop when the desktop link is pressed', async () => {
+  it('tracks guarantee_full_terms_clicked with viewport: desktop when the desktop link is pressed', async () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
 
@@ -259,19 +259,19 @@ describe('PricingPage — guarantee link tracking', () => {
     const links = await screen.findAllByText(/full terms/i)
     fireEvent.mouseDown(links[0])
 
-    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_link', {
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_clicked', {
       viewport: 'desktop',
     })
   })
 
-  it('tracks guarantee_full_terms_link with viewport: mobile when the mobile link is pressed', async () => {
+  it('tracks guarantee_full_terms_clicked with viewport: mobile when the mobile link is pressed', async () => {
     setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
     render(<PricingPage />)
 
     const links = await screen.findAllByText(/full terms/i)
     fireEvent.mouseDown(links[1])
 
-    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_link', {
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_clicked', {
       viewport: 'mobile',
     })
   })
@@ -293,7 +293,7 @@ import { trackEvent, trackButtonClick } from '@/lib/analytics/events'
 In `__tests__/components/pricing/MobilePricingView.test.tsx`, add one more test to the existing `describe('MobilePricingView', ...)` block:
 
 ```tsx
-  it('tracks guarantee_banner_purchase_now when "Purchase Now" is clicked', () => {
+  it('tracks guarantee_purchase_now_clicked when "Purchase Now" is clicked', () => {
     render(
       <MobilePricingView
         vehicleData={null}
@@ -303,10 +303,10 @@ In `__tests__/components/pricing/MobilePricingView.test.tsx`, add one more test 
       />
     )
     fireEvent.click(screen.getByRole('button', { name: /purchase now/i }))
-    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_banner_purchase_now')
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_purchase_now_clicked')
   })
 
-  it('tracks guarantee_full_terms_link with viewport: mobile when its own "Full terms" link is pressed', () => {
+  it('tracks guarantee_full_terms_clicked with viewport: mobile when its own "Full terms" link is pressed', () => {
     render(
       <MobilePricingView
         vehicleData={null}
@@ -316,12 +316,12 @@ In `__tests__/components/pricing/MobilePricingView.test.tsx`, add one more test 
       />
     )
     fireEvent.mouseDown(screen.getByText(/full terms/i))
-    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_link', {
+    expect(trackButtonClick).toHaveBeenCalledWith('guarantee_full_terms_clicked', {
       viewport: 'mobile',
     })
   })
 
-  it('does not track guarantee_full_terms_link on a non-primary mouse button', () => {
+  it('does not track guarantee_full_terms_clicked on a non-primary mouse button', () => {
     render(
       <MobilePricingView
         vehicleData={null}
@@ -332,7 +332,7 @@ In `__tests__/components/pricing/MobilePricingView.test.tsx`, add one more test 
     )
     fireEvent.mouseDown(screen.getByText(/full terms/i), { button: 2 })
     expect(trackButtonClick).not.toHaveBeenCalledWith(
-      'guarantee_full_terms_link',
+      'guarantee_full_terms_clicked',
       expect.anything()
     )
   })
@@ -365,7 +365,7 @@ to:
                   href="/guarantee"
                   onMouseDown={e => {
                     if (e.button === 0) {
-                      trackButtonClick('guarantee_full_terms_link', { viewport: 'desktop' })
+                      trackButtonClick('guarantee_full_terms_clicked', { viewport: 'desktop' })
                     }
                   }}
                   className="flex-shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 transition-colors"
@@ -401,7 +401,7 @@ to:
             href="/guarantee"
             onMouseDown={e => {
               if (e.button === 0) {
-                trackButtonClick('guarantee_full_terms_link', { viewport: 'mobile' })
+                trackButtonClick('guarantee_full_terms_clicked', { viewport: 'mobile' })
               }
             }}
             className="text-sm font-semibold text-white underline underline-offset-2"
@@ -411,7 +411,7 @@ to:
           <button
             type="button"
             onClick={() => {
-              trackButtonClick('guarantee_banner_purchase_now')
+              trackButtonClick('guarantee_purchase_now_clicked')
               premiumCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
             }}
             className="w-full rounded-xl bg-white px-6 py-3.5 font-bold text-primary-600 shadow-lg transition-transform active:scale-95"
@@ -629,9 +629,9 @@ Expected: All tests pass, including the 4 new/updated suites from Tasks 1-4.
 
 Start the dev server (`npm run dev`), open the pricing page for a real or test report at both a desktop width and a mobile width (browser dev tools device toolbar), and with the browser's network/PostHog debug console open:
 
-1. Desktop width: click the "Full terms →" guarantee link — confirm a `button_clicked` event fires with `button: 'guarantee_full_terms_link', viewport: 'desktop'`.
+1. Desktop width: click the "Full terms →" guarantee link — confirm a `button_clicked` event fires with `button: 'guarantee_full_terms_clicked', viewport: 'desktop'`.
 2. Mobile width: open/close a couple of FAQ accordion items — confirm `button_clicked` fires each time with `button: 'pricing_faq_toggled'` and the correct `question`/`action`.
-3. Mobile width: click "Full terms →" and "Purchase Now" in the mobile guarantee banner — confirm both fire (`guarantee_full_terms_link` with `viewport: 'mobile'`, and `guarantee_banner_purchase_now`), and that "Purchase Now" still scrolls to the Premium card.
+3. Mobile width: click "Full terms →" and "Purchase Now" in the mobile guarantee banner — confirm both fire (`guarantee_full_terms_clicked` with `viewport: 'mobile'`, and `guarantee_purchase_now_clicked`), and that "Purchase Now" still scrolls to the Premium card.
 4. Trigger the exit-intent popup (e.g. click an outbound link), dismiss it via the X button — confirm `exit_intent_popup_dismissed` fires with `dismiss_method: 'close_button'`. Reload, trigger it again, dismiss via "No thanks" — confirm `dismiss_method: 'decline_link'`. Reload, trigger it again, click "Get My Report — $15" — confirm `exit_intent_popup_converted` fires with `discount_code: 'STAY15'`.
 5. Click any other button/link on the page not covered above — confirm a generic `$autocapture` event now fires (this is Task 1's fix; previously nothing fired here in production).
 
