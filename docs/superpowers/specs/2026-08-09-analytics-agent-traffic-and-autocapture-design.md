@@ -58,6 +58,10 @@ All in the `Vehicle Comparison Site` repo, on a new branch off `main`:
 
    The main "Get Basic/Premium Report" CTA is already tracked via `checkout_initiated` in `handleSelectPlan` — no change needed there. No FAQ section exists on the pricing page yet (that's the separate open BL-32), so nothing to instrument there.
 
+4. **`components/ExitIntentPopup.tsx`** — this component (the "don't leave" discount popup, related to open item BL-5) already fires `exit_intent_popup_shown` / `_dismissed` / `_converted` via `trackEvent`. Two gaps found while reviewing it, added to the same PR:
+   - `exit_intent_popup_converted` doesn't record which discount code was applied — add `discount_code: DISCOUNT_CODE` to its properties.
+   - Both the X close button and the "No thanks, I'll take what the insurance company offers" link call the same `handleDismiss`, so both fire an identical `exit_intent_popup_dismissed` with no way to tell them apart — add a `dismiss_method: 'close_button' | 'decline_link'` property, threaded through `handleDismiss(method)`.
+
 ### Testing
 
 - Unit/existing test suite (`npm run test:ci`) must still pass — no behavior change to component logic beyond adding tracking calls and removing a config key.
