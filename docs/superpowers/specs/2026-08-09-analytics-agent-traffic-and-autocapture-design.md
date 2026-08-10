@@ -59,6 +59,8 @@ All in the `Vehicle Comparison Site` repo, on a new branch off `main`:
 
    The main "Get Basic/Premium Report" CTA is already tracked via `checkout_initiated` in `handleSelectPlan` — no change needed there.
 
+   **Discovered during implementation:** `components/ExitIntentPopup.tsx` installs a `document`-level capture-phase `click` listener that calls `stopPropagation()` on nearly every `<a href>` click on this page (to intercept it and show the discount popup before navigating) — including these two guarantee links, since they're plain anchors. Per DOM event order, that stops a bubble-phase `onClick` from ever firing — real in production, not a test artifact. Resolved: the two "Full terms" links track on `onMouseDown` instead (guarded to the primary button, `e.button === 0`, matching `ExitIntentPopup.tsx`'s own guard), which fires before the interceptor's `click` handler runs. Accepted trade-off: this misses keyboard-only (Enter-key) activation of the link. `ExitIntentPopup.tsx` itself is untouched — changing its interception behavior would be a real product decision, not a tracking fix. The "Purchase Now" `<button>` is unaffected (the interceptor only walks up to `<a>` ancestors) and uses a plain `onClick`.
+
 4. **`components/ExitIntentPopup.tsx`** — this component (the "don't leave" discount popup, related to open item BL-5) already fires `exit_intent_popup_shown` / `_dismissed` / `_converted` via `trackEvent`. Two gaps found while reviewing it, added to the same PR:
    - `exit_intent_popup_converted` doesn't record which discount code was applied — add `discount_code: DISCOUNT_CODE` to its properties.
    - Both the X close button and the "No thanks, I'll take what the insurance company offers" link call the same `handleDismiss`, so both fire an identical `exit_intent_popup_dismissed` with no way to tell them apart — add a `dismiss_method: 'close_button' | 'decline_link'` property, threaded through `handleDismiss(method)`.
@@ -69,7 +71,14 @@ All in the `Vehicle Comparison Site` repo, on a new branch off `main`:
 - Manual verification: load the production Vercel preview for the branch, open browser dev tools network tab, confirm `$autocapture` events fire on click for elements outside "vehicle-valuation"-containing URLs, and confirm the two new `button_clicked` events fire with correct properties.
 - Post-merge: re-check `$autocapture` volume in PostHog over the following few days to confirm it's no longer nearly zero on production hosts.
 
+### Reading the new data: a caveat for future analysis
+
+`guarantee_full_terms_clicked` records intent to visit `/guarantee`, not confirmed arrival — it fires on `mousedown`, so a press-and-drag-away still counts (accepted; this is an intent metric, not a completion metric). More importantly: `ExitIntentPopup.tsx`'s `showPopup()` early-returns once the popup has already been shown once in the session (`sessionStorage.exit_popup_shown`), but its click-interceptor still unconditionally calls `preventDefault()`/`stopPropagation()` first — so on a second-or-later "Full terms" click in the same session, the click is silently swallowed with no popup shown and no navigation happening at all. This is a **pre-existing bug in `ExitIntentPopup.tsx`, on `main` before this branch**, out of scope here per the constraint above; filed as a new backlog item. Practical effect: whoever analyzes `guarantee_full_terms_clicked` volume against `/guarantee` pageviews should expect a real, structural gap between the two — not evidence users are bouncing off the guarantee page itself.
+
+Also note: `dismiss_method` (`exit_intent_popup_dismissed`) and `discount_code` (`exit_intent_popup_converted`) are new snake_case properties added alongside the event's existing camelCase `reportId`/`vin` properties — intentional, since renaming the existing keys would break historical PostHog insights built on them.
+
 ### Out of scope
 
 - BL-103 (new): fix the non-working `NEXT_PUBLIC_VERCEL_ENV` preview guard so PostHog stops initializing on Vercel preview deployments. Filed to `backlog.md`, not implemented here.
 - BL-32 (existing, open): reviewing/expanding the FAQ *content* (which questions are included) — separate from this work, which only adds click tracking to the FAQ accordion that already exists in `MobilePricingView.tsx`.
+- New (filed as BL-104, discovered during this work): the `ExitIntentPopup.tsx` swallowed-click-after-first-show bug described above. Not fixed here — it's a product-behavior change to `ExitIntentPopup.tsx`'s interception logic, which this plan's Global Constraints explicitly kept out of scope.
