@@ -52,11 +52,12 @@ All in the `Vehicle Comparison Site` repo, on a new branch off `main`:
 
 1. **`app/providers/posthog-provider.tsx`** — remove the `url_allowlist` key from the `autocapture` config entirely (unset = capture on all URLs, per posthog-js default). `dom_event_allowlist` and `element_allowlist` continue to scope which DOM events/elements get captured.
 2. **PostHog project setting** — set `capture_dead_clicks: true` via the MCP (same settings object BL-4 touches, different field). Not a code change.
-3. **`app/pricing/page.tsx`** — add two `trackButtonClick()` calls (existing helper in `lib/analytics/events.ts`, no new tracking pattern):
-   - Mobile "See/Hide details" toggle per pricing card: `trackButtonClick('pricing_card_details_toggle', { tier: tier.id, action: isExpanded ? 'hide' : 'show' })`
-   - Guarantee "Full terms →" link: `trackButtonClick('guarantee_full_terms_link')`
+3. **Pricing page interactive elements** — the real mobile layout lives in `components/pricing/MobilePricingView.tsx` (rendered below `md`), not inline in `app/pricing/page.tsx`; the desktop layout (`app/pricing/page.tsx`, inside its `hidden md:block` wrapper) is separate markup. A "Mobile expand toggle" button found inline in `page.tsx` turns out to be dead code — it sits inside the `hidden md:block` wrapper *and* carries its own `md:hidden` class, so it's unreachable at every viewport width; skipped rather than instrumented. Corrected: `MobilePricingView.tsx` already has a live 6-item FAQ accordion (`FAQ_ITEMS` / `openFaqIndex` state) that's completely untracked — this is the literal "FAQ" surface BL-7's description asks for, not something that needs building first (BL-32 remains about something else — reviewing/expanding the FAQ *content*, not adding the tracking). Adding, via the existing `trackButtonClick()` helper from `lib/analytics/events.ts` — no new tracking pattern:
+   - FAQ accordion item toggle (`MobilePricingView.tsx`): `trackButtonClick('pricing_faq_toggled', { question: item.question, action: isOpen ? 'close' : 'open' })`
+   - Guarantee "Full terms →" link, desktop (`page.tsx`) and mobile (`MobilePricingView.tsx`) versions, each: `trackButtonClick('guarantee_full_terms_link', { viewport: 'desktop' | 'mobile' })`
+   - Mobile guarantee banner's "Purchase Now" scroll-to-premium-card button (`MobilePricingView.tsx`, mobile only): `trackButtonClick('guarantee_banner_purchase_now')`
 
-   The main "Get Basic/Premium Report" CTA is already tracked via `checkout_initiated` in `handleSelectPlan` — no change needed there. No FAQ section exists on the pricing page yet (that's the separate open BL-32), so nothing to instrument there.
+   The main "Get Basic/Premium Report" CTA is already tracked via `checkout_initiated` in `handleSelectPlan` — no change needed there.
 
 4. **`components/ExitIntentPopup.tsx`** — this component (the "don't leave" discount popup, related to open item BL-5) already fires `exit_intent_popup_shown` / `_dismissed` / `_converted` via `trackEvent`. Two gaps found while reviewing it, added to the same PR:
    - `exit_intent_popup_converted` doesn't record which discount code was applied — add `discount_code: DISCOUNT_CODE` to its properties.
@@ -71,4 +72,4 @@ All in the `Vehicle Comparison Site` repo, on a new branch off `main`:
 ### Out of scope
 
 - BL-103 (new): fix the non-working `NEXT_PUBLIC_VERCEL_ENV` preview guard so PostHog stops initializing on Vercel preview deployments. Filed to `backlog.md`, not implemented here.
-- BL-32 (existing, open): building a pricing-page FAQ section — once it exists, its accordion should get the same explicit click treatment as the rest of this page.
+- BL-32 (existing, open): reviewing/expanding the FAQ *content* (which questions are included) — separate from this work, which only adds click tracking to the FAQ accordion that already exists in `MobilePricingView.tsx`.
