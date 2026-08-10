@@ -24,9 +24,14 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
           capture_pageview: false, // We'll capture pageviews manually in a layout
           capture_pageleave: true, // Track when users leave pages
           autocapture: {
-            // Automatically capture click events on buttons, links, and forms
+            // Automatically capture click events on buttons, links, and forms.
+            // No url_allowlist: it previously restricted capture to URLs containing
+            // "localhost" or "vehicle-valuation" (the project's early working name),
+            // which silently disabled autocapture on production (totallosstoolkit.com)
+            // after the domain changed. Unset = capture on every URL, per posthog-js
+            // default; dom_event_allowlist/element_allowlist below still scope what
+            // gets captured.
             dom_event_allowlist: ['click', 'change', 'submit'],
-            url_allowlist: ['localhost', 'vehicle-valuation'], // Adjust based on your domain
             element_allowlist: ['a', 'button', 'form', 'input', 'select', 'textarea'],
           },
           session_recording: {
