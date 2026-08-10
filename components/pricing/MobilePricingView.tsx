@@ -286,15 +286,21 @@ export default function MobilePricingView({
           </p>
           <a
             href="/guarantee"
+            onMouseDown={e => {
+              if (e.button === 0) {
+                trackButtonClick('guarantee_full_terms_link', { viewport: 'mobile' })
+              }
+            }}
             className="text-sm font-semibold text-white underline underline-offset-2"
           >
             Full terms →
           </a>
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              trackButtonClick('guarantee_banner_purchase_now')
               premiumCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            }
+            }}
             className="w-full rounded-xl bg-white px-6 py-3.5 font-bold text-primary-600 shadow-lg transition-transform active:scale-95"
           >
             Purchase Now
