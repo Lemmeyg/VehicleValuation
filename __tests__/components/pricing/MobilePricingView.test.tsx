@@ -1,10 +1,11 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import MobilePricingView from '@/components/pricing/MobilePricingView'
 import { PRICING_TIERS } from '@/lib/pricing/constants'
-import { trackEvent } from '@/lib/analytics/events'
+import { trackEvent, trackButtonClick } from '@/lib/analytics/events'
 
 jest.mock('@/lib/analytics/events', () => ({
   trackEvent: jest.fn(),
+  trackButtonClick: jest.fn(),
 }))
 
 jest.mock('@/components/pricing/MobilePricingSampleReport', () => {
@@ -107,5 +108,31 @@ describe('MobilePricingView', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: /tap to see full report/i }))
     expect(trackEvent).toHaveBeenCalledWith('report_preview_viewed', { reportId: 'report-123' })
+  })
+
+  it('tracks pricing_faq_toggled with the question and open/close action', () => {
+    render(
+      <MobilePricingView
+        vehicleData={null}
+        tiers={PRICING_TIERS}
+        onSelectPlan={onSelectPlan}
+        processingPayment={false}
+      />
+    )
+    // The first FAQ item starts open (openFaqIndex defaults to 0) — clicking closes it.
+    fireEvent.click(
+      screen.getByRole('button', { name: /how do you find my vehicle information\?/i })
+    )
+    expect(trackButtonClick).toHaveBeenCalledWith('pricing_faq_toggled', {
+      question: 'How do you find my vehicle information?',
+      action: 'close',
+    })
+
+    // The second item starts closed — clicking opens it.
+    fireEvent.click(screen.getByRole('button', { name: /is there a money-back guarantee\?/i }))
+    expect(trackButtonClick).toHaveBeenCalledWith('pricing_faq_toggled', {
+      question: 'Is there a money-back guarantee?',
+      action: 'open',
+    })
   })
 })

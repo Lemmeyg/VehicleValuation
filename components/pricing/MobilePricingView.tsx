@@ -12,7 +12,7 @@ import {
   Quote,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { trackEvent } from '@/lib/analytics/events'
+import { trackEvent, trackButtonClick } from '@/lib/analytics/events'
 import {
   getPersonalizedVehicleLabel,
   type PersonalizationVehicleData,
@@ -245,7 +245,13 @@ export default function MobilePricingView({
               >
                 <button
                   type="button"
-                  onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                  onClick={() => {
+                    trackButtonClick('pricing_faq_toggled', {
+                      question: item.question,
+                      action: isOpen ? 'close' : 'open',
+                    })
+                    setOpenFaqIndex(isOpen ? null : index)
+                  }}
                   aria-expanded={isOpen}
                   className="flex w-full items-center justify-between gap-2 p-4 text-left hover:bg-slate-50"
                 >
