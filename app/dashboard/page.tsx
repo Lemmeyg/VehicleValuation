@@ -225,6 +225,8 @@ export default async function DashboardPage() {
               <Link
                 key={report.id}
                 href={`/reports/${report.id}/view`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="block p-6 hover:bg-slate-50 transition-colors"
               >
                 <div className="flex items-center justify-between">

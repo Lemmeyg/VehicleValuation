@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { X } from 'lucide-react'
 import { trackEvent } from '@/lib/analytics/events'
 import { getPersonalizedVehicleLabel } from '@/lib/personalization/vehicle-label'
@@ -52,13 +53,17 @@ export default function ExitIntentPopup({
   useEffect(() => {
     history.pushState(null, '', window.location.href)
 
-    const showPopup = () => {
-      if (hasTriggeredRef.current) return
-      if (sessionStorage.getItem('exit_popup_shown')) return
+    // Returns whether the popup actually displayed, so callers that need to
+    // intercept the triggering interaction (handleClick) know whether there's
+    // anything to intercept for.
+    const showPopup = (): boolean => {
+      if (hasTriggeredRef.current) return false
+      if (sessionStorage.getItem('exit_popup_shown')) return false
       hasTriggeredRef.current = true
       sessionStorage.setItem('exit_popup_shown', 'true')
       setVisible(true)
       trackEvent('exit_intent_popup_shown', { reportId, vin })
+      return true
     }
 
     const handleClick = (e: MouseEvent) => {
@@ -72,13 +77,20 @@ export default function ExitIntentPopup({
       if (anchor.closest('[data-buy-cta]')) return
       const href = anchor.getAttribute('href')
       if (!href || href.startsWith('#')) return
+      pendingHrefRef.current = href
+      isBackButtonRef.current = false
+      // Only intercept the click (block navigation, show the popup instead) if
+      // the popup will actually display — otherwise the popup has already been
+      // shown this session and there's nothing to intercept for, so the click
+      // must be left alone or it navigates nowhere.
+      if (!showPopup()) {
+        pendingHrefRef.current = null
+        return
+      }
       e.preventDefault()
       // stopPropagation in capture phase prevents the event reaching React entirely,
       // so Next.js Link's onClick (which calls router.push()) never fires.
       e.stopPropagation()
-      pendingHrefRef.current = href
-      isBackButtonRef.current = false
-      showPopup()
     }
 
     const handlePopState = () => {
@@ -219,6 +231,13 @@ export default function ExitIntentPopup({
           >
             No thanks, I&apos;ll take what the insurance company offers
           </button>
+
+          <Link
+            href="/"
+            className="mt-4 block text-xs text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            Return to home
+          </Link>
         </div>
       </div>
     </div>
