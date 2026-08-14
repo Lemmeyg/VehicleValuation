@@ -11,14 +11,24 @@ jest.mock('@/lib/analytics/events', () => ({
 
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PrintPdfButtons } from '@/app/reports/[id]/view/print-pdf-buttons'
+import { trackReportDownload } from '@/lib/analytics/events'
 
 describe('PrintPdfButtons', () => {
-  beforeEach(() => pushMock.mockClear())
+  beforeEach(() => {
+    pushMock.mockClear()
+    ;(trackReportDownload as jest.Mock).mockClear()
+  })
 
   it('navigates to /print when Save as PDF is clicked (no token)', () => {
     render(<PrintPdfButtons reportId="report-abc" />)
     fireEvent.click(screen.getByRole('button', { name: /save as pdf/i }))
     expect(pushMock).toHaveBeenCalledWith('/reports/report-abc/print')
+  })
+
+  it('tracks report_downloaded (BL-2) when Save as PDF is clicked', () => {
+    render(<PrintPdfButtons reportId="report-abc" />)
+    fireEvent.click(screen.getByRole('button', { name: /save as pdf/i }))
+    expect(trackReportDownload).toHaveBeenCalledWith('pdf', 'report-abc')
   })
 
   it('navigates to /print with token when token is provided', () => {

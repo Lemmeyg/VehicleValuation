@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { Download, Share2 } from 'lucide-react'
-import { trackReportWorkflow, trackButtonClick } from '@/lib/analytics/events'
+import { trackReportWorkflow, trackButtonClick, trackReportDownload } from '@/lib/analytics/events'
 
 interface PrintPdfButtonsProps {
   reportId: string
@@ -14,6 +14,7 @@ export function PrintPdfButtons({ reportId, token }: PrintPdfButtonsProps) {
 
   const handleSaveAsPdf = () => {
     trackReportWorkflow({ step: 'print_dialog_opened', reportId })
+    trackReportDownload('pdf', reportId)
     const href = token ? `/reports/${reportId}/print?token=${token}` : `/reports/${reportId}/print`
     router.push(href)
   }

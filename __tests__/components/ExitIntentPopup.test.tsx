@@ -87,6 +87,32 @@ describe('ExitIntentPopup — link click trigger', () => {
     fireEvent.click(screen.getByText('Home'))
     expect(screen.queryByText(/insurance company/i)).not.toBeInTheDocument()
   })
+
+  it('does not swallow link clicks once the popup has already been shown this session (BL-104)', () => {
+    const linkClickSpy = jest.fn()
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home" onClick={linkClickSpy}>
+          Home
+        </a>
+        <a href="/knowledge-base" onClick={linkClickSpy}>
+          KB
+        </a>
+      </>
+    )
+    // First click is intercepted — popup shows, the link's own onClick never fires.
+    fireEvent.click(screen.getByText('Home'))
+    expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+    expect(linkClickSpy).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+
+    // Second click, on a different link, after the popup has already shown once
+    // this session — must NOT be intercepted; the link's own onClick should fire.
+    fireEvent.click(screen.getByText('KB'))
+    expect(linkClickSpy).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+  })
 })
 
 describe('ExitIntentPopup — copy', () => {
@@ -379,5 +405,16 @@ describe('ExitIntentPopup — personalized copy', () => {
     expect(
       screen.queryByText(/insurance company doesn't want you to have this/i)
     ).not.toBeInTheDocument()
+  })
+
+  it('shows a "Return to home" link pointing at "/" (BL-69)', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/home">Home</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('Home'))
+    expect(screen.getByRole('link', { name: /return to home/i })).toHaveAttribute('href', '/')
   })
 })
