@@ -26,12 +26,14 @@ interface CreateAnonymousReportRequest {
   zipCode: string
   source?: string
   kbSourceSlug?: string
+  /** PostHog distinct_id of the visitor — see BL-125 and the reports.posthog_distinct_id migration */
+  posthogDistinctId?: string
 }
 
 export async function POST(request: Request) {
   try {
     const body: CreateAnonymousReportRequest = await request.json()
-    const { email, vin, mileage, zipCode, source, kbSourceSlug } = body
+    const { email, vin, mileage, zipCode, source, kbSourceSlug, posthogDistinctId } = body
 
     // Normalize email to lowercase for consistency
     const normalizedEmail = email?.toLowerCase().trim() ?? null
@@ -213,6 +215,7 @@ export async function POST(request: Request) {
         user_id: authenticatedUserId, // Link to user if authenticated, otherwise null
         source: source ?? null,
         kb_source_slug: kbSourceSlug ?? null,
+        posthog_distinct_id: posthogDistinctId ?? null,
         ...(isAnonymous
           ? { access_token: accessToken, access_token_expires_at: accessTokenExpiresAt }
           : // eslint-disable-next-line @typescript-eslint/no-explicit-any

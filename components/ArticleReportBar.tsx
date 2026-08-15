@@ -8,6 +8,7 @@ import {
   trackFormSubmission,
   trackReportWorkflow,
   trackEmailCapture,
+  getPostHogDistinctId,
 } from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import { getEmailValidationError, sanitizeEmail } from '@/lib/utils/email-validator'
@@ -140,6 +141,8 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
 
     // Create the report server-side now, at submit time — not later when the
     // pricing page happens to load. Same single write path as Hero.tsx.
+    const phDistinctId = getPostHogDistinctId()
+
     try {
       const response = await fetch('/api/reports/create-anonymous', {
         method: 'POST',
@@ -151,6 +154,8 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
           email: sanitizedEmail,
           source: 'kb_article',
           kbSourceSlug: articleSlug,
+          // BL-125: lets the server-side download event find this same person
+          ...(phDistinctId && { posthogDistinctId: phDistinctId }),
         }),
       })
 

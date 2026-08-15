@@ -1,5 +1,10 @@
+jest.mock('@/lib/analytics/events', () => ({
+  trackReportDownload: jest.fn(),
+}))
+
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PrintToolbar } from '@/app/reports/[id]/print/PrintToolbar'
+import { trackReportDownload } from '@/lib/analytics/events'
 
 describe('PrintToolbar', () => {
   const props = {
@@ -7,6 +12,10 @@ describe('PrintToolbar', () => {
     vehicleLabel: '2020 Honda Civic',
     reportId: 'abc123',
   }
+
+  beforeEach(() => {
+    ;(trackReportDownload as jest.Mock).mockClear()
+  })
 
   it('renders back link with correct href', () => {
     render(<PrintToolbar {...props} />)
@@ -31,5 +40,26 @@ describe('PrintToolbar', () => {
     const { container } = render(<PrintToolbar {...props} />)
     const toolbar = container.firstChild as HTMLElement
     expect(toolbar.className).toContain('print:hidden')
+  })
+
+  /**
+   * BL-125: this is the real download moment. The "Save as PDF" button on /view
+   * only navigates here; the browser print dialog opens from this toolbar.
+   */
+  describe('download tracking (BL-125)', () => {
+    beforeEach(() => {
+      Object.defineProperty(window, 'print', { value: jest.fn(), writable: true })
+    })
+
+    it('tracks report_downloaded with the print source when the print button is clicked', () => {
+      render(<PrintToolbar {...props} />)
+      fireEvent.click(screen.getByRole('button', { name: /print/i }))
+      expect(trackReportDownload).toHaveBeenCalledWith('pdf', 'abc123', 'print')
+    })
+
+    it('does not track anything before the print button is clicked', () => {
+      render(<PrintToolbar {...props} />)
+      expect(trackReportDownload).not.toHaveBeenCalled()
+    })
   })
 })

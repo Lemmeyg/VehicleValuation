@@ -11,12 +11,13 @@ jest.mock('@/lib/analytics/events', () => ({
 
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PrintPdfButtons } from '@/app/reports/[id]/view/print-pdf-buttons'
-import { trackReportDownload } from '@/lib/analytics/events'
+import { trackReportDownload, trackReportWorkflow } from '@/lib/analytics/events'
 
 describe('PrintPdfButtons', () => {
   beforeEach(() => {
     pushMock.mockClear()
     ;(trackReportDownload as jest.Mock).mockClear()
+    ;(trackReportWorkflow as jest.Mock).mockClear()
   })
 
   it('navigates to /print when Save as PDF is clicked (no token)', () => {
@@ -25,10 +26,22 @@ describe('PrintPdfButtons', () => {
     expect(pushMock).toHaveBeenCalledWith('/reports/report-abc/print')
   })
 
-  it('tracks report_downloaded (BL-2) when Save as PDF is clicked', () => {
+  // BL-125: this button only navigates to the print page. Firing report_downloaded
+  // here counted a click as a delivered PDF — the real download event now lives on
+  // the print action itself, in PrintToolbar.
+  it('does not track report_downloaded — clicking this button only navigates', () => {
     render(<PrintPdfButtons reportId="report-abc" />)
     fireEvent.click(screen.getByRole('button', { name: /save as pdf/i }))
-    expect(trackReportDownload).toHaveBeenCalledWith('pdf', 'report-abc')
+    expect(trackReportDownload).not.toHaveBeenCalled()
+  })
+
+  it('tracks print_flow_started when Save as PDF is clicked', () => {
+    render(<PrintPdfButtons reportId="report-abc" />)
+    fireEvent.click(screen.getByRole('button', { name: /save as pdf/i }))
+    expect(trackReportWorkflow).toHaveBeenCalledWith({
+      step: 'print_flow_started',
+      reportId: 'report-abc',
+    })
   })
 
   it('navigates to /print with token when token is provided', () => {
