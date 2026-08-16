@@ -62,6 +62,25 @@ export type AuthEvent = {
   error?: string
 }
 
+/**
+ * The current visitor's PostHog id, or null if PostHog has not loaded (SSR,
+ * blocked script, ad-blocker). Stored on the report at creation so the
+ * server-side download event can be attributed to this same person — see
+ * BL-125 and reports.posthog_distinct_id.
+ */
+export function getPostHogDistinctId(): string | null {
+  if (typeof window === 'undefined' || !posthog.__loaded) return null
+  return posthog.get_distinct_id() ?? null
+}
+
+/**
+ * Where a report_downloaded event came from (BL-125).
+ * - 'print'      — the in-app print dialog on /reports/[id]/print
+ * - 'email_link' — the secure PDF link sent in the report-delivery email,
+ *                  captured server-side because no browser code of ours runs
+ */
+export type ReportDownloadSource = 'print' | 'email_link'
+
 export type ReportWorkflowEvent = {
   step:
     | 'hero_form_started'
@@ -75,7 +94,9 @@ export type ReportWorkflowEvent = {
     | 'report_created'
     | 'report_viewed'
     | 'pdf_downloaded'
-    | 'print_dialog_opened'
+    // Renamed from 'print_dialog_opened' (BL-125) — it fires when the user starts
+    // the print flow from /view, not when the print dialog opens.
+    | 'print_flow_started'
     | 'report_shared'
   reportId?: string
   planType?: 'basic' | 'premium'
@@ -228,11 +249,16 @@ export function trackAPICall(
 /**
  * Track report download
  */
-export function trackReportDownload(format: 'pdf' | 'json', reportId?: string) {
+export function trackReportDownload(
+  format: 'pdf' | 'json',
+  reportId?: string,
+  source: ReportDownloadSource = 'print'
+) {
   if (typeof window !== 'undefined' && posthog.__loaded) {
     posthog.capture('report_downloaded', {
       format,
       reportId,
+      source,
       timestamp: new Date().toISOString(),
     })
   }

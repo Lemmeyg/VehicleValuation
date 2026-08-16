@@ -13,7 +13,11 @@ import { ArticleReportBar } from '@/components/ArticleReportBar'
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 jest.mock('next/navigation', () => ({ useRouter: jest.fn() }))
-jest.mock('posthog-js', () => ({ __loaded: true, capture: jest.fn() }))
+jest.mock('posthog-js', () => ({
+  __loaded: true,
+  capture: jest.fn(),
+  get_distinct_id: jest.fn(() => 'ph-distinct-2'),
+}))
 
 const mockPush = jest.fn()
 const mockPosthog = posthog as jest.Mocked<typeof posthog>
@@ -114,12 +118,25 @@ describe('ArticleReportBar', () => {
               email: VALID_EMAIL,
               source: 'kb_article',
               kbSourceSlug: 'test-article',
+              posthogDistinctId: 'ph-distinct-2',
             }),
           })
         )
       })
       expect(sessionStorage.getItem('pending_report')).toBe(JSON.stringify({ id: 'report-3' }))
       expect(mockPush).toHaveBeenCalledWith('/pricing')
+    })
+
+    // BL-125 — same capture as Hero, so KB-sourced reports are attributable too
+    it('sends the visitor PostHog distinct id when creating the report', async () => {
+      render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
+      await fillForm()
+      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+
+      await waitFor(() => {
+        const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+        expect(body.posthogDistinctId).toBe('ph-distinct-2')
+      })
     })
 
     it('does not write to localStorage on submission', async () => {

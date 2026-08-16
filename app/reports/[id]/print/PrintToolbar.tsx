@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { ArrowLeft, Printer } from 'lucide-react'
+import { trackReportDownload } from '@/lib/analytics/events'
 
 interface PrintToolbarProps {
   backHref: string
@@ -9,7 +10,14 @@ interface PrintToolbarProps {
   reportId: string
 }
 
-export function PrintToolbar({ backHref, vehicleLabel }: PrintToolbarProps) {
+export function PrintToolbar({ backHref, vehicleLabel, reportId }: PrintToolbarProps) {
+  // BL-125: the closest thing to a download the in-app path can observe. The
+  // browser will not tell us whether the user then clicked Save or Cancel.
+  const handlePrint = () => {
+    trackReportDownload('pdf', reportId, 'print')
+    window.print()
+  }
+
   return (
     <div className="print:hidden sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
       <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
@@ -30,7 +38,7 @@ export function PrintToolbar({ backHref, vehicleLabel }: PrintToolbarProps) {
             In the print dialog, uncheck &ldquo;Headers and footers&rdquo; for a clean document.
           </p>
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Printer className="h-4 w-4" />

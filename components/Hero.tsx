@@ -14,7 +14,7 @@ import {
 } from '@/lib/analytics/events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import { trackRedditLead } from '@/lib/analytics/reddit-events'
-import { trackEmailCapture } from '@/lib/analytics/events'
+import { trackEmailCapture, getPostHogDistinctId } from '@/lib/analytics/events'
 import { getEmailValidationError, sanitizeEmail } from '@/lib/utils/email-validator'
 import { MarketingConsentNotice } from '@/components/MarketingConsentNotice'
 
@@ -178,6 +178,8 @@ export default function Hero() {
     // Create the report server-side now, at submit time — not later when the
     // pricing page happens to load. This is the one write path for email +
     // KB attribution; there is no separate /api/leads/capture call anymore.
+    const phDistinctId = getPostHogDistinctId()
+
     try {
       const response = await fetch('/api/reports/create-anonymous', {
         method: 'POST',
@@ -189,6 +191,8 @@ export default function Hero() {
           email: sanitizedEmail,
           source: 'homepage',
           ...(kbAttr && { kbSourceSlug: kbAttr.slug }),
+          // BL-125: lets the server-side download event find this same person
+          ...(phDistinctId && { posthogDistinctId: phDistinctId }),
         }),
       })
 

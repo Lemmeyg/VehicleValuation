@@ -204,6 +204,37 @@ describe('Lead capture', () => {
   })
 })
 
+// BL-125: the emailed PDF link is fetched by the browser directly from our server,
+// so no client-side PostHog code runs. Storing the visitor's PostHog id at report
+// creation is what lets that server-side download event attach to the same person.
+describe('posthog distinct id capture (BL-125)', () => {
+  it('stores posthogDistinctId on the reports insert when provided', async () => {
+    await POST(
+      makeRequest({
+        vin: '1HGBH41JXMN109186',
+        mileage: 35000,
+        zipCode: '10001',
+        posthogDistinctId: '0198-abc-distinct',
+      })
+    )
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ posthog_distinct_id: '0198-abc-distinct' })
+    )
+  })
+
+  it('stores null when no posthogDistinctId is provided', async () => {
+    await POST(makeRequest({ vin: '1HGBH41JXMN109186', mileage: 35000, zipCode: '10001' }))
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ posthog_distinct_id: null }))
+  })
+
+  it('still creates the report when posthogDistinctId is absent', async () => {
+    const response = await POST(
+      makeRequest({ vin: '1HGBH41JXMN109186', mileage: 35000, zipCode: '10001' })
+    )
+    expect(response.status).toBe(200)
+  })
+})
+
 describe('attribution (N5)', () => {
   it('stores source and kb_source_slug on the reports insert when provided', async () => {
     await POST(

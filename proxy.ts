@@ -65,6 +65,9 @@ export async function proxy(request: NextRequest) {
   const isReportSuccessPage = /^\/reports\/[^/]+\/success(\/)?$/.test(request.nextUrl.pathname)
   // Allow the report view page — UUID is the access credential; page handles paid gate
   const isReportViewPage = /^\/reports\/[^/]+\/view(\/)?$/.test(request.nextUrl.pathname)
+  // Allow the printable/PDF page — same anonymous-buyer path as /view, and the page
+  // enforces its own access_token check before rendering anything
+  const isReportPrintPage = /^\/reports\/[^/]+\/print(\/)?$/.test(request.nextUrl.pathname)
 
   // Redirect to login if accessing protected route without authentication
   if (
@@ -72,11 +75,14 @@ export async function proxy(request: NextRequest) {
     !user &&
     !isAuthCallbackPage &&
     !isReportSuccessPage &&
-    !isReportViewPage
+    !isReportViewPage &&
+    !isReportPrintPage
   ) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'
-    redirectUrl.searchParams.set('redirect', request.nextUrl.pathname)
+    // Keep the query string — dropping it strands token-bearing URLs on a
+    // tokenless destination that bounces the user straight back here
+    redirectUrl.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
     return NextResponse.redirect(redirectUrl)
   }
 

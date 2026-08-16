@@ -23,6 +23,11 @@ function makeRequest(pathname: string) {
   return new NextRequest(`http://localhost:3000${pathname}`)
 }
 
+function redirectParam(response: NextResponse) {
+  const location = response.headers.get('location')
+  return new URL(location!).searchParams.get('redirect')
+}
+
 describe('proxy middleware — unauthenticated user', () => {
   beforeEach(() => {
     mockGetUser.mockResolvedValue({ data: { user: null } })
@@ -44,9 +49,30 @@ describe('proxy middleware — unauthenticated user', () => {
     expect(response.status).not.toBe(307)
   })
 
+  it('allows unauthenticated user to access /reports/[id]/print', async () => {
+    const response = await proxy(makeRequest('/reports/abc123/print'))
+    expect(response.status).not.toBe(307)
+  })
+
+  it('allows unauthenticated user to access /reports/[id]/print with a token', async () => {
+    const response = await proxy(makeRequest('/reports/abc123/print?token=tok-123'))
+    expect(response.status).not.toBe(307)
+  })
+
   it('still redirects unauthenticated user from /dashboard', async () => {
     const response = await proxy(makeRequest('/dashboard'))
     expect(response.status).toBe(307)
     expect(response.headers.get('location')).toContain('/login')
+  })
+
+  it('preserves the query string in the redirect param so sign-in returns to a usable URL', async () => {
+    const response = await proxy(makeRequest('/reports/abc123?token=tok-123'))
+    expect(response.status).toBe(307)
+    expect(redirectParam(response)).toBe('/reports/abc123?token=tok-123')
+  })
+
+  it('sets a bare pathname as the redirect param when there is no query string', async () => {
+    const response = await proxy(makeRequest('/dashboard'))
+    expect(redirectParam(response)).toBe('/dashboard')
   })
 })
