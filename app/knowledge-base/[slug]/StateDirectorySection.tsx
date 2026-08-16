@@ -2,6 +2,7 @@ import Link from 'next/link'
 import SupplierCard from '@/components/directory/SupplierCard'
 import { getStateDirectorySuppliers } from '@/lib/suppliers-db'
 import { deriveStateFromSlug } from '@/lib/deriveStateFromSlug'
+import { getStateCodeByName } from '@/lib/personalization/state-article'
 
 interface StateDirectorySectionProps {
   slug: string
@@ -17,7 +18,11 @@ export default async function StateDirectorySection({
   const state = deriveStateFromSlug(slug)
   if (!state) return null
 
-  const suppliers = await getStateDirectorySuppliers(state)
+  // The suppliers table stores two-letter state codes (e.g. "PA"), not full names.
+  const stateCode = getStateCodeByName(state)
+  if (!stateCode) return null
+
+  const suppliers = await getStateDirectorySuppliers(stateCode)
   if (suppliers.length === 0) return null
 
   const hasMore = suppliers.length === 4
@@ -34,7 +39,7 @@ export default async function StateDirectorySection({
       {hasMore && (
         <div className="mt-6">
           <Link
-            href={`/directory?state=${encodeURIComponent(state)}`}
+            href={`/directory?state=${encodeURIComponent(stateCode)}`}
             className="text-blue-600 hover:underline font-medium"
           >
             View all {state} professionals →

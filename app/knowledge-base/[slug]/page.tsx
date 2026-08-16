@@ -15,6 +15,7 @@ import { ArticleReportBar } from '@/components/ArticleReportBar'
 import { RelatedArticlesSidebar } from '@/components/RelatedArticlesSidebar'
 import { RelatedArticlesMobile } from '@/components/RelatedArticlesMobile'
 import { DisputeLetterCTA } from '@/components/DisputeLetterCTA'
+import StateDirectorySection from './StateDirectorySection'
 
 export const revalidate = false
 
@@ -191,6 +192,8 @@ export default async function ArticlePage({ params }: Props) {
                   ['dispute', 'valuation', 'challenge', 'settlement'].some(kw =>
                     article.slug.includes(kw)
                   )) && <DisputeLetterCTA />}
+
+                <StateDirectorySection slug={article.slug} category={article.category} />
 
                 {/* Mobile related articles — hidden on desktop */}
                 <RelatedArticlesMobile relatedArticles={relatedArticles} currentSlug={slug} />
