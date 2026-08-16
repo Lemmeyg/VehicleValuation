@@ -778,10 +778,15 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
                 </p>
               </div>
 
-              {/* Action Plan CTA */}
+              {/* Action Plan CTA — the token must ride along, or an anonymous buyer
+                  lands on a page that cannot tell they own this report (BL-129) */}
               <div className="mt-12 mb-8 flex justify-center">
                 <Link
-                  href={`/reports/${id}/action-plan`}
+                  href={
+                    token
+                      ? `/reports/${id}/action-plan?token=${token}`
+                      : `/reports/${id}/action-plan`
+                  }
                   className="inline-flex items-center px-8 py-4 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors shadow-lg text-lg"
                 >
                   <FileText className="h-6 w-6 mr-2" />

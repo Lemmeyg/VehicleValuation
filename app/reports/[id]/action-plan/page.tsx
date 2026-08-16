@@ -27,18 +27,50 @@ import {
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ token?: string }>
 }
 
-export default async function ActionPlanPage({ params }: PageProps) {
+export default async function ActionPlanPage({ params, searchParams }: PageProps) {
   const user = await getUser()
   const { id } = await params
+  const { token } = await searchParams
 
-  // Auth required
+  // Anonymous buyers arrive from the "Next Steps" link on their own report, which
+  // carries the same access_token /view and /print already accept. Validate it the
+  // same way here: the proxy carve-out only gets the request as far as this code,
+  // it is not itself the access control (BL-129).
+  let isTokenAccess = false
+
   if (!user) {
-    redirect(`/auth?redirect=/reports/${id}/action-plan`)
+    if (!token) {
+      redirect(`/auth?redirect=/reports/${id}/action-plan`)
+    }
+
+    const { data: tokenReport } = await supabaseAdmin
+      .from('reports')
+      .select('access_token, access_token_expires_at')
+      .eq('id', id)
+      .single()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const storedToken = (tokenReport as any)?.access_token as string | null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const expiresAt = (tokenReport as any)?.access_token_expires_at as string | null
+
+    const tokenValid =
+      storedToken != null &&
+      storedToken === token &&
+      expiresAt != null &&
+      new Date(expiresAt) > new Date()
+
+    if (!tokenValid) {
+      redirect(`/auth?redirect=/reports/${id}/action-plan&reason=token_expired`)
+    }
+
+    isTokenAccess = true
   }
 
-  const isAdmin = user.user_metadata?.is_admin === true
+  const isAdmin = user?.user_metadata?.is_admin === true
 
   // Fetch report via admin client so we can check ownership ourselves
   const { data: report, error } = await supabaseAdmin
@@ -60,7 +92,8 @@ export default async function ActionPlanPage({ params }: PageProps) {
     )
   }
 
-  if (!canViewReport(user.id, isAdmin, report.user_id)) {
+  // Ownership check — skipped for token access, the token already proved ownership above
+  if (!isTokenAccess && !canViewReport(user?.id ?? '', isAdmin, report.user_id)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md">
