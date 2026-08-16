@@ -59,6 +59,23 @@ describe('proxy middleware — unauthenticated user', () => {
     expect(response.status).not.toBe(307)
   })
 
+  // BL-129: same bug as BL-126, one route over — the "Next Steps Action Plan" link.
+  it('allows unauthenticated user to access /reports/[id]/action-plan', async () => {
+    const response = await proxy(makeRequest('/reports/abc123/action-plan'))
+    expect(response.status).not.toBe(307)
+  })
+
+  it('allows unauthenticated token access to /reports/[id]/action-plan', async () => {
+    const response = await proxy(makeRequest('/reports/abc123/action-plan', '?token=tok-123'))
+    expect(response.status).not.toBe(307)
+  })
+
+  it('does not carve out routes merely prefixed with action-plan', async () => {
+    const response = await proxy(makeRequest('/reports/abc123/action-plan/extra'))
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toContain('/login')
+  })
+
   it('still redirects unauthenticated user from /dashboard', async () => {
     const response = await proxy(makeRequest('/dashboard'))
     expect(response.status).toBe(307)

@@ -68,6 +68,12 @@ export async function proxy(request: NextRequest) {
   // Allow the printable/PDF page — same anonymous-buyer path as /view, and the page
   // enforces its own access_token check before rendering anything
   const isReportPrintPage = /^\/reports\/[^/]+\/print(\/)?$/.test(request.nextUrl.pathname)
+  // Allow the action-plan page — reached from a "Next Steps" link on the buyer's own
+  // report and carrying the same ?token=, which the page validates before rendering.
+  // Without this the guard bounced anonymous paying customers to /login (BL-129).
+  const isReportActionPlanPage = /^\/reports\/[^/]+\/action-plan(\/)?$/.test(
+    request.nextUrl.pathname
+  )
 
   // Redirect to login if accessing protected route without authentication
   if (
@@ -76,7 +82,8 @@ export async function proxy(request: NextRequest) {
     !isAuthCallbackPage &&
     !isReportSuccessPage &&
     !isReportViewPage &&
-    !isReportPrintPage
+    !isReportPrintPage &&
+    !isReportActionPlanPage
   ) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'
