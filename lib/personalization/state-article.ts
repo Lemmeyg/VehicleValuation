@@ -63,3 +63,12 @@ export function resolveStateArticle(stateCode: string | null): { stateName: stri
   if (!entry) return { stateName: 'your state', slug: PILLAR_ARTICLE_SLUG }
   return { stateName: entry.name, slug: entry.slug }
 }
+
+const STATE_NAME_TO_CODE: Record<string, string> = Object.fromEntries(
+  Object.entries(STATE_ARTICLES).map(([code, entry]) => [entry.name, code])
+)
+
+/** Reverse of resolveStateArticle: full state name (e.g. "Pennsylvania") -> two-letter code (e.g. "PA"). */
+export function getStateCodeByName(stateName: string): string | null {
+  return STATE_NAME_TO_CODE[stateName] ?? null
+}
