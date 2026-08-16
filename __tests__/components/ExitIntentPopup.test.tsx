@@ -16,6 +16,9 @@ jest.mock('@/lib/analytics/events', () => ({
 
 const pushStateSpy = jest.spyOn(window.history, 'pushState').mockImplementation(() => {})
 
+// Must match MIN_DWELL_MS in components/ExitIntentPopup.tsx.
+const MIN_DWELL_MS = 90_000
+
 function setVisibilityState(state: 'visible' | 'hidden') {
   Object.defineProperty(document, 'visibilityState', {
     configurable: true,
@@ -23,17 +26,117 @@ function setVisibilityState(state: 'visible' | 'hidden') {
   })
 }
 
+// No trigger fires before the minimum dwell window elapses, so every test that
+// wants to exercise a trigger has to get past the gate first.
+function elapseMinDwell() {
+  act(() => {
+    jest.advanceTimersByTime(MIN_DWELL_MS)
+  })
+}
+
+beforeEach(() => {
+  jest.useFakeTimers()
+  setVisibilityState('visible')
+})
+
 afterEach(() => {
+  jest.useRealTimers()
+  setVisibilityState('visible')
   sessionStorage.clear()
   pushStateSpy.mockClear()
   mockPush.mockClear()
   mockBack.mockClear()
+  // Cleared so the suppression tests below can assert trackEvent was NOT called
+  // without picking up calls recorded by an earlier test in this file.
+  ;(trackEvent as jest.Mock).mockClear()
 })
 
 describe('ExitIntentPopup — initial state', () => {
   it('renders nothing by default', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
     expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+  })
+})
+
+describe('ExitIntentPopup — minimum dwell gate', () => {
+  it('does not show the popup on a link click before the dwell window elapses', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/knowledge-base">KB</a>
+      </>
+    )
+    act(() => {
+      jest.advanceTimersByTime(MIN_DWELL_MS - 1_000)
+    })
+    fireEvent.click(screen.getByText('KB'))
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+  })
+
+  it('lets an early link click navigate normally instead of swallowing it', () => {
+    const linkClickSpy = jest.fn()
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/knowledge-base" onClick={linkClickSpy}>
+          KB
+        </a>
+      </>
+    )
+    fireEvent.click(screen.getByText('KB'))
+    expect(linkClickSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not show the popup on mouse-leave before the dwell window elapses', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    act(() => {
+      jest.advanceTimersByTime(MIN_DWELL_MS - 1_000)
+    })
+    fireEvent.mouseOut(document, { clientY: -5, relatedTarget: null })
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+  })
+
+  it('does not show the popup on the back button before the dwell window elapses', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    act(() => {
+      jest.advanceTimersByTime(MIN_DWELL_MS - 1_000)
+    })
+    fireEvent(window, new PopStateEvent('popstate'))
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+  })
+
+  it('does not track exit_intent_popup_shown for a suppressed early trigger', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    fireEvent.mouseOut(document, { clientY: -5, relatedTarget: null })
+    expect(trackEvent).not.toHaveBeenCalledWith('exit_intent_popup_shown', expect.anything())
+  })
+
+  it('does not burn the once-per-session flag on a suppressed early trigger', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    fireEvent.mouseOut(document, { clientY: -5, relatedTarget: null })
+    expect(sessionStorage.getItem('exit_popup_shown')).toBeNull()
+  })
+
+  it('shows the popup on mouse-leave once the dwell window has elapsed', () => {
+    render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    elapseMinDwell()
+    fireEvent.mouseOut(document, { clientY: -5, relatedTarget: null })
+    expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
+  })
+
+  it('still triggers on a link click that arrives after an earlier suppressed one', () => {
+    render(
+      <>
+        <ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />
+        <a href="/knowledge-base">KB</a>
+      </>
+    )
+    fireEvent.click(screen.getByText('KB'))
+    expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
+
+    elapseMinDwell()
+    fireEvent.click(screen.getByText('KB'))
+    expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
   })
 })
 
@@ -46,6 +149,7 @@ describe('ExitIntentPopup — link click trigger', () => {
         <a href="/knowledge-base">KB</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('KB'))
     expect(
       screen.getByText(/your insurance company doesn't want you to have this/i)
@@ -61,6 +165,7 @@ describe('ExitIntentPopup — link click trigger', () => {
         </div>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Buy Now'))
     expect(screen.queryByText(/insurance company/i)).not.toBeInTheDocument()
   })
@@ -72,6 +177,7 @@ describe('ExitIntentPopup — link click trigger', () => {
         <a href="#faq">FAQ</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('FAQ'))
     expect(screen.queryByText(/insurance company/i)).not.toBeInTheDocument()
   })
@@ -84,6 +190,7 @@ describe('ExitIntentPopup — link click trigger', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(screen.queryByText(/insurance company/i)).not.toBeInTheDocument()
   })
@@ -101,6 +208,7 @@ describe('ExitIntentPopup — link click trigger', () => {
         </a>
       </>
     )
+    elapseMinDwell()
     // First click is intercepted — popup shows, the link's own onClick never fires.
     fireEvent.click(screen.getByText('Home'))
     expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
@@ -123,6 +231,7 @@ describe('ExitIntentPopup — copy', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(
       screen.getByText(/before you go — your insurance company doesn't want you to have this/i)
@@ -136,6 +245,7 @@ describe('ExitIntentPopup — copy', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(screen.getByText(/average settlement gap is \$2,800/i)).toBeInTheDocument()
   })
@@ -147,6 +257,7 @@ describe('ExitIntentPopup — copy', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(screen.getByRole('button', { name: /get my report — \$15/i })).toBeInTheDocument()
   })
@@ -161,6 +272,7 @@ describe('ExitIntentPopup — CTA action', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     fireEvent.click(screen.getByRole('button', { name: /get my report/i }))
     expect(mockSelectPlan).toHaveBeenCalledWith('STAY15')
@@ -173,6 +285,7 @@ describe('ExitIntentPopup — CTA action', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     fireEvent.click(screen.getByRole('button', { name: /get my report/i }))
 
@@ -193,6 +306,7 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
       </>
     )
     // Trigger popup
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
 
@@ -210,6 +324,7 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
 
@@ -225,6 +340,7 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
 
@@ -242,6 +358,7 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     fireEvent.click(screen.getByText(/no thanks, i'll take what the insurance company offers/i))
 
@@ -256,6 +373,7 @@ describe('ExitIntentPopup — dismiss behaviour', () => {
 describe('ExitIntentPopup — back button trigger', () => {
   it('shows the popup when popstate fires', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    elapseMinDwell()
     fireEvent(window, new PopStateEvent('popstate'))
     expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
   })
@@ -264,6 +382,7 @@ describe('ExitIntentPopup — back button trigger', () => {
 describe('ExitIntentPopup — mouse-leave trigger', () => {
   it('shows the popup when the cursor exits through the top of the viewport', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
+    elapseMinDwell()
     fireEvent.mouseOut(document, { clientY: -5, relatedTarget: null })
     expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
   })
@@ -275,6 +394,7 @@ describe('ExitIntentPopup — mouse-leave trigger', () => {
         <div data-testid="inner">inner</div>
       </>
     )
+    elapseMinDwell()
     fireEvent.mouseOut(document, { clientY: 400, relatedTarget: screen.getByTestId('inner') })
     expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
   })
@@ -286,26 +406,17 @@ describe('ExitIntentPopup — mouse-leave trigger', () => {
         <div data-testid="inner">inner</div>
       </>
     )
+    elapseMinDwell()
     fireEvent.mouseOut(document, { clientY: -5, relatedTarget: screen.getByTestId('inner') })
     expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
   })
 })
 
 describe('ExitIntentPopup — armed dwell-timer fallback', () => {
-  beforeEach(() => {
-    jest.useFakeTimers()
-    setVisibilityState('visible')
-  })
-
-  afterEach(() => {
-    jest.useRealTimers()
-    setVisibilityState('visible')
-  })
-
-  it('does not show the popup before the arm delay elapses', () => {
+  it('does not show the popup before the dwell window elapses', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
     act(() => {
-      jest.advanceTimersByTime(59_000)
+      jest.advanceTimersByTime(MIN_DWELL_MS - 1_000)
     })
     fireEvent(window, new Event('blur'))
     expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
@@ -313,18 +424,14 @@ describe('ExitIntentPopup — armed dwell-timer fallback', () => {
 
   it('shows the popup on window blur once armed', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
-    act(() => {
-      jest.advanceTimersByTime(60_000)
-    })
+    elapseMinDwell()
     fireEvent(window, new Event('blur'))
     expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
   })
 
   it('shows the popup on visibilitychange-to-hidden once armed', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
-    act(() => {
-      jest.advanceTimersByTime(60_000)
-    })
+    elapseMinDwell()
     setVisibilityState('hidden')
     fireEvent(document, new Event('visibilitychange'))
     expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
@@ -333,9 +440,7 @@ describe('ExitIntentPopup — armed dwell-timer fallback', () => {
   it('shows the popup immediately if the tab is already hidden when the timer fires', () => {
     render(<ExitIntentPopup vin="1HGCM82633A123456" reportId="r1" onSelectPlan={jest.fn()} />)
     setVisibilityState('hidden')
-    act(() => {
-      jest.advanceTimersByTime(60_000)
-    })
+    elapseMinDwell()
     expect(screen.queryByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
   })
 
@@ -346,13 +451,14 @@ describe('ExitIntentPopup — armed dwell-timer fallback', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(screen.getByRole('heading', { name: /insurance company/i })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
 
     act(() => {
-      jest.advanceTimersByTime(60_000)
+      jest.advanceTimersByTime(MIN_DWELL_MS)
     })
     fireEvent(window, new Event('blur'))
     expect(screen.queryByRole('heading', { name: /insurance company/i })).not.toBeInTheDocument()
@@ -374,6 +480,7 @@ describe('ExitIntentPopup — personalized copy', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(
       screen.getByText(/before you go — your 2019 Honda Civic may be undervalued/i)
@@ -387,6 +494,7 @@ describe('ExitIntentPopup — personalized copy', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(
       screen.getByText(/before you go — your insurance company doesn't want you to have this/i)
@@ -400,6 +508,7 @@ describe('ExitIntentPopup — personalized copy', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     fireEvent.click(screen.getByText(/no thanks, i'll take what the insurance company offers/i))
     expect(
@@ -414,6 +523,7 @@ describe('ExitIntentPopup — personalized copy', () => {
         <a href="/home">Home</a>
       </>
     )
+    elapseMinDwell()
     fireEvent.click(screen.getByText('Home'))
     expect(screen.getByRole('link', { name: /return to home/i })).toHaveAttribute('href', '/')
   })

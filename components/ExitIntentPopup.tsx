@@ -23,13 +23,19 @@ interface ExitIntentPopupProps {
 // that the user never saw any feedback for.
 const DISCOUNT_CODE = 'STAY15'
 
-// Mobile has no cursor, so it never gets the mouse-leave trigger below — this is
-// its passive fallback. Rather than firing at exactly 60s regardless of what the
-// user is doing (which would interrupt someone actively reading/comparing tiers),
-// 60s only "arms" the trigger; it actually fires on the next sign the user is
-// stepping away (tab hidden or window loses focus), keeping the semantics closer
-// to genuine exit intent than a blunt dwell timer.
-const ARM_DELAY_MS = 60_000
+// Minimum time on page before ANY trigger below is allowed to fire. Without it
+// the mouse-leave and link-click triggers can fire seconds after load — a cursor
+// drifting up toward the bookmarks bar, or an immediate click through to the KB,
+// both popped the modal before the visitor had read anything, which read as
+// aggressive rather than as a save-the-exit offer.
+//
+// This single timer does two jobs: it opens the gate for every trigger, and it
+// arms the passive fallback below. Mobile has no cursor, so it never gets the
+// mouse-leave trigger — rather than firing bluntly at 90s regardless of what the
+// user is doing (which would interrupt someone actively comparing tiers), the
+// fallback only becomes *armed* here, then fires on the next sign the user is
+// stepping away (tab hidden or window loses focus).
+const MIN_DWELL_MS = 90_000
 
 export default function ExitIntentPopup({
   vin,
@@ -53,10 +59,18 @@ export default function ExitIntentPopup({
   useEffect(() => {
     history.pushState(null, '', window.location.href)
 
+    // Flipped by the timer at the bottom of this effect, once MIN_DWELL_MS has
+    // elapsed. Until then every trigger is suppressed.
+    let eligible = false
+
     // Returns whether the popup actually displayed, so callers that need to
     // intercept the triggering interaction (handleClick) know whether there's
     // anything to intercept for.
     const showPopup = (): boolean => {
+      // Deliberately checked before the guards below so a suppressed early
+      // trigger costs nothing: it neither burns the once-per-session flag nor
+      // fires a `shown` analytics event for a popup nobody saw.
+      if (!eligible) return false
       if (hasTriggeredRef.current) return false
       if (sessionStorage.getItem('exit_popup_shown')) return false
       hasTriggeredRef.current = true
@@ -117,20 +131,20 @@ export default function ExitIntentPopup({
     }
 
     // Armed dwell-timer fallback (primarily for mobile, which has no cursor to
-    // leave "toward"). Arms after ARM_DELAY_MS; once armed, fires on the next
+    // leave "toward"). Arms after MIN_DWELL_MS — the same moment every other
+    // trigger becomes eligible; once armed, fires on the next
     // visibilitychange-to-hidden or window blur — whichever the platform
     // reports. visibilitychange is the more reliable signal on mobile (covers
     // app-backgrounding); blur covers desktop tab/window switches it might miss.
-    let armed = false
     const armTimer = setTimeout(() => {
-      armed = true
+      eligible = true
       if (document.visibilityState === 'hidden') {
         showPopup()
       }
-    }, ARM_DELAY_MS)
+    }, MIN_DWELL_MS)
 
     const handleVisibilityChange = () => {
-      if (armed && document.visibilityState === 'hidden') {
+      if (eligible && document.visibilityState === 'hidden') {
         pendingHrefRef.current = null
         isBackButtonRef.current = false
         showPopup()
@@ -138,7 +152,7 @@ export default function ExitIntentPopup({
     }
 
     const handleBlur = () => {
-      if (armed) {
+      if (eligible) {
         pendingHrefRef.current = null
         isBackButtonRef.current = false
         showPopup()
