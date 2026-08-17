@@ -41,6 +41,8 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
   const [tickerIndex, setTickerIndex] = useState(0)
 
   const hasTrackedFormStart = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const hasTrackedImpression = useRef(false)
 
   const trackFormStart = () => {
     if (!hasTrackedFormStart.current) {
@@ -59,6 +61,30 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
     }, TICKER_INTERVAL)
     return () => clearInterval(interval)
   }, [])
+
+  // Fire once when the bar first enters the viewport. Without this we can count
+  // how many people typed in the form but not how many ever saw it, which makes
+  // the KB-to-report conversion rate unmeasurable.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && !hasTrackedImpression.current) {
+          hasTrackedImpression.current = true
+          trackEvent('kb_article_report_bar_viewed', {
+            article_slug: articleSlug,
+            placement,
+          })
+          observer.disconnect()
+        }
+      }
+    })
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [articleSlug, placement])
 
   const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     trackFormStart()
@@ -183,7 +209,7 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
     !getEmailValidationError(email)
 
   return (
-    <div className="my-8 rounded-2xl bg-primary-600 px-6 py-5">
+    <div ref={containerRef} className="my-8 rounded-2xl bg-primary-600 px-6 py-5">
       {/* Value prop ticker */}
       <div className="mb-3 overflow-hidden" style={{ height: '28px' }}>
         <div
