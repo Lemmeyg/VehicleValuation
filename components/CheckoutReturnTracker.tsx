@@ -21,8 +21,10 @@ export function CheckoutReturnTracker() {
     const handoff = readCheckoutHandoff()
     if (!handoff) return
 
-    // A completed purchase is not an abandonment.
-    if (window.location.search.includes('checkout=complete')) {
+    // A completed purchase is not an abandonment. Parse the query param
+    // rather than substring-matching the raw search string — a substring
+    // check would also match an unrelated param like `other_checkout=complete`.
+    if (new URLSearchParams(window.location.search).get('checkout') === 'complete') {
       clearCheckoutHandoff()
       return
     }

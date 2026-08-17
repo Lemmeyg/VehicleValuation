@@ -53,6 +53,22 @@ describe('CheckoutReturnTracker', () => {
     expect(readCheckoutHandoff()).toBeNull()
   })
 
+  it('reports abandonment when the query string contains an unrelated param that merely contains "checkout=complete"', () => {
+    markCheckoutHandoff({ reportId: 'rpt-9', plan: 'premium', price: 25 })
+    setSearch('?other_checkout=complete')
+
+    render(<CheckoutReturnTracker />)
+
+    expect(trackCheckoutAbandoned).toHaveBeenCalledTimes(1)
+    expect(trackCheckoutAbandoned).toHaveBeenCalledWith({
+      reportId: 'rpt-9',
+      plan: 'premium',
+      price: 25,
+      step: 'returned_without_purchase',
+    })
+    expect(readCheckoutHandoff()).toBeNull()
+  })
+
   it('reports only once even if the component remounts', () => {
     markCheckoutHandoff({ reportId: 'rpt-9', plan: 'basic', price: 20 })
 
