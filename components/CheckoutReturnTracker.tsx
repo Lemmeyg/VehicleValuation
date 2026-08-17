@@ -24,7 +24,18 @@ export function CheckoutReturnTracker() {
     // A completed purchase is not an abandonment. Parse the query param
     // rather than substring-matching the raw search string — a substring
     // check would also match an unrelated param like `other_checkout=complete`.
-    if (new URLSearchParams(window.location.search).get('checkout') === 'complete') {
+    const hasCompleteParam =
+      new URLSearchParams(window.location.search).get('checkout') === 'complete'
+
+    // Defence in depth: a visitor who abandoned checkout does not land on
+    // their own report's pages — someone who bought does. This covers
+    // /success, /view, /print and /action-plan in one rule, and survives
+    // even if a future return URL is built without the checkout=complete
+    // param at all.
+    const ownReportMatch = window.location.pathname.match(/^\/reports\/([^/]+)(?:\/|$)/)
+    const isOwnReportPage = !!ownReportMatch && ownReportMatch[1] === handoff.reportId
+
+    if (hasCompleteParam || isOwnReportPage) {
       clearCheckoutHandoff()
       return
     }

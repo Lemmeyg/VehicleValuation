@@ -104,4 +104,42 @@ describe('POST /api/lemonsqueezy/create-checkout', () => {
 
     delete process.env.LEMONSQUEEZY_TEST_MODE
   })
+
+  describe('checkout=complete on successUrl (BL-85 abandonment-marker fix)', () => {
+    it('carries checkout=complete on the authenticated-user success URL', async () => {
+      mockGetUser.mockResolvedValue({ id: 'user-1' } as never)
+      mockSingle.mockResolvedValue({
+        data: {
+          id: 'report-1',
+          vin: '1HGBH41JXMN109186',
+          user_id: 'user-1',
+          price_paid: null,
+          access_token: null,
+        },
+        error: null,
+      })
+
+      const req = makeRequest({ reportId: 'report-1', reportType: 'BASIC' })
+      await POST(req)
+
+      expect(mockCreateCheckout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          successUrl: 'https://example.com/reports/report-1/success?checkout=complete',
+        })
+      )
+    })
+
+    it('preserves the /view?token=...&checkout=complete shape for the anonymous-with-token branch', async () => {
+      // mockGetUser resolves null (anonymous) and mockSingle has access_token: 'token-abc'
+      // per beforeEach — this is the existing, must-not-change behaviour.
+      const req = makeRequest({ reportId: 'report-1', reportType: 'BASIC' })
+      await POST(req)
+
+      expect(mockCreateCheckout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          successUrl: 'https://example.com/reports/report-1/view?token=token-abc&checkout=complete',
+        })
+      )
+    })
+  })
 })
