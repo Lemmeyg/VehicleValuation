@@ -76,7 +76,14 @@ export async function POST(request: NextRequest) {
     // checkout=complete tells the view page to render PurchaseCompleteTracker once —
     // /view is the buyer's permanent report link, so this marker (stripped after
     // firing) is what stops a later revisit from re-firing payment_success.
-    let successUrl = `${appUrl}/reports/${reportId}/success`
+    //
+    // Every successUrl carries checkout=complete regardless of branch: it also
+    // tells CheckoutReturnTracker (mounted in the root layout) that this pageview
+    // is a real purchase, not an abandoned checkout. Without it on every branch,
+    // authenticated buyers and anonymous buyers with no access_token were being
+    // recorded as abandoners on their very first post-purchase pageview (BL-85
+    // contamination) — see CheckoutReturnTracker.tsx for the read side.
+    let successUrl = `${appUrl}/reports/${reportId}/success?checkout=complete`
     if (!user) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const accessToken = (report as any).access_token as string | null

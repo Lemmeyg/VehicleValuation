@@ -78,4 +78,64 @@ describe('CheckoutReturnTracker', () => {
 
     expect(trackCheckoutAbandoned).toHaveBeenCalledTimes(1)
   })
+
+  describe('own-report-page suppression (defence in depth)', () => {
+    function setLocation(pathAndSearch: string) {
+      // Same rationale as setSearch above: pushState updates window.location
+      // without touching its (non-configurable, in jsdom 30) property descriptor.
+      window.history.pushState({}, '', pathAndSearch)
+    }
+
+    it("clears the marker without reporting when landing on the buyer's own report success page with no query string", () => {
+      markCheckoutHandoff({ reportId: 'rpt-9', plan: 'premium', price: 25 })
+      setLocation('/reports/rpt-9/success')
+
+      render(<CheckoutReturnTracker />)
+
+      expect(trackCheckoutAbandoned).not.toHaveBeenCalled()
+      expect(readCheckoutHandoff()).toBeNull()
+    })
+
+    it('still clears without reporting on the anonymous-with-token /view URL (existing behaviour preserved)', () => {
+      markCheckoutHandoff({ reportId: 'rpt-9', plan: 'premium', price: 25 })
+      setLocation('/reports/rpt-9/view?token=x&checkout=complete')
+
+      render(<CheckoutReturnTracker />)
+
+      expect(trackCheckoutAbandoned).not.toHaveBeenCalled()
+      expect(readCheckoutHandoff()).toBeNull()
+    })
+
+    it("reports abandonment when landing on a different report's page", () => {
+      markCheckoutHandoff({ reportId: 'rpt-9', plan: 'premium', price: 25 })
+      setLocation('/reports/rpt-OTHER/view')
+
+      render(<CheckoutReturnTracker />)
+
+      expect(trackCheckoutAbandoned).toHaveBeenCalledTimes(1)
+      expect(trackCheckoutAbandoned).toHaveBeenCalledWith({
+        reportId: 'rpt-9',
+        plan: 'premium',
+        price: 25,
+        step: 'returned_without_purchase',
+      })
+      expect(readCheckoutHandoff()).toBeNull()
+    })
+
+    it('reports abandonment when landing back on /pricing (normal abandonment case survives)', () => {
+      markCheckoutHandoff({ reportId: 'rpt-9', plan: 'premium', price: 25 })
+      setLocation('/pricing')
+
+      render(<CheckoutReturnTracker />)
+
+      expect(trackCheckoutAbandoned).toHaveBeenCalledTimes(1)
+      expect(trackCheckoutAbandoned).toHaveBeenCalledWith({
+        reportId: 'rpt-9',
+        plan: 'premium',
+        price: 25,
+        step: 'returned_without_purchase',
+      })
+      expect(readCheckoutHandoff()).toBeNull()
+    })
+  })
 })
