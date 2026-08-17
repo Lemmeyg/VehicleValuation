@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import PricingPage from '@/app/pricing/page'
 import { toast } from 'sonner'
 import { trackEvent, trackButtonClick } from '@/lib/analytics/events'
+import { markCheckoutHandoff } from '@/lib/analytics/checkout-return'
 
 const mockPush = jest.fn()
 
@@ -92,6 +93,10 @@ jest.mock('@/lib/analytics/events', () => ({
 jest.mock('@/lib/analytics/reddit-events', () => ({
   trackRedditViewContent: jest.fn(),
   trackRedditAddToCart: jest.fn(),
+}))
+
+jest.mock('@/lib/analytics/checkout-return', () => ({
+  markCheckoutHandoff: jest.fn(),
 }))
 
 jest.mock('@/lib/analytics/kb-attribution', () => ({
@@ -603,5 +608,58 @@ describe('PricingPage — checkout failure feedback', () => {
         "We couldn't start checkout. Please try again — if this keeps happening, contact us."
       )
     )
+  })
+})
+
+describe('PricingPage — checkout handoff marker (BL-85)', () => {
+  const originalFetch = global.fetch
+  const originalBasicVariantId = process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID
+  const originalPremiumVariantId = process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID
+  const originalHref = window.location.href
+
+  beforeEach(() => {
+    // Same beta-mode gate as the "checkout failure feedback" describe block above —
+    // handleSelectPlan reads these env vars directly, not via PRICING_TIERS.
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID = 'test-basic-variant-id'
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID = 'test-premium-variant-id'
+  })
+
+  afterEach(() => {
+    sessionStorage.clear()
+    jest.clearAllMocks()
+    global.fetch = originalFetch
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_BASIC_VARIANT_ID = originalBasicVariantId
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_PREMIUM_VARIANT_ID = originalPremiumVariantId
+    // jsdom's Location.href setter attempts a real navigation ("Not implemented:
+    // navigation") for a cross-origin URL, which this test deliberately triggers
+    // by returning a real-looking LemonSqueezy checkoutUrl. Restore it afterwards
+    // so it doesn't leak into later tests in this file.
+    window.location.href = originalHref
+  })
+
+  it('sets the checkout handoff marker before redirecting to LemonSqueezy', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        checkoutUrl: 'https://totallosstoolkit.lemonsqueezy.com/checkout/abc123',
+      }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    const [premiumButton] = await screen.findAllByRole('button', {
+      name: /get premium report — \$25/i,
+    })
+    fireEvent.click(premiumButton)
+
+    await waitFor(() =>
+      expect(markCheckoutHandoff).toHaveBeenCalledWith({
+        reportId: 'r1',
+        plan: 'premium',
+        price: 25,
+      })
+    )
+    expect(markCheckoutHandoff).toHaveBeenCalledTimes(1)
   })
 })
