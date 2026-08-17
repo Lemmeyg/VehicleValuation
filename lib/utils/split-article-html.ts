@@ -58,6 +58,12 @@ function findTocEnd(html: string, tocHeadingEnd: number): number {
  * markdown block showing HTML source) rather than as a real paragraph close.
  * Splitting there would inject a React component into the middle of a <pre>
  * or <code> element and visibly break the rendered markup.
+ *
+ * Also covers unclosed tags: an opening <pre> or <code> with no matching
+ * close protects everything from its position to the end of the string — an
+ * unterminated block means everything after it renders as part of that
+ * element as far as the browser is concerned, so a "</p>" further along is
+ * just as unsafe to split on as one inside a properly closed region.
  */
 function findProtectedRegions(html: string): Array<[number, number]> {
   const regions: Array<[number, number]> = []
@@ -66,6 +72,19 @@ function findProtectedRegions(html: string): Array<[number, number]> {
   while ((match = tagPattern.exec(html)) !== null) {
     regions.push([match.index, match.index + match[0].length])
   }
+
+  const openTagPattern = /<(pre|code)\b[^>]*>/gi
+  let openMatch: RegExpExecArray | null
+  while ((openMatch = openTagPattern.exec(html)) !== null) {
+    const start = openMatch.index
+    const alreadyClosed = regions.some(
+      ([regionStart, regionEnd]) => start >= regionStart && start < regionEnd
+    )
+    if (!alreadyClosed) {
+      regions.push([start, html.length])
+    }
+  }
+
   return regions
 }
 
@@ -77,14 +96,24 @@ function isInsideProtectedRegion(position: number, regions: Array<[number, numbe
  * Find a safe split point near the middle of the article.
  *
  * "Safe" means immediately after a closing </p> that (a) leaves content on
- * both sides, and (b) does not fall inside a <pre> or <code> region — a
- * literal "</p>" can appear as text inside a code sample rather than as a
- * real paragraph close, and this guards against splitting there even though
- * the markdown pipeline that currently feeds this function (lib/markdown.ts)
- * has been verified to escape "<" before it can reach <pre>/<code> output,
- * making the case unreachable today. The guard stays in place as a cheap
- * safeguard against a future pipeline change, not as a claim the code proves
- * impossible on its own. Returns -1 if there is no usable boundary.
+ * both sides, and (b) does not fall inside a <pre> or <code> region — whether
+ * that region is properly closed or left open to the end of the string (see
+ * findProtectedRegions). A literal "</p>" can appear as text inside a code
+ * sample rather than as a real paragraph close, and splitting there would
+ * inject a React component into the middle of a <pre>/<code> element.
+ *
+ * This guard is enforced by the code, not merely assumed: it holds regardless
+ * of what produced the html. As a separate, weaker note — the markdown
+ * pipeline that currently feeds this function (lib/markdown.ts) has been
+ * verified to escape "<" to the numeric entity "&#x3C;" before it reaches
+ * <pre>/<code> output, and to drop raw HTML blocks entirely (no rehype-raw),
+ * so a literal "</p>" cannot currently reach a code region through that
+ * pipeline at all. That makes the guard belt-and-braces against today's
+ * inputs, but it is not why the guard exists — the guard exists because the
+ * function must not assume anything about its caller.
+ *
+ * Returns -1 if there is no usable boundary — including the case where every
+ * candidate is inside a protected region.
  */
 function findMidParagraphBoundary(html: string): number {
   const target = Math.floor(html.length * 0.45)

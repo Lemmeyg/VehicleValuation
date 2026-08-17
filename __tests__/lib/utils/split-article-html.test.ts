@@ -326,3 +326,86 @@ describe('splitArticleHtml fallback placement — boundary hardening', () => {
     expect(reconstructed).toBe(html)
   })
 })
+
+describe('splitArticleHtml fallback placement — unclosed <pre>/<code> hardening', () => {
+  it('excludes a "</p>" inside an unclosed <pre>, even though it would otherwise be the only usable boundary', () => {
+    const html =
+      '<h2 id="a"><a href="#a">Heading</a></h2>' +
+      '<pre><code>start of a code sample with a literal </p> tag inside it that never gets ' +
+      'closed — there is no matching closing pre or code tag anywhere later in this string.'
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    // An unterminated <pre> protects everything from its opening tag to the
+    // end of the string, so the only "</p>" in this document is unusable.
+    expect(bars).toHaveLength(0)
+
+    const reconstructed = segments
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .join('')
+    expect(reconstructed).toBe(html)
+  })
+
+  it('excludes a "</p>" inside an unclosed <code>, even though it would otherwise be the only usable boundary', () => {
+    const html =
+      '<h2 id="a"><a href="#a">Heading</a></h2>' +
+      '<code>start of an inline-style code run with a literal </p> tag inside it that never ' +
+      'gets closed — there is no matching closing code tag anywhere later in this string.'
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(0)
+
+    const reconstructed = segments
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .join('')
+    expect(reconstructed).toBe(html)
+  })
+
+  it('adds no bar when every candidate boundary is protected, whether by a closed or an unclosed region', () => {
+    const html =
+      '<h2 id="a"><a href="#a">Heading</a></h2>' +
+      `<pre><code>${'x'.repeat(10)}<p>closed-region candidate</p>${'z'.repeat(10)}</code></pre>` +
+      '<code>an unclosed code run holding a second literal </p> that also never gets closed.'
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(0)
+
+    const reconstructed = segments
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .join('')
+    expect(reconstructed).toBe(html)
+  })
+
+  it('still chooses an earlier valid boundary when an unclosed <pre> appears later in the document', () => {
+    const html =
+      `<p>${'A real paragraph with plenty of body text. '.repeat(4)}</p>` +
+      '<pre><code>a later, unclosed code sample containing a literal </p> tag that never gets ' +
+      'closed and runs all the way to the end of the string.'
+
+    const segments = splitArticleHtml(html)
+    const barIdx = segments.findIndex(s => s.type === 'bar')
+    expect(barIdx).toBeGreaterThan(-1)
+    expect(segments[barIdx]).toEqual({ type: 'bar', placement: 'fallback_mid' })
+
+    const beforeBarHtml = segments
+      .slice(0, barIdx)
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .join('')
+    // The chosen boundary must be the real paragraph close, which sits
+    // entirely before the unclosed <pre> even opens.
+    expect(beforeBarHtml).not.toContain('<pre>')
+    expect(beforeBarHtml).not.toContain('<code>')
+
+    const reconstructed = segments
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .join('')
+    expect(reconstructed).toBe(html)
+  })
+})
