@@ -9,7 +9,7 @@
  */
 
 export type HtmlSegment = { type: 'html'; content: string }
-export type BarSegment = { type: 'bar'; placement: 'post_toc' | 'post_faq_2' }
+export type BarSegment = { type: 'bar'; placement: 'post_toc' | 'post_faq_2' | 'fallback_mid' }
 export type ArticleSegment = HtmlSegment | BarSegment
 
 /**
@@ -48,6 +48,93 @@ function findTocEnd(html: string, tocHeadingEnd: number): number {
   }
 
   return -1
+}
+
+/**
+ * Find the [start, end) ranges of every <pre>...</pre> and <code>...</code>
+ * region in the html, so candidate split points can avoid landing inside one.
+ *
+ * A "</p>" can appear as literal text inside a code sample (e.g. a fenced
+ * markdown block showing HTML source) rather than as a real paragraph close.
+ * Splitting there would inject a React component into the middle of a <pre>
+ * or <code> element and visibly break the rendered markup.
+ *
+ * Also covers unclosed tags: an opening <pre> or <code> with no matching
+ * close protects everything from its position to the end of the string — an
+ * unterminated block means everything after it renders as part of that
+ * element as far as the browser is concerned, so a "</p>" further along is
+ * just as unsafe to split on as one inside a properly closed region.
+ */
+function findProtectedRegions(html: string): Array<[number, number]> {
+  const regions: Array<[number, number]> = []
+  const tagPattern = /<(pre|code)\b[^>]*>[\s\S]*?<\/\1>/gi
+  let match: RegExpExecArray | null
+  while ((match = tagPattern.exec(html)) !== null) {
+    regions.push([match.index, match.index + match[0].length])
+  }
+
+  const openTagPattern = /<(pre|code)\b[^>]*>/gi
+  let openMatch: RegExpExecArray | null
+  while ((openMatch = openTagPattern.exec(html)) !== null) {
+    const start = openMatch.index
+    const alreadyClosed = regions.some(
+      ([regionStart, regionEnd]) => start >= regionStart && start < regionEnd
+    )
+    if (!alreadyClosed) {
+      regions.push([start, html.length])
+    }
+  }
+
+  return regions
+}
+
+function isInsideProtectedRegion(position: number, regions: Array<[number, number]>): boolean {
+  return regions.some(([start, end]) => position > start && position < end)
+}
+
+/**
+ * Find a safe split point near the middle of the article.
+ *
+ * "Safe" means immediately after a closing </p> that (a) leaves content on
+ * both sides, and (b) does not fall inside a <pre> or <code> region — whether
+ * that region is properly closed or left open to the end of the string (see
+ * findProtectedRegions). A literal "</p>" can appear as text inside a code
+ * sample rather than as a real paragraph close, and splitting there would
+ * inject a React component into the middle of a <pre>/<code> element.
+ *
+ * This guard is enforced by the code, not merely assumed: it holds regardless
+ * of what produced the html. As a separate, weaker note — the markdown
+ * pipeline that currently feeds this function (lib/markdown.ts) has been
+ * verified to escape "<" to the numeric entity "&#x3C;" before it reaches
+ * <pre>/<code> output, and to drop raw HTML blocks entirely (no rehype-raw),
+ * so a literal "</p>" cannot currently reach a code region through that
+ * pipeline at all. That makes the guard belt-and-braces against today's
+ * inputs, but it is not why the guard exists — the guard exists because the
+ * function must not assume anything about its caller.
+ *
+ * Returns -1 if there is no usable boundary — including the case where every
+ * candidate is inside a protected region.
+ */
+function findMidParagraphBoundary(html: string): number {
+  const target = Math.floor(html.length * 0.45)
+  const boundaries: number[] = []
+
+  let idx = html.indexOf('</p>')
+  while (idx !== -1) {
+    boundaries.push(idx + '</p>'.length)
+    idx = html.indexOf('</p>', idx + 1)
+  }
+
+  const protectedRegions = findProtectedRegions(html)
+
+  // Need content on both sides — a boundary at the very end is not a split —
+  // and must not fall inside a <pre>/<code> region.
+  const usable = boundaries.filter(
+    b => b > 0 && b < html.length && !isInsideProtectedRegion(b, protectedRegions)
+  )
+  if (usable.length === 0) return -1
+
+  return usable.reduce((best, b) => (Math.abs(b - target) < Math.abs(best - target) ? b : best))
 }
 
 /**
@@ -116,6 +203,18 @@ export function splitArticleHtml(html: string): ArticleSegment[] {
           cursor = splitPoint
         }
       }
+    }
+  }
+
+  // ── Fallback ─────────────────────────────────────────────────────────────
+  // If neither anchor matched, the article would render no report form at all.
+  // Place one near the middle, at a paragraph boundary.
+  if (!segments.some(s => s.type === 'bar')) {
+    const mid = findMidParagraphBoundary(html)
+    if (mid !== -1) {
+      segments.push({ type: 'html', content: html.slice(cursor, mid) })
+      segments.push({ type: 'bar', placement: 'fallback_mid' })
+      cursor = mid
     }
   }
 

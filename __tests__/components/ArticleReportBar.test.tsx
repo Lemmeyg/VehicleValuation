@@ -273,4 +273,46 @@ describe('ArticleReportBar', () => {
       )
     })
   })
+
+  describe('impression tracking', () => {
+    let observerCallback: IntersectionObserverCallback
+
+    beforeEach(() => {
+      observerCallback = jest.fn() as unknown as IntersectionObserverCallback
+      // Capture the callback so the test can simulate the bar entering the viewport.
+      global.IntersectionObserver = jest
+        .fn()
+        .mockImplementation((cb: IntersectionObserverCallback) => {
+          observerCallback = cb
+          return { observe: jest.fn(), unobserve: jest.fn(), disconnect: jest.fn() }
+        }) as unknown as typeof IntersectionObserver
+    })
+
+    it('fires kb_article_report_bar_viewed once when the bar enters the viewport', () => {
+      render(<ArticleReportBar articleSlug="texas-total-loss-law" placement="post_toc" />)
+
+      expect(mockPosthog.capture).not.toHaveBeenCalledWith(
+        'kb_article_report_bar_viewed',
+        expect.anything()
+      )
+
+      // Simulate the bar scrolling into view, twice.
+      const entry = { isIntersecting: true } as IntersectionObserverEntry
+      act(() => {
+        observerCallback([entry], {} as IntersectionObserver)
+        observerCallback([entry], {} as IntersectionObserver)
+      })
+
+      const viewedCalls = mockPosthog.capture.mock.calls.filter(
+        c => c[0] === 'kb_article_report_bar_viewed'
+      )
+      expect(viewedCalls).toHaveLength(1)
+      expect(viewedCalls[0][1]).toEqual(
+        expect.objectContaining({
+          article_slug: 'texas-total-loss-law',
+          placement: 'post_toc',
+        })
+      )
+    })
+  })
 })
