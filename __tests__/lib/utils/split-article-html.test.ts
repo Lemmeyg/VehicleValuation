@@ -152,3 +152,54 @@ describe('splitArticleHtml', () => {
     })
   })
 })
+
+describe('splitArticleHtml fallback placement', () => {
+  it('injects one fallback bar when the article has no TOC and no FAQ', () => {
+    const html = [
+      '<h2 id="a"><a href="#a">Background</a></h2>',
+      '<p>Paragraph one of the article body.</p>',
+      '<p>Paragraph two of the article body.</p>',
+      '<h2 id="b"><a href="#b">What To Do Next</a></h2>',
+      '<p>Paragraph three of the article body.</p>',
+      '<p>Paragraph four of the article body.</p>',
+    ].join('')
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+
+    expect(bars).toHaveLength(1)
+    expect(bars[0]).toEqual({ type: 'bar', placement: 'fallback_mid' })
+  })
+
+  it('reassembles to the original html when a fallback bar is injected', () => {
+    const html = '<p>One.</p><p>Two.</p><p>Three.</p><p>Four.</p>'
+    const segments = splitArticleHtml(html)
+    const rejoined = segments
+      .filter(s => s.type === 'html')
+      .map(s => (s as { content: string }).content)
+      .join('')
+
+    expect(rejoined).toBe(html)
+  })
+
+  it('does not add a fallback when a TOC bar was already placed', () => {
+    const html = [
+      '<h2 id="toc"><a href="#toc">Table of Contents</a></h2>',
+      '<ul><li>One</li><li>Two</li></ul>',
+      '<p>Body paragraph.</p>',
+      '<p>Another body paragraph.</p>',
+    ].join('')
+
+    const bars = splitArticleHtml(html).filter(s => s.type === 'bar')
+
+    expect(bars).toHaveLength(1)
+    expect(bars[0]).toEqual({ type: 'bar', placement: 'post_toc' })
+  })
+
+  it('returns no bar when there is no paragraph boundary to split on', () => {
+    const html = '<h2 id="a"><a href="#a">Only A Heading</a></h2>'
+    const bars = splitArticleHtml(html).filter(s => s.type === 'bar')
+
+    expect(bars).toHaveLength(0)
+  })
+})

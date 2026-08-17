@@ -9,7 +9,7 @@
  */
 
 export type HtmlSegment = { type: 'html'; content: string }
-export type BarSegment = { type: 'bar'; placement: 'post_toc' | 'post_faq_2' }
+export type BarSegment = { type: 'bar'; placement: 'post_toc' | 'post_faq_2' | 'fallback_mid' }
 export type ArticleSegment = HtmlSegment | BarSegment
 
 /**
@@ -48,6 +48,30 @@ function findTocEnd(html: string, tocHeadingEnd: number): number {
   }
 
   return -1
+}
+
+/**
+ * Find a safe split point near the middle of the article.
+ *
+ * "Safe" means immediately after a closing </p>, so the bar never lands inside
+ * an open element. Returns -1 if there is no paragraph boundary that leaves
+ * content on both sides.
+ */
+function findMidParagraphBoundary(html: string): number {
+  const target = Math.floor(html.length * 0.45)
+  const boundaries: number[] = []
+
+  let idx = html.indexOf('</p>')
+  while (idx !== -1) {
+    boundaries.push(idx + '</p>'.length)
+    idx = html.indexOf('</p>', idx + 1)
+  }
+
+  // Need content on both sides — a boundary at the very end is not a split.
+  const usable = boundaries.filter(b => b > 0 && b < html.length)
+  if (usable.length === 0) return -1
+
+  return usable.reduce((best, b) => (Math.abs(b - target) < Math.abs(best - target) ? b : best))
 }
 
 /**
@@ -116,6 +140,18 @@ export function splitArticleHtml(html: string): ArticleSegment[] {
           cursor = splitPoint
         }
       }
+    }
+  }
+
+  // ── Fallback ─────────────────────────────────────────────────────────────
+  // If neither anchor matched, the article would render no report form at all.
+  // Place one near the middle, at a paragraph boundary.
+  if (!segments.some(s => s.type === 'bar')) {
+    const mid = findMidParagraphBoundary(html)
+    if (mid !== -1) {
+      segments.push({ type: 'html', content: html.slice(cursor, mid) })
+      segments.push({ type: 'bar', placement: 'fallback_mid' })
+      cursor = mid
     }
   }
 

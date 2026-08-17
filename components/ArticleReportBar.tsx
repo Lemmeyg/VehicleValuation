@@ -16,7 +16,7 @@ import { MarketingConsentNotice } from '@/components/MarketingConsentNotice'
 
 interface ArticleReportBarProps {
   articleSlug: string
-  placement: 'post_toc' | 'post_faq_2'
+  placement: 'post_toc' | 'post_faq_2' | 'fallback_mid'
 }
 
 const VALUE_PROPS = [
