@@ -17,6 +17,7 @@ import {
   trackCheckoutAbandoned,
   trackEvent,
 } from '@/lib/analytics/events'
+import { markCheckoutHandoff } from '@/lib/analytics/checkout-return'
 import { trackRedditViewContent, trackRedditAddToCart } from '@/lib/analytics/reddit-events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
 import { setDripAttribution, getDripAttribution } from '@/lib/analytics/drip-attribution'
@@ -538,6 +539,13 @@ function PricingContent() {
       const data = await response.json()
 
       if (data.checkoutUrl) {
+        // Leave a marker so CheckoutReturnTracker can tell an abandoned checkout
+        // from a pricing-page bounce when they come back (BL-85).
+        markCheckoutHandoff({
+          reportId: report.id,
+          plan: tier.id.toLowerCase() as 'basic' | 'premium',
+          price: tier.price,
+        })
         // Redirect to Lemon Squeezy payment
         window.location.href = data.checkoutUrl
       } else {

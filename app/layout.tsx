@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { PostHogProvider } from './providers/posthog-provider'
+import { CheckoutReturnTracker } from '@/components/CheckoutReturnTracker'
 import { PostHogPageView } from './providers/posthog-pageview'
 import { Suspense } from 'react'
 import { Analytics } from '@vercel/analytics/next'
@@ -44,6 +45,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <PostHogPageView />
           </Suspense>
+          <CheckoutReturnTracker />
           {children}
           <Toaster position="top-right" richColors closeButton />
         </PostHogProvider>

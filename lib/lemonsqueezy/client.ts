@@ -40,6 +40,11 @@ export async function createCheckout(
           product_options: {
             enabled_variants: [parseInt(params.variantId)],
             redirect_url: params.successUrl,
+            // params.cancelUrl is accepted here for interface compatibility only.
+            // Lemon Squeezy's Checkouts API (product_options / checkout_options) has no
+            // cancel/return/abandon URL field to send it to — verified against the
+            // documented field lists for both objects (2026-08-16). Checkout abandonment
+            // is measured entirely on our side instead; see lib/analytics/checkout-return.ts.
           },
         },
         relationships: {
