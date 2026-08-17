@@ -51,7 +51,8 @@ export function readCheckoutHandoff(): CheckoutHandoff | null {
     if (
       typeof parsed?.reportId !== 'string' ||
       typeof parsed?.at !== 'number' ||
-      typeof parsed?.price !== 'number'
+      typeof parsed?.price !== 'number' ||
+      (parsed?.plan !== 'basic' && parsed?.plan !== 'premium')
     ) {
       clearCheckoutHandoff()
       return null

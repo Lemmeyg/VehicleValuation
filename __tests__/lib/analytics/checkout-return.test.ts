@@ -46,4 +46,55 @@ describe('checkout handoff marker', () => {
     localStorage.setItem('tlt_checkout_handoff', JSON.stringify(stale))
     expect(readCheckoutHandoff()).toBeNull()
   })
+
+  it('returns null and clears the key when plan is not basic or premium', () => {
+    const bogus = { reportId: 'rpt-1', plan: 'gold', price: 20, at: Date.now() }
+    localStorage.setItem('tlt_checkout_handoff', JSON.stringify(bogus))
+    expect(readCheckoutHandoff()).toBeNull()
+    expect(localStorage.getItem('tlt_checkout_handoff')).toBeNull()
+  })
+
+  it('returns null when price is the wrong type', () => {
+    const bad = { reportId: 'rpt-1', plan: 'basic', price: '20', at: Date.now() }
+    localStorage.setItem('tlt_checkout_handoff', JSON.stringify(bad))
+    expect(readCheckoutHandoff()).toBeNull()
+  })
+
+  it('returns null when reportId is missing', () => {
+    const bad = { plan: 'basic', price: 20, at: Date.now() }
+    localStorage.setItem('tlt_checkout_handoff', JSON.stringify(bad))
+    expect(readCheckoutHandoff()).toBeNull()
+  })
+
+  describe('storage failures never propagate', () => {
+    afterEach(() => {
+      jest.restoreAllMocks()
+    })
+
+    it('markCheckoutHandoff does not throw when localStorage.setItem throws', () => {
+      const spy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('QuotaExceededError')
+      })
+      expect(() =>
+        markCheckoutHandoff({ reportId: 'rpt-1', plan: 'basic', price: 20 })
+      ).not.toThrow()
+      spy.mockRestore()
+    })
+
+    it('readCheckoutHandoff returns null when localStorage.getItem throws', () => {
+      const spy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('SecurityError')
+      })
+      expect(readCheckoutHandoff()).toBeNull()
+      spy.mockRestore()
+    })
+
+    it('clearCheckoutHandoff does not throw when localStorage.removeItem throws', () => {
+      const spy = jest.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+        throw new Error('SecurityError')
+      })
+      expect(() => clearCheckoutHandoff()).not.toThrow()
+      spy.mockRestore()
+    })
+  })
 })
