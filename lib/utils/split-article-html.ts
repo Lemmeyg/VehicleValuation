@@ -51,11 +51,40 @@ function findTocEnd(html: string, tocHeadingEnd: number): number {
 }
 
 /**
+ * Find the [start, end) ranges of every <pre>...</pre> and <code>...</code>
+ * region in the html, so candidate split points can avoid landing inside one.
+ *
+ * A "</p>" can appear as literal text inside a code sample (e.g. a fenced
+ * markdown block showing HTML source) rather than as a real paragraph close.
+ * Splitting there would inject a React component into the middle of a <pre>
+ * or <code> element and visibly break the rendered markup.
+ */
+function findProtectedRegions(html: string): Array<[number, number]> {
+  const regions: Array<[number, number]> = []
+  const tagPattern = /<(pre|code)\b[^>]*>[\s\S]*?<\/\1>/gi
+  let match: RegExpExecArray | null
+  while ((match = tagPattern.exec(html)) !== null) {
+    regions.push([match.index, match.index + match[0].length])
+  }
+  return regions
+}
+
+function isInsideProtectedRegion(position: number, regions: Array<[number, number]>): boolean {
+  return regions.some(([start, end]) => position > start && position < end)
+}
+
+/**
  * Find a safe split point near the middle of the article.
  *
- * "Safe" means immediately after a closing </p>, so the bar never lands inside
- * an open element. Returns -1 if there is no paragraph boundary that leaves
- * content on both sides.
+ * "Safe" means immediately after a closing </p> that (a) leaves content on
+ * both sides, and (b) does not fall inside a <pre> or <code> region — a
+ * literal "</p>" can appear as text inside a code sample rather than as a
+ * real paragraph close, and this guards against splitting there even though
+ * the markdown pipeline that currently feeds this function (lib/markdown.ts)
+ * has been verified to escape "<" before it can reach <pre>/<code> output,
+ * making the case unreachable today. The guard stays in place as a cheap
+ * safeguard against a future pipeline change, not as a claim the code proves
+ * impossible on its own. Returns -1 if there is no usable boundary.
  */
 function findMidParagraphBoundary(html: string): number {
   const target = Math.floor(html.length * 0.45)
@@ -67,8 +96,13 @@ function findMidParagraphBoundary(html: string): number {
     idx = html.indexOf('</p>', idx + 1)
   }
 
-  // Need content on both sides — a boundary at the very end is not a split.
-  const usable = boundaries.filter(b => b > 0 && b < html.length)
+  const protectedRegions = findProtectedRegions(html)
+
+  // Need content on both sides — a boundary at the very end is not a split —
+  // and must not fall inside a <pre>/<code> region.
+  const usable = boundaries.filter(
+    b => b > 0 && b < html.length && !isInsideProtectedRegion(b, protectedRegions)
+  )
   if (usable.length === 0) return -1
 
   return usable.reduce((best, b) => (Math.abs(b - target) < Math.abs(best - target) ? b : best))
