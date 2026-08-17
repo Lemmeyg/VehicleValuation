@@ -93,6 +93,113 @@ function isInsideProtectedRegion(position: number, regions: Array<[number, numbe
 }
 
 /**
+ * Element names whose content should never be split across the fallback
+ * boundary. `post_toc` and `post_faq_2` always split at document root, so
+ * this only matters for the fallback: `remark-rehype` wraps blockquote
+ * content and "loose" list items in <p> tags, which means a `</p>` inside a
+ * quote or a list item is a perfectly valid-looking candidate even though
+ * splitting there breaks the rendered markup (each segment is injected via
+ * its own `dangerouslySetInnerHTML`, so a boundary here either leaves a tag
+ * open on one side or an orphaned closer on the other).
+ */
+const NESTING_GUARD_TAGS = ['blockquote', 'ul', 'ol', 'li', 'table', 'figure'] as const
+
+/**
+ * For each candidate boundary, determine whether it sits at "top level" —
+ * i.e. not inside an unclosed <blockquote>/<ul>/<ol>/<li>/<table>/<figure>.
+ * This is a running depth counter over those six tag names, not a real HTML
+ * parser: it walks the document once counting opens/closes of just those
+ * tags and checks, for each candidate boundary, whether every count is back
+ * to zero by that point.
+ */
+function computeTopLevelBoundaries(html: string, boundaries: number[]): Set<number> {
+  type NestingTag = (typeof NESTING_GUARD_TAGS)[number]
+  const counts: Record<NestingTag, number> = {
+    blockquote: 0,
+    ul: 0,
+    ol: 0,
+    li: 0,
+    table: 0,
+    figure: 0,
+  }
+  const isAllZero = () => NESTING_GUARD_TAGS.every(name => counts[name] === 0)
+
+  const topLevel = new Set<number>()
+  const sorted = [...boundaries].sort((a, b) => a - b)
+  let boundaryIdx = 0
+
+  const tagPattern = /<(\/?)(blockquote|ul|ol|li|table|figure)\b[^>]*>/gi
+  let match: RegExpExecArray | null
+  while ((match = tagPattern.exec(html)) !== null) {
+    while (boundaryIdx < sorted.length && sorted[boundaryIdx] <= match.index) {
+      if (isAllZero()) topLevel.add(sorted[boundaryIdx])
+      boundaryIdx++
+    }
+    const isClose = match[1] === '/'
+    const name = match[2].toLowerCase() as NestingTag
+    counts[name] += isClose ? -1 : 1
+  }
+  while (boundaryIdx < sorted.length) {
+    if (isAllZero()) topLevel.add(sorted[boundaryIdx])
+    boundaryIdx++
+  }
+
+  return topLevel
+}
+
+/** Matches a <p> (or <p attr="...">) opening tag — not <pre>. */
+const PARAGRAPH_OPEN_TAG = /<p(?:\s[^>]*)?>/gi
+
+/**
+ * Find the <p ...> opening tag that pairs with the </p> at `closeIndex`,
+ * assuming paragraphs don't nest (true of markdown output). Returns the
+ * inner html between the tags, or null if no opening tag is found.
+ */
+function getParagraphInnerHtml(html: string, closeIndex: number): string | null {
+  PARAGRAPH_OPEN_TAG.lastIndex = 0
+  let lastMatch: RegExpExecArray | null = null
+  let match: RegExpExecArray | null
+  while ((match = PARAGRAPH_OPEN_TAG.exec(html)) !== null) {
+    if (match.index >= closeIndex) break
+    lastMatch = match
+  }
+  if (!lastMatch) return null
+  return html.slice(lastMatch.index + lastMatch[0].length, closeIndex)
+}
+
+/**
+ * A paragraph is a "lead-in" — text that introduces something else rather
+ * than standing on its own — when its visible text ends with a colon, or
+ * its entire content is a single <strong>/<b> element (a bold label used as
+ * a sub-heading, e.g. "PIP Limits:" or "Keep Complete Copies").
+ */
+function isLeadInParagraph(innerHtml: string): boolean {
+  const visibleText = innerHtml.replace(/<[^>]+>/g, '').trim()
+  if (visibleText.endsWith(':')) return true
+
+  const boldOnly = /^\s*<(strong|b)(?:\s[^>]*)?>[\s\S]*<\/\1>\s*$/i.test(innerHtml.trim())
+  return boldOnly
+}
+
+/** Whether the content immediately at `position` begins (past whitespace) with a list. */
+function isFollowedByList(html: string, position: number): boolean {
+  return /^\s*<(ul|ol)\b/i.test(html.slice(position))
+}
+
+/**
+ * A candidate boundary is unsuitable when it would orphan a lead-in from the
+ * content it introduces: either the paragraph immediately before it reads as
+ * a lead-in, or the content immediately after it opens with a list (a list
+ * almost always belongs to whatever introduced it, lead-in or not).
+ */
+function orphansALeadIn(html: string, boundary: number): boolean {
+  const closeIndex = boundary - '</p>'.length
+  const paragraphInner = getParagraphInnerHtml(html, closeIndex)
+  if (paragraphInner !== null && isLeadInParagraph(paragraphInner)) return true
+  return isFollowedByList(html, boundary)
+}
+
+/**
  * Find a safe split point near the middle of the article.
  *
  * "Safe" means immediately after a closing </p> that (a) leaves content on
@@ -111,6 +218,22 @@ function isInsideProtectedRegion(position: number, regions: Array<[number, numbe
  * pipeline at all. That makes the guard belt-and-braces against today's
  * inputs, but it is not why the guard exists — the guard exists because the
  * function must not assume anything about its caller.
+ *
+ * Among the boundaries left after that hard safety filter, two further,
+ * *soft* preferences apply, in this precedence order:
+ *
+ *   1. Prefer a boundary that is both top-level (not inside an unclosed
+ *      <blockquote>/<ul>/<ol>/<li>/<table>/<figure> — see
+ *      computeTopLevelBoundaries) and does not orphan a lead-in (see
+ *      orphansALeadIn).
+ *   2. If none qualifies, relax to top-level-only.
+ *   3. If still none, fall back to the nearest boundary from the full safety-
+ *      filtered set, exactly as this function behaved before either soft
+ *      preference existed.
+ *
+ * These are soft preferences, not hard requirements: a slightly awkward
+ * placement is far better than no report form at all, so coverage always
+ * wins over placement quality when the two conflict.
  *
  * Returns -1 if there is no usable boundary — including the case where every
  * candidate is inside a protected region.
@@ -134,7 +257,13 @@ function findMidParagraphBoundary(html: string): number {
   )
   if (usable.length === 0) return -1
 
-  return usable.reduce((best, b) => (Math.abs(b - target) < Math.abs(best - target) ? b : best))
+  const topLevelSet = computeTopLevelBoundaries(html, usable)
+  const topLevel = usable.filter(b => topLevelSet.has(b))
+  const suitable = topLevel.filter(b => !orphansALeadIn(html, b))
+
+  const pool = suitable.length > 0 ? suitable : topLevel.length > 0 ? topLevel : usable
+
+  return pool.reduce((best, b) => (Math.abs(b - target) < Math.abs(best - target) ? b : best))
 }
 
 /**

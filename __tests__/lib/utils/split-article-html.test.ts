@@ -409,3 +409,323 @@ describe('splitArticleHtml fallback placement — unclosed <pre>/<code> hardenin
     expect(reconstructed).toBe(html)
   })
 })
+
+describe('splitArticleHtml fallback placement — lead-in guard', () => {
+  /** Position (length of concatenated html before the bar) of the bar segment, or -1 if none. */
+  const barPositionOf = (segments: ArticleSegment[]): number => {
+    const barIdx = segments.findIndex(s => s.type === 'bar')
+    if (barIdx === -1) return -1
+    return segments
+      .slice(0, barIdx)
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .reduce((len, c) => len + c.length, 0)
+  }
+
+  const reconstruct = (segments: ArticleSegment[]): string =>
+    segments
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .join('')
+
+  it('does not orphan a bold-label lead-in from the list it introduces (production shape: "PIP Limits:")', () => {
+    const pipParagraph = '<p><strong>PIP Limits:</strong></p>'
+    const html = [
+      '<h2 id="a"><a href="#a">Uninsured Motorist Coverage</a></h2>',
+      `<p>${'Intro filler sentence about the coverage overview here today. '.repeat(3)}</p>`,
+      '<ul><li>Prior list item one</li><li>Prior list item two</li></ul>',
+      pipParagraph,
+      '<ul><li>$10,000 minimum</li><li>$50,000 maximum</li></ul>',
+      `<p>${'Trailing filler text after the list, more overall length here today. '.repeat(4)}</p>`,
+      '<p>Final closing sentence to end the article body section.</p>',
+    ].join('')
+    const pipCloseIdx = html.indexOf(pipParagraph) + pipParagraph.length
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1) // coverage must not regress to zero
+
+    expect(barPositionOf(segments)).not.toBe(pipCloseIdx)
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('does not orphan a bold-label lead-in with no trailing colon (production shape: "Keep Complete Copies")', () => {
+    const leadIn = '<p><strong>Keep Complete Copies</strong></p>'
+    const html = [
+      '<h2 id="a"><a href="#a">After A Denial</a></h2>',
+      `<p>${'Intro filler sentence about what happens after a denial letter arrives. '.repeat(3)}</p>`,
+      '<ol><li>Prior step one</li><li>Prior step two</li></ol>',
+      leadIn,
+      '<ul><li>Copy of the claim denial letter</li><li>Copy of the police report</li></ul>',
+      `<p>${'Trailing filler text after the list, more overall length here today. '.repeat(4)}</p>`,
+      '<p>Final closing sentence to end the article body section.</p>',
+    ].join('')
+    const leadInCloseIdx = html.indexOf(leadIn) + leadIn.length
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+
+    expect(barPositionOf(segments)).not.toBe(leadInCloseIdx)
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('does not orphan a colon-ending prose lead-in from the list it introduces (production shape: "Practical Reality:")', () => {
+    const headingP = '<p><strong>Practical Reality:</strong></p>'
+    const leadIn =
+      '<p>While the uninsured driver CAN sue you, there are practical considerations:</p>'
+    const html = [
+      '<h2 id="a"><a href="#a">Being Sued By An Uninsured Driver</a></h2>',
+      `<p>${'Intro filler sentence about the general topic of uninsured drivers here. '.repeat(2)}</p>`,
+      headingP,
+      leadIn,
+      '<ul><li>Consideration one</li><li>Consideration two</li></ul>',
+      `<p>${'Trailing filler text after the list, more overall length here today. '.repeat(3)}</p>`,
+      '<p>Final closing sentence to end the article body section.</p>',
+    ].join('')
+    const leadInCloseIdx = html.indexOf(leadIn) + leadIn.length
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+
+    expect(barPositionOf(segments)).not.toBe(leadInCloseIdx)
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('prefers a suitable boundary further from the target over a nearer lead-in', () => {
+    const leadIn = '<p><strong>Label:</strong></p>'
+    const html = [
+      '<h2 id="a"><a href="#a">Heading</a></h2>',
+      `<p>${'Filler before the lead-in to give the target something nearby to land on. '.repeat(2)}</p>`,
+      leadIn,
+      '<ul><li>Item one</li><li>Item two</li></ul>',
+      `<p>${'Filler after the list so a later suitable boundary exists further out today. '.repeat(3)}</p>`,
+      '<p>Final closing sentence to end the article body section.</p>',
+    ].join('')
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+
+    // The lead-in boundary (225) sits closer to the 45% target than the
+    // earlier suitable boundary (195), but must be skipped anyway.
+    expect(barPositionOf(segments)).toBe(195)
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('falls back to the nearest candidate, unchanged, when every candidate is a lead-in', () => {
+    const html = [
+      '<h2 id="a"><a href="#a">Labels</a></h2>',
+      '<p><strong>Label One:</strong></p>',
+      '<div>Non-paragraph filler content that keeps overall length up without adding p tags here.</div>',
+      '<p><strong>Label Two:</strong></p>',
+      '<div>More non-paragraph filler content to keep the overall length up appropriately as well.</div>',
+      '<p><strong>Label Three:</strong></p>',
+      '<div>Trailing filler content after the last label to keep it away from the very end here.</div>',
+    ].join('')
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    // A slightly awkward placement beats no form at all — coverage must not regress.
+    expect(bars).toHaveLength(1)
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('does not affect placement between two ordinary narrative paragraphs (no lead-in present)', () => {
+    const html = [
+      '<h2 id="a"><a href="#a">How To File A Claim</a></h2>',
+      `<p>${'First, call your insurance company and explain the situation in careful detail. '.repeat(2)}</p>`,
+      `<p>${'Second, gather the paperwork the adjuster will need to process your claim quickly. '.repeat(2)}</p>`,
+      `<p>${'Third, follow up in writing so there is a clear record of every step you took. '.repeat(2)}</p>`,
+    ].join('')
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+    expect(barPositionOf(segments)).toBe(219)
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('does not treat a paragraph with an inline <strong> phrase (not the whole paragraph) as a lead-in', () => {
+    const mixed =
+      '<p>According to <strong>state law</strong>, you must respond within 30 days of the letter.</p>'
+    const html = [
+      '<h2 id="a"><a href="#a">Deadlines</a></h2>',
+      `<p>${'Intro filler sentence describing deadlines in general terms before specifics here. '.repeat(1)}</p>`,
+      mixed,
+      `<p>${'Closing filler sentence describing what happens after the deadline passes here today. '.repeat(2)}</p>`,
+    ].join('')
+    const mixedCloseIdx = html.indexOf(mixed) + mixed.length
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+    // The mixed-content paragraph is the nearest boundary and is NOT a
+    // lead-in, so it should still be chosen.
+    expect(barPositionOf(segments)).toBe(mixedCloseIdx)
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('rejects a colon-ending lead-in even when nothing after it is a list', () => {
+    const leadIn = '<p>Here are the key points to remember:</p>'
+    const html = [
+      '<h2 id="a"><a href="#a">Key Points</a></h2>',
+      `<p>${'Filler before the colon lead-in to give the target something nearby to land on. '.repeat(1)}</p>`,
+      leadIn,
+      `<p>${'Plain prose paragraph that follows the lead-in instead of a list, with more text. '.repeat(2)}</p>`,
+    ].join('')
+    const leadInCloseIdx = html.indexOf(leadIn) + leadIn.length
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+    expect(barPositionOf(segments)).not.toBe(leadInCloseIdx)
+    expect(barPositionOf(segments)).toBe(130)
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('rejects a candidate followed by a list even when the paragraph before it is not worded as a lead-in', () => {
+    const para =
+      '<p>Ordinary paragraph text that ends with a period, not a colon or bold label at all.</p>'
+    const html = [
+      '<h2 id="a"><a href="#a">Ordinary Section</a></h2>',
+      `<p>${'Filler before the ordinary paragraph to give the target something nearby to land on. '.repeat(1)}</p>`,
+      para,
+      '<ul><li>Item one</li><li>Item two</li></ul>',
+      `<p>${'Trailing paragraph after the list to give a later candidate as well, with more length. '.repeat(2)}</p>`,
+    ].join('')
+    const paraCloseIdx = html.indexOf(para) + para.length
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+    expect(barPositionOf(segments)).not.toBe(paraCloseIdx)
+    expect(barPositionOf(segments)).toBe(141)
+    expect(reconstruct(segments)).toBe(html)
+  })
+})
+
+describe('splitArticleHtml fallback placement — nesting-depth guard', () => {
+  const barPositionOf = (segments: ArticleSegment[]): number => {
+    const barIdx = segments.findIndex(s => s.type === 'bar')
+    if (barIdx === -1) return -1
+    return segments
+      .slice(0, barIdx)
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .reduce((len, c) => len + c.length, 0)
+  }
+
+  const reconstruct = (segments: ArticleSegment[]): string =>
+    segments
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .join('')
+
+  it('does not split a <blockquote> containing two paragraphs', () => {
+    const q1 = '<p>First quoted paragraph with some length to it for the reader. </p>'
+    const q2 = '<p>Second quoted paragraph continuing the same quotation for the reader today.</p>'
+    const html = [
+      '<h2 id="a"><a href="#a">Heading</a></h2>',
+      `<p>${'Intro filler text before the quote to give the target something nearby today. '.repeat(2)}</p>`,
+      `<blockquote>${q1}${q2}</blockquote>`,
+      `<p>${'Filler text after the blockquote to give a further candidate boundary as well. '.repeat(2)}</p>`,
+    ].join('')
+    const q1CloseIdx = html.indexOf(q1) + q1.length
+    const q2CloseIdx = html.indexOf(q2) + q2.length
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+
+    const barPos = barPositionOf(segments)
+    expect(barPos).not.toBe(q1CloseIdx)
+    expect(barPos).not.toBe(q2CloseIdx)
+
+    // The blockquote must appear whole in whichever side it lands on.
+    const before = segments
+      .slice(
+        0,
+        segments.findIndex(s => s.type === 'bar')
+      )
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .join('')
+    const hasOpenTag = before.includes('<blockquote>')
+    const hasCloseTag = before.includes('</blockquote>')
+    expect(hasOpenTag).toBe(hasCloseTag) // both present or both absent — never split mid-tag
+
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('does not split a loose <ol> whose <li>s contain <p> paragraphs', () => {
+    const item1 = '<p>First loose item paragraph text describing step one in detail today.</p>'
+    const item2 = '<p>Second loose item paragraph text describing step two in detail today.</p>'
+    const html = [
+      '<h2 id="a"><a href="#a">Heading</a></h2>',
+      `<p>${'Intro filler text before the list to give the target something nearby today. '.repeat(2)}</p>`,
+      `<ol><li>${item1}</li><li>${item2}</li></ol>`,
+      `<p>${'Filler text after the list to give a further candidate boundary as well here. '.repeat(2)}</p>`,
+    ].join('')
+    const item1CloseIdx = html.indexOf(item1) + item1.length
+    const item2CloseIdx = html.indexOf(item2) + item2.length
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+
+    const barPos = barPositionOf(segments)
+    expect(barPos).not.toBe(item1CloseIdx)
+    expect(barPos).not.toBe(item2CloseIdx)
+
+    const before = segments
+      .slice(
+        0,
+        segments.findIndex(s => s.type === 'bar')
+      )
+      .filter(s => s.type === 'html')
+      .map(s => (s as HtmlSegment).content)
+      .join('')
+    expect(before.includes('<ol>')).toBe(before.includes('</ol>'))
+
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('does not split a nested <ul> inside an <li>', () => {
+    const outerP = '<p>Item one text describing the first bullet point in some further detail.</p>'
+    const nestedP = '<p>Nested sub item elaborating on item one with more specific detail here.</p>'
+    const html = [
+      '<h2 id="a"><a href="#a">Heading</a></h2>',
+      `<p>${'Intro filler text before the nested list to give the target something nearby. '.repeat(2)}</p>`,
+      `<ul><li>${outerP}<ul><li>${nestedP}</li></ul></li></ul>`,
+      `<p>${'Filler text after the nested list to give a further candidate boundary here. '.repeat(2)}</p>`,
+    ].join('')
+    const outerCloseIdx = html.indexOf(outerP) + outerP.length
+    const nestedCloseIdx = html.indexOf(nestedP) + nestedP.length
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    expect(bars).toHaveLength(1)
+
+    const barPos = barPositionOf(segments)
+    expect(barPos).not.toBe(outerCloseIdx)
+    expect(barPos).not.toBe(nestedCloseIdx)
+
+    expect(reconstruct(segments)).toBe(html)
+  })
+
+  it('still places a form when every candidate boundary is inside a <blockquote> (no coverage regression)', () => {
+    const html = [
+      '<h2 id="a"><a href="#a">Heading</a></h2>',
+      '<blockquote><p>Only quoted paragraph text that exists as a boundary candidate in this doc.</p>' +
+        '<p>Second quoted paragraph so there is content on both sides of the candidate today.</p></blockquote>',
+    ].join('')
+
+    const segments = splitArticleHtml(html)
+    const bars = segments.filter(s => s.type === 'bar')
+    // A form landing inside the blockquote is still better than no form at all.
+    expect(bars).toHaveLength(1)
+    expect(reconstruct(segments)).toBe(html)
+  })
+})
