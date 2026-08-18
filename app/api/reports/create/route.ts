@@ -5,7 +5,10 @@
  *
  * Data Sources:
  * - Auto.dev VIN Decode API: LIVE vehicle specifications (year, make, model, trim, engine, etc.)
- * - MarketCheck Price Prediction API: LIVE pricing and comparable listings
+ *
+ * MarketCheck pricing is NOT fetched here. It is a paid per-call API and is
+ * fetched by the LemonSqueezy webhook after payment succeeds, matching
+ * /api/reports/create-anonymous. See the note further down.
  */
 
 import { NextResponse } from 'next/server'
@@ -18,14 +21,7 @@ import {
   fetchAutoDevVinDecode, // REAL API for VIN decode
   type AutoDevVinDecodeData,
 } from '@/lib/api/autodev-client'
-// REMOVED: CarsXE import (replaced by MarketCheck)
-import {
-  fetchMarketCheckData, // REAL API (not mock)
-  type MarketCheckPrediction,
-} from '@/lib/api/marketcheck-client'
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
-import { validateListingUrls } from '@/lib/utils/url-validator'
-import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import { reportCreationLimiter } from '@/lib/rate-limit'
 import { logApiCall } from '@/lib/api/api-call-logger'
 import { resolveStateCodeFromZip } from '@/lib/personalization/zip-to-state'
@@ -139,7 +135,13 @@ export async function POST(request: Request) {
         vehicle_data: {}, // Will be populated after API calls
         status: 'draft',
         data_retrieval_status: 'pending',
-        price_paid: 0, // Will be set after payment
+        // price_paid is deliberately NOT set here. The LemonSqueezy webhook
+        // sets it on payment. Leaving it null matches create-anonymous and, more
+        // importantly, keeps the report visible to the abandoned-report cron,
+        // which filters `.is('price_paid', null)` — 0 is not null, so writing 0
+        // silently excluded every signed-in user's report from the drip.
+        // 0 is a meaningful value elsewhere (admin free reports), so the cron
+        // must not be loosened to accept it.
         email: user.email ?? null,
       })
       .select()
@@ -227,118 +229,16 @@ export async function POST(request: Request) {
     // REMOVED: CarsXE is replaced by MarketCheck
     // No longer fetching CarsXE market comparables
 
-    // Fetch MarketCheck price prediction
-    let marketcheckValuation: MarketCheckPrediction | null = null
-    let marketcheckFallbackUsed = false
-    let urlValidationFailedCount: number | null = null
-    let urlValidationFailedUrls: string[] | null = null
-    let urlValidatedListingUrls: string[] | null = null
-    let comparablesSupplemented = false
-    if (vehicleData) {
-      const marketCheckStartTime = Date.now()
-
-      try {
-        // Extract subject vehicle data for filtering comparables by model/trim
-        const subjectVehicle = vehicleData
-          ? {
-              year: vehicleData.vehicle.year,
-              make: vehicleData.make,
-              model: vehicleData.model,
-              trim: vehicleData.trim,
-            }
-          : undefined
-
-        const marketCheckResult = await fetchMarketCheckData(
-          vin,
-          mileage,
-          zipCode,
-          false, // is_certified
-          undefined, // retryConfig (use default)
-          subjectVehicle
-        )
-
-        if (marketCheckResult.success) {
-          const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
-            marketCheckResult.data!
-          )
-          marketcheckValuation = validatedPrediction
-          marketcheckFallbackUsed = marketCheckResult.fallbackUsed === true
-          urlValidationFailedCount = urlStats.failedCount
-          urlValidationFailedUrls = urlStats.failedUrls
-          urlValidatedListingUrls = urlStats.validatedUrls
-
-          // Top-up: if fewer than 10 valid listings survived URL validation, supplement from search fallback
-          try {
-            const { prediction: supplementedPrediction, supplemented } =
-              await supplementComparables(
-                validatedPrediction,
-                urlStats.validatedUrls.length,
-                subjectVehicle,
-                vin,
-                mileage,
-                zipCode
-              )
-            marketcheckValuation = supplementedPrediction
-            comparablesSupplemented = supplemented
-          } catch (err) {
-            console.error('[SUPPLEMENT_EXCEPTION]', err)
-            // Non-fatal: use pre-supplement prediction
-          }
-
-          await logApiCall({
-            reportId: report.id,
-            provider: 'marketcheck',
-            endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-            success: true,
-            responseTimeMs: Date.now() - marketCheckStartTime,
-            cost: 0.09,
-            requestData: { vin, mileage, zip_code: zipCode, dealer_type: dealerType },
-            responseData: {
-              predicted_price: marketcheckValuation!.predictedPrice,
-              total_comparables_found: marketcheckValuation!.totalComparablesFound,
-              recent_comparables_found: marketcheckValuation!.recentComparables?.num_found ?? 0,
-            },
-          })
-
-          console.log('[MARKETCHECK_SUCCESS]', {
-            predictedPrice: marketcheckValuation.predictedPrice,
-            comparables: marketcheckValuation.recentComparables?.num_found || 0,
-            dealerType,
-          })
-        } else {
-          // Log failure but continue (graceful degradation)
-          await logApiCall({
-            reportId: report.id,
-            provider: 'marketcheck',
-            endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-            success: false,
-            responseTimeMs: Date.now() - marketCheckStartTime,
-            cost: 0.0,
-            requestData: { vin, mileage, zip_code: zipCode, dealer_type: dealerType },
-            errorMessage: marketCheckResult.error,
-          })
-
-          console.warn('[MARKETCHECK_FAILURE]', {
-            error: marketCheckResult.error,
-            statusCode: marketCheckResult.statusCode,
-          })
-        }
-      } catch (error) {
-        // Unexpected error - log but don't fail
-        console.error('[MARKETCHECK_EXCEPTION]', error)
-
-        await logApiCall({
-          reportId: report.id,
-          provider: 'marketcheck',
-          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-          success: false,
-          responseTimeMs: Date.now() - marketCheckStartTime,
-          cost: 0.0,
-          requestData: { vin, mileage, zip_code: zipCode, dealer_type: dealerType },
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        })
-      }
-    }
+    // MarketCheck is deliberately NOT fetched here.
+    //
+    // It is a paid, per-call API. Fetching at creation time charged us for every
+    // report a signed-in user started, whether or not they ever paid. The
+    // LemonSqueezy webhook already fetches it after payment succeeds — along with
+    // URL validation and comparables supplementation — guarded by
+    // `if (!marketcheckData)` so it never double-charges. That is exactly how the
+    // anonymous path has always worked; this path was the outlier.
+    //
+    // See app/api/lemonsqueezy/webhook/route.ts (MarketCheck fetch + enrichment).
 
     // Update report with fetched data
     const { error: updateError } = await supabase
@@ -372,47 +272,11 @@ export async function POST(request: Request) {
         // Store complete Auto.dev VIN decode response
         autodev_vin_data: vehicleData || null,
 
-        // MarketCheck valuation data
-        marketcheck_valuation: marketcheckValuation || null,
-
-        // NEW: Dedicated MarketCheck columns for faster queries
-        ...(marketcheckValuation && {
-          marketcheck_predicted_price: marketcheckValuation.predictedPrice,
-          marketcheck_msrp: marketcheckValuation.msrp || null,
-          marketcheck_price_range_min: marketcheckValuation.priceRange?.min || null,
-          marketcheck_price_range_max: marketcheckValuation.priceRange?.max || null,
-          marketcheck_confidence: marketcheckValuation.confidence,
-          marketcheck_total_comparables_found: marketcheckValuation.totalComparablesFound,
-          marketcheck_recent_comparables_found:
-            marketcheckValuation.recentComparables?.num_found || 0,
-        }),
-
-        marketcheck_fallback_used: marketcheckFallbackUsed,
-        comparables_supplemented: comparablesSupplemented,
-
-        // Also update valuation_result for backward compatibility
-        ...(marketcheckValuation && {
-          valuation_result: {
-            predictedPrice: marketcheckValuation.predictedPrice,
-            lowValue:
-              marketcheckValuation.priceRange?.min ||
-              Math.round(marketcheckValuation.predictedPrice * 0.9),
-            averageValue: marketcheckValuation.predictedPrice,
-            highValue:
-              marketcheckValuation.priceRange?.max ||
-              Math.round(marketcheckValuation.predictedPrice * 1.1),
-            confidence: marketcheckValuation.confidence,
-            dataPoints: marketcheckValuation.totalComparablesFound,
-            dataSource: 'marketcheck',
-          },
-        }),
-
-        // URL validation stats (set when MarketCheck data was validated)
-        ...(urlValidationFailedCount !== null && {
-          url_validation_failed_count: urlValidationFailedCount,
-          url_validation_failed_urls: urlValidationFailedUrls,
-          validated_listing_urls: urlValidatedListingUrls,
-        }),
+        // MarketCheck valuation and the columns derived from it are left unset
+        // here. The webhook populates them after payment — see the note above.
+        marketcheck_valuation: null,
+        marketcheck_fallback_used: false,
+        comparables_supplemented: false,
 
         mileage: mileage,
         zip_code: zipCode,
@@ -440,7 +304,7 @@ export async function POST(request: Request) {
           id: report.id,
           vin,
           vehicleData,
-          marketcheckValuation: marketcheckValuation,
+          marketcheckValuation: null, // populated by the webhook after payment
           mileage,
           zipCode,
           dealerType,

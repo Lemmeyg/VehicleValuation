@@ -501,7 +501,7 @@ describe('POST /api/reports/create', () => {
       })
     })
 
-    it('should log AutoDev and MarketCheck calls with canonical endpoint strings and costs', async () => {
+    it('logs the AutoDev call, and logs no MarketCheck call because none is made', async () => {
       const request = new Request('http://localhost:3000/api/reports/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -527,21 +527,11 @@ describe('POST /api/reports/create', () => {
           }),
         })
       )
-      expect(mockLogApiCall).toHaveBeenCalledWith(
-        expect.objectContaining({
-          provider: 'marketcheck',
-          endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
-          cost: 0.09,
-          requestData: expect.objectContaining({
-            vin: expect.any(String),
-            dealer_type: expect.any(String),
-          }),
-          responseData: expect.objectContaining({
-            predicted_price: expect.any(Number),
-            total_comparables_found: expect.any(Number),
-            recent_comparables_found: expect.any(Number),
-          }),
-        })
+      // MarketCheck is a paid per-call API and is no longer hit at creation
+      // time — the LemonSqueezy webhook fetches it after payment. So there is
+      // no marketcheck call to log here, and nothing to charge for.
+      expect(mockLogApiCall).not.toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'marketcheck' })
       )
     })
   })
@@ -621,7 +611,9 @@ describe('POST /api/reports/create', () => {
       })
     })
 
-    it('writes comparables_supplemented: true to DB when supplement fires', async () => {
+    it('does not supplement comparables, and writes comparables_supplemented: false', async () => {
+      // Supplementation only makes sense on MarketCheck results, which this
+      // route no longer fetches. It moved to the webhook, after payment.
       mockSupplementComparables.mockImplementationOnce(async prediction => ({
         prediction,
         supplemented: true,
@@ -656,9 +648,11 @@ describe('POST /api/reports/create', () => {
 
       await POST(request)
 
+      expect(mockSupplementComparables).not.toHaveBeenCalled()
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          comparables_supplemented: true,
+          comparables_supplemented: false,
+          marketcheck_valuation: null,
         })
       )
     })
@@ -829,5 +823,92 @@ describe('lead capture on report creation (N6)', () => {
       .mockResolvedValue({ data: null, error: { message: 'db down' } })
     const response = await POST(makeRequest())
     expect(response.status).toBe(201)
+  })
+})
+
+/**
+ * Parity with the anonymous create path.
+ *
+ * /api/reports/create-anonymous leaves price_paid null and never calls
+ * MarketCheck — the LemonSqueezy webhook fetches valuation data after payment.
+ * This authenticated path used to differ on both counts, which cost money on
+ * unpaid reports and made those reports invisible to the abandoned-report cron
+ * (it filters `.is('price_paid', null)`, and 0 is not null).
+ */
+describe('POST /api/reports/create — parity with the anonymous path', () => {
+  const mockSingle = jest.fn()
+  const mockSelect = jest.fn(() => ({ single: mockSingle }))
+  const mockInsert = jest.fn(() => ({ select: mockSelect }))
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(createServerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
+    ;(createRouteHandlerSupabaseClient as jest.Mock).mockResolvedValue(mockSupabase)
+    mockSupabase.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'test-user-123', email: 'test@example.com' } },
+      error: null,
+    })
+    mockSingle.mockResolvedValue({ data: { id: 'new-report-123' }, error: null })
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      gte: jest.fn().mockReturnThis(),
+      single: mockSingle,
+      insert: mockInsert,
+      update: jest.fn().mockReturnThis(),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(rateLimitModule.reportCreationLimiter as any) = {
+      check: jest.fn().mockResolvedValue(undefined),
+    }
+    mockLogApiCall.mockResolvedValue(undefined)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
+
+    // VIN decode SUCCEEDS here — that is the condition under which the old code
+    // went on to call MarketCheck, so it is the case worth pinning.
+    mockFetchAutoDevVinDecode.mockResolvedValue({
+      success: true,
+      data: {
+        make: 'Honda',
+        model: 'Accord',
+        trim: 'EX',
+        body: 'Sedan',
+        engine: '2.0L',
+        transmission: 'Automatic',
+        drive: 'FWD',
+        type: 'Gasoline',
+        vinValid: true,
+        vehicle: { year: 2020 },
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any)
+  })
+
+  function makeRequest() {
+    return new Request('http://localhost:3000/api/reports/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vin: '1HGBH41JXMN109186',
+        mileage: 35000,
+        zipCode: '10001',
+        reportType: 'basic',
+      }),
+    })
+  }
+
+  it('leaves price_paid unset so the abandoned-report cron can see the report', async () => {
+    await POST(makeRequest())
+
+    expect(mockInsert).toHaveBeenCalledTimes(1)
+    const inserted = mockInsert.mock.calls[0][0] as Record<string, unknown>
+    expect(inserted).not.toHaveProperty('price_paid')
+  })
+
+  it('does not call MarketCheck at creation time — the webhook fetches it after payment', async () => {
+    await POST(makeRequest())
+
+    expect(mockFetchMarketCheckData).not.toHaveBeenCalled()
   })
 })
