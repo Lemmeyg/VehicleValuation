@@ -6,6 +6,7 @@
 
 import { getArticleListMetadata } from '@/lib/knowledge-base-db'
 import Link from 'next/link'
+import { formatDateET } from '@/lib/utils/format-date-eastern'
 
 export default async function AdminKnowledgeBasePage() {
   const articles = await getArticleListMetadata()
@@ -131,7 +132,7 @@ export default async function AdminKnowledgeBasePage() {
                       <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
                         <span>By {article.author}</span>
                         <span>•</span>
-                        <span>{new Date(article.datePublished).toLocaleDateString()}</span>
+                        <span>{formatDateET(article.datePublished)}</span>
                         <span>•</span>
                         <span>{article.readingTime}</span>
                         {article.tags && article.tags.length > 0 && (

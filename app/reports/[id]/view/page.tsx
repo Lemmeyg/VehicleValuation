@@ -14,6 +14,7 @@ import Image from 'next/image'
 import { Car, FileText } from 'lucide-react'
 import { getListingsStats } from '@/lib/utils/listing-filters'
 import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
+import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintPdfButtons } from './print-pdf-buttons'
 import { ReportViewTracker } from '@/components/ReportViewTracker'
@@ -309,7 +310,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
             </div>
             <div className="text-xs text-slate-500">
               Report Date:{' '}
-              {new Date(report.created_at).toLocaleDateString('en-US', {
+              {formatDateET(report.created_at, {
                 month: '2-digit',
                 day: '2-digit',
                 year: 'numeric',

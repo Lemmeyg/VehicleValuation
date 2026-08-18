@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { X, Clock } from 'lucide-react'
+import { formatDateTimeET } from '@/lib/utils/format-date-eastern'
 
 interface RateLimitModalProps {
   isOpen: boolean
@@ -102,7 +103,7 @@ export default function RateLimitModal({
             <div className="rounded-lg bg-slate-50 p-4 border border-slate-200">
               <p className="text-sm text-slate-600">
                 <span className="font-semibold text-slate-800">Next available:</span>{' '}
-                {new Date(nextAvailableDate).toLocaleString('en-US', {
+                {formatDateTimeET(nextAvailableDate, {
                   weekday: 'long',
                   month: 'long',
                   day: 'numeric',
@@ -110,7 +111,8 @@ export default function RateLimitModal({
                   hour: 'numeric',
                   minute: '2-digit',
                   hour12: true,
-                })}
+                })}{' '}
+                ET
               </p>
             </div>
 

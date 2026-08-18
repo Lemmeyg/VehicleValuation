@@ -6,6 +6,7 @@
 
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import Link from 'next/link'
+import { formatDateET } from '@/lib/utils/format-date-eastern'
 
 export default async function AdminReportsPage() {
   const supabase = await createServerSupabaseClient()
@@ -13,7 +14,8 @@ export default async function AdminReportsPage() {
   // Fetch all reports with user information
   const { data: reports, error } = await supabase
     .from('reports')
-    .select(`
+    .select(
+      `
       id,
       vin,
       status,
@@ -22,7 +24,8 @@ export default async function AdminReportsPage() {
       stripe_payment_id,
       created_at,
       updated_at
-    `)
+    `
+    )
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -38,7 +41,7 @@ export default async function AdminReportsPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return formatDateET(dateString, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -66,19 +69,19 @@ export default async function AdminReportsPage() {
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm font-medium text-gray-500">Completed</p>
           <p className="text-2xl font-bold text-green-600">
-            {reports?.filter((r) => r.status === 'completed').length || 0}
+            {reports?.filter(r => r.status === 'completed').length || 0}
           </p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm font-medium text-gray-500">Pending</p>
           <p className="text-2xl font-bold text-yellow-600">
-            {reports?.filter((r) => r.status === 'pending').length || 0}
+            {reports?.filter(r => r.status === 'pending').length || 0}
           </p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm font-medium text-gray-500">Draft</p>
           <p className="text-2xl font-bold text-gray-600">
-            {reports?.filter((r) => r.status === 'draft').length || 0}
+            {reports?.filter(r => r.status === 'draft').length || 0}
           </p>
         </div>
       </div>
@@ -110,12 +113,10 @@ export default async function AdminReportsPage() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {reports && reports.length > 0 ? (
-              reports.map((report) => (
+              reports.map(report => (
                 <tr key={report.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900 font-mono">
-                      {report.vin}
-                    </div>
+                    <div className="text-sm font-medium text-gray-900 font-mono">{report.vin}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
@@ -165,10 +166,7 @@ export default async function AdminReportsPage() {
                         method="POST"
                         className="inline"
                       >
-                        <button
-                          type="submit"
-                          className="text-green-600 hover:text-green-500"
-                        >
+                        <button type="submit" className="text-green-600 hover:text-green-500">
                           Generate PDF
                         </button>
                       </form>

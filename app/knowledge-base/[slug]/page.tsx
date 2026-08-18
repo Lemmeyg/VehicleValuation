@@ -6,6 +6,7 @@ import {
 import { getRelatedArticles } from '@/lib/utils/related-articles'
 import { deriveCategories } from '@/lib/utils/kb-articles'
 import { splitArticleHtml } from '@/lib/utils/split-article-html'
+import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
@@ -164,7 +165,7 @@ export default async function ArticlePage({ params }: Props) {
                   <div className="flex items-center text-sm text-slate-600 space-x-4">
                     <span>{article.author}</span>
                     <span>•</span>
-                    <time>{new Date(article.datePublished).toLocaleDateString()}</time>
+                    <time>{formatDateET(article.datePublished)}</time>
                     <span>•</span>
                     <span>{article.readingTime}</span>
                   </div>

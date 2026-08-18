@@ -21,6 +21,7 @@ import {
 } from '@react-pdf/renderer'
 import { getListingsStats } from '@/lib/utils/listing-filters'
 import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
+import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { SUPPORT_EMAIL } from '@/lib/constants'
 import {
   createPriceDistribution,
@@ -878,7 +879,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
   const formatMileage = (miles: number) => new Intl.NumberFormat('en-US').format(miles)
 
   const formatDateShort = (dateString: string) =>
-    new Date(dateString).toLocaleDateString('en-US', {
+    formatDateET(dateString, {
       month: '2-digit',
       day: '2-digit',
       year: 'numeric',

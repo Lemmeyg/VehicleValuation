@@ -10,6 +10,7 @@ import { createServerSupabaseClient } from '@/lib/db/supabase'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import CreateReportButton from '@/components/CreateReportButton'
+import { formatDateET } from '@/lib/utils/format-date-eastern'
 
 export default async function DashboardPage() {
   const user = await getUser()
@@ -55,9 +56,7 @@ export default async function DashboardPage() {
         <h1 className="text-4xl font-bold text-slate-900">
           Welcome back{profile?.full_name ? `, ${profile.full_name}` : ''}!
         </h1>
-        <p className="mt-2 text-base text-slate-600">
-          View your reports and manage your account.
-        </p>
+        <p className="mt-2 text-base text-slate-600">View your reports and manage your account.</p>
       </div>
 
       {/* Quick actions - Rearranged: Profile, Saved Services, Saved Articles */}
@@ -277,7 +276,7 @@ export default async function DashboardPage() {
                         )}
                         <p className="text-xs text-slate-500 mt-1">
                           Created{' '}
-                          {new Date(report.created_at).toLocaleDateString('en-US', {
+                          {formatDateET(report.created_at, {
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric',
@@ -356,7 +355,7 @@ export default async function DashboardPage() {
                         </h3>
                         <p className="text-xs text-slate-500">
                           Saved{' '}
-                          {new Date(favorite.created_at).toLocaleDateString('en-US', {
+                          {formatDateET(favorite.created_at, {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',
@@ -428,7 +427,7 @@ export default async function DashboardPage() {
                     <div className="flex items-center gap-4 mt-3 ml-13">
                       <p className="text-xs text-slate-500">
                         Submitted{' '}
-                        {new Date(lead.created_at).toLocaleDateString('en-US', {
+                        {formatDateET(lead.created_at, {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',
