@@ -737,6 +737,35 @@ function PricingContent() {
               </div>
             </div>
 
+            {/* Report Preview Toggle */}
+            <div className="mb-8">
+              <button
+                onClick={() => {
+                  const next = !showReportPreview
+                  setShowReportPreview(next)
+                  if (next) {
+                    trackEvent('report_preview_viewed', { reportId: report?.id })
+                  }
+                }}
+                className="w-full flex items-center justify-between px-6 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-primary-300 hover:shadow-md transition-all group"
+              >
+                <span className="font-semibold text-slate-800 group-hover:text-primary-700 transition-colors">
+                  See what&apos;s inside your report
+                </span>
+                <ChevronDown
+                  className={`h-5 w-5 text-slate-500 transition-transform duration-200 ${
+                    showReportPreview ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {showReportPreview && (
+                <div className="mt-4 border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <ReportPreviewCondensed />
+                </div>
+              )}
+            </div>
+
             {/* Pricing Cards */}
             <div className="mb-8">
               <div className="text-center mb-6">
@@ -865,35 +894,6 @@ function PricingContent() {
                   Full terms →
                 </a>
               </div>
-            </div>
-
-            {/* Report Preview Toggle */}
-            <div className="mb-8">
-              <button
-                onClick={() => {
-                  const next = !showReportPreview
-                  setShowReportPreview(next)
-                  if (next) {
-                    trackEvent('report_preview_viewed', { reportId: report?.id })
-                  }
-                }}
-                className="w-full flex items-center justify-between px-6 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-primary-300 hover:shadow-md transition-all group"
-              >
-                <span className="font-semibold text-slate-800 group-hover:text-primary-700 transition-colors">
-                  See what&apos;s inside your report
-                </span>
-                <ChevronDown
-                  className={`h-5 w-5 text-slate-500 transition-transform duration-200 ${
-                    showReportPreview ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              {showReportPreview && (
-                <div className="mt-4 border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                  <ReportPreviewCondensed />
-                </div>
-              )}
             </div>
           </div>
         </div>
