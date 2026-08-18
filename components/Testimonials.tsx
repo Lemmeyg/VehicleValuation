@@ -16,6 +16,7 @@ import {
   trackVehicleSearch,
   trackFormSubmission,
   trackReportWorkflow,
+  getPostHogDistinctId,
 } from '@/lib/analytics/events'
 import { trackRedditLead } from '@/lib/analytics/reddit-events'
 import { getKBAttribution } from '@/lib/analytics/kb-attribution'
@@ -186,14 +187,44 @@ export default function Testimonials() {
 
     trackRedditLead()
 
-    const formData = {
-      vin: sanitizeVin(vin),
-      mileage: parseInt(mileage),
-      zipCode,
-    }
-    localStorage.setItem('hero_form_data', JSON.stringify(formData))
+    // Create the report server-side at submit time, the same way Hero does.
+    // This form used to stash the fields in localStorage under 'hero_form_data'
+    // and redirect — but nothing ever read that key (/pricing reads
+    // sessionStorage.pending_report), so every submission dead-ended on
+    // "No vehicle data found". Email is optional on this endpoint; it is
+    // collected by LemonSqueezy at checkout.
+    const phDistinctId = getPostHogDistinctId()
 
-    router.push('/pricing')
+    try {
+      const response = await fetch('/api/reports/create-anonymous', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vin: sanitizeVin(vin),
+          mileage: parseInt(mileage),
+          zipCode,
+          source: 'homepage_bottom',
+          ...(kbAttr && { kbSourceSlug: kbAttr.slug }),
+          // BL-125: lets the server-side download event find this same person
+          ...(phDistinctId && { posthogDistinctId: phDistinctId }),
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setErrors({ submit: result.error || 'Failed to create report. Please try again.' })
+        setLoading(false)
+        return
+      }
+
+      sessionStorage.setItem('pending_report', JSON.stringify(result.report))
+      router.push('/pricing')
+    } catch (err) {
+      console.error('[Testimonials] Failed to create report:', err)
+      setErrors({ submit: 'Failed to create report. Please try again.' })
+      setLoading(false)
+    }
   }
 
   return (
