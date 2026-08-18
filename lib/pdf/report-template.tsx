@@ -19,7 +19,8 @@ import {
   Circle,
   Path,
 } from '@react-pdf/renderer'
-import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
+import { getListingsStats } from '@/lib/utils/listing-filters'
+import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
 import { SUPPORT_EMAIL } from '@/lib/constants'
 import {
   createPriceDistribution,
@@ -858,6 +859,7 @@ interface ReportData {
   id: string
   vin: string
   mileage?: number
+  zipCode?: string | null
   reportType: 'BASIC' | 'PREMIUM'
   createdAt: string
   autodevVinData?: AutoDevVinData
@@ -884,7 +886,12 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
 
   // Listings
   const allListings = data.marketcheckValuation?.recentComparables?.listings || []
-  const displayedComparables = getLowestDOSActiveListings(allListings, 10)
+  const rankSubject = {
+    year: Number(data.autodevVinData?.vehicle?.year),
+    mileage: data.mileage ?? 0,
+    zip: data.zipCode ?? null,
+  }
+  const displayedComparables = getBestMatchListings(allListings, rankSubject, 10)
   const stats = getListingsStats(allListings)
 
   // Vehicle data

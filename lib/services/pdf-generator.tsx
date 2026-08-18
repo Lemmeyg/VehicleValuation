@@ -20,6 +20,7 @@ interface ReportData {
   vin: string
   user_id: string
   mileage?: number
+  zip_code?: string | null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   autodev_vin_data: any // Auto.dev VIN decode data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,6 +72,7 @@ export async function generateAndUploadPDF(
       id: reportData.id,
       vin: reportData.vin,
       mileage: reportData.mileage,
+      zipCode: reportData.zip_code,
       reportType,
       createdAt: reportData.created_at,
       autodevVinData: reportData.autodev_vin_data, // Auto.dev VIN decode data
@@ -227,6 +229,7 @@ export async function generatePDFBuffer(reportId: string): Promise<Buffer | null
       id: reportData.id,
       vin: reportData.vin,
       mileage: reportData.mileage,
+      zipCode: reportData.zip_code,
       reportType,
       createdAt: reportData.created_at,
       autodevVinData: reportData.autodev_vin_data, // Auto.dev VIN decode data
