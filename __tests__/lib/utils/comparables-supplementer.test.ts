@@ -200,7 +200,11 @@ describe('supplementComparables — fallback API failures', () => {
           price: 42000,
           miles: 0,
           seller_type: 'franchise',
-          build: { year: subjectVehicle.year, make: subjectVehicle.make, model: subjectVehicle.model },
+          build: {
+            year: subjectVehicle.year,
+            make: subjectVehicle.make,
+            model: subjectVehicle.model,
+          },
           vdp_url: `https://dealer.com/listing/NEW0000000000${i}`,
           first_seen_at_date: '2025-01-01',
         })),
@@ -435,29 +439,17 @@ describe('supplementComparables — merge logic', () => {
 // ─── Sort order and pagination ─────────────────────────────────────────────────
 
 describe('supplementComparables — sort order and pagination', () => {
-  it('processes year-close listings first, with distance as tiebreaker (sort by year then distance)', async () => {
-    // Subject: 2020. All 3 listings are within ±2 years (pass the year filter).
-    // L_X: year=2020, distance=50 (diff=0, farther)
-    // L_Y: year=2020, distance=20 (diff=0, closer)
-    // L_Z: year=2018, distance=5  (diff=2, very close by distance but year-far)
-    // Expected sort: L_Y (diff=0,dist=20) → L_X (diff=0,dist=50) → L_Z (diff=2,dist=5)
+  it('processes listings by best match first: year, then location, then mileage', async () => {
+    // Subject: 2020 Honda Civic, 30000 miles, ZIP 90210 (CA).
+    // L_X: year=2020 (diff=0), CA (same state, tier 0), miles=30000 (diff=0)     — best match
+    // L_Y: year=2020 (diff=0), TX (non-bordering, tier 2), miles=35000 (diff=5000)
+    // L_Z: year=2018 (diff=2), NY (non-bordering, tier 2), miles=30500 (diff=500) — year differs, ranks last
+    // Expected sort: L_X → L_Y → L_Z
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         num_found: 3,
         listings: [
-          {
-            id: 'L_X',
-            vin: 'L_X',
-            price: 20000,
-            miles: 30000,
-            seller_type: 'franchise',
-            build: { year: 2020, make: 'Honda', model: 'Civic' },
-            distance: 50,
-            dealer_address: { city: 'LA', state: 'CA', zip: '90210' },
-            vdp_url: 'https://dealer.com/listing/L_X',
-            first_seen_at_date: '2025-01-01',
-          },
           {
             id: 'L_Y',
             vin: 'L_Y',
@@ -465,19 +457,28 @@ describe('supplementComparables — sort order and pagination', () => {
             miles: 35000,
             seller_type: 'franchise',
             build: { year: 2020, make: 'Honda', model: 'Civic' },
-            distance: 20,
             dealer_address: { city: 'Austin', state: 'TX', zip: '78701' },
             vdp_url: 'https://dealer.com/listing/L_Y',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'L_X',
+            vin: 'L_X',
+            price: 20000,
+            miles: 30000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'LA', state: 'CA', zip: '90210' },
+            vdp_url: 'https://dealer.com/listing/L_X',
             first_seen_at_date: '2025-01-01',
           },
           {
             id: 'L_Z',
             vin: 'L_Z',
             price: 15000,
-            miles: 50000,
+            miles: 30500,
             seller_type: 'franchise',
             build: { year: 2018, make: 'Honda', model: 'Civic' },
-            distance: 5,
             dealer_address: { city: 'NY', state: 'NY', zip: '10001' },
             vdp_url: 'https://dealer.com/listing/L_Z',
             first_seen_at_date: '2025-01-01',
@@ -485,9 +486,9 @@ describe('supplementComparables — sort order and pagination', () => {
         ],
       }),
     })
-    // HEAD requests consumed in sort order: L_Y (year=2020,dist=20), L_X (year=2020,dist=50), L_Z (year=2018,dist=5)
-    mockHeadOk('https://dealer.com/listing/L_Y')
+    // HEAD requests consumed in best-match order: L_X, L_Y, L_Z
     mockHeadOk('https://dealer.com/listing/L_X')
+    mockHeadOk('https://dealer.com/listing/L_Y')
     mockHeadOk('https://dealer.com/listing/L_Z')
     // Pass 2: validCount(0) + 3 = 3 < 10, so pass 2 fires → return empty
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -507,12 +508,12 @@ describe('supplementComparables — sort order and pagination', () => {
 
     const calls = (global.fetch as jest.Mock).mock.calls
     // calls[0]: search API (page 1)
-    // calls[1]: HEAD for L_Y (year=2020, diff=0, dist=20) — same year as subject, closest distance
-    // calls[2]: HEAD for L_X (year=2020, diff=0, dist=50) — same year, farther distance
-    // calls[3]: HEAD for L_Z (year=2018, diff=2, dist=5)  — year further from subject
+    // calls[1]: HEAD for L_X (year=2020, same state as subject, exact mileage match) — best match
+    // calls[2]: HEAD for L_Y (year=2020, non-bordering state)
+    // calls[3]: HEAD for L_Z (year=2018 — year differs from subject, ranks last regardless of location/mileage)
     // calls[4]: search API (page 2)
-    expect(calls[1][0]).toBe('https://dealer.com/listing/L_Y')
-    expect(calls[2][0]).toBe('https://dealer.com/listing/L_X')
+    expect(calls[1][0]).toBe('https://dealer.com/listing/L_X')
+    expect(calls[2][0]).toBe('https://dealer.com/listing/L_Y')
     expect(calls[3][0]).toBe('https://dealer.com/listing/L_Z')
   })
 

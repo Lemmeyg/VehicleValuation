@@ -12,7 +12,8 @@ import { SUPPORT_EMAIL } from '@/lib/constants'
 import { canViewReport, getPaymentGateStatus } from '@/lib/utils/report-access'
 import Image from 'next/image'
 import { Car, FileText } from 'lucide-react'
-import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
+import { getListingsStats } from '@/lib/utils/listing-filters'
+import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintPdfButtons } from './print-pdf-buttons'
 import { ReportViewTracker } from '@/components/ReportViewTracker'
@@ -226,13 +227,20 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
   const allListings: any[] =
     marketCheck?.recentComparables?.listings || marketCheck?.comparables || []
 
-  // Pre-filter to URL-validated listings only, then take 10 with lowest DOS_Active.
-  // Fallback to allListings if none are validated (handles reports created before
-  // this feature was deployed — those listings lack the url_validated field).
+  // Pre-filter to URL-validated listings only, then take the 10 best matches by
+  // model year, location, and mileage (see comparables-ranker.ts). Fallback to
+  // allListings if none are validated (handles reports created before this feature
+  // was deployed — those listings lack the url_validated field).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const validatedListings = allListings.filter((l: any) => l.url_validated === true)
-  const displayedComparables = getLowestDOSActiveListings(
+  const rankSubject = {
+    year: Number(report.vehicle_data?.year),
+    mileage: report.mileage ?? 0,
+    zip: report.zip_code ?? null,
+  }
+  const displayedComparables = getBestMatchListings(
     validatedListings.length > 0 ? validatedListings : allListings,
+    rankSubject,
     10
   )
 

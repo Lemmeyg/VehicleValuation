@@ -14,6 +14,7 @@ import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import { logApiCall } from '@/lib/api/api-call-logger'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
+import { rankByBestMatch } from '@/lib/utils/comparables-ranker'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -93,8 +94,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // ========================================
       // URL Validation + Supplementation
       // ========================================
+      // Check links in best-match order (year, then location, then mileage) rather than
+      // freshness order, so the "find 10 live links" search spends its budget on the
+      // listings that are actually the best candidates to show — not just whichever
+      // happened to be freshest.
       const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
-        marketcheckResult.data
+        marketcheckResult.data,
+        subjectVehicle
+          ? {
+              sortFn: l =>
+                rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip: zip_code }),
+            }
+          : undefined
       )
 
       const supplementResult = await supplementComparables(
@@ -206,12 +217,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           valuation_result: {
             predictedPrice: finalPrediction.predictedPrice,
             lowValue:
-              finalPrediction.priceRange?.min ||
-              Math.round(finalPrediction.predictedPrice * 0.9),
+              finalPrediction.priceRange?.min || Math.round(finalPrediction.predictedPrice * 0.9),
             averageValue: finalPrediction.predictedPrice,
             highValue:
-              finalPrediction.priceRange?.max ||
-              Math.round(finalPrediction.predictedPrice * 1.1),
+              finalPrediction.priceRange?.max || Math.round(finalPrediction.predictedPrice * 1.1),
             confidence: finalPrediction.confidence,
             dataPoints: finalPrediction.totalComparablesFound,
             dataSource: 'marketcheck',

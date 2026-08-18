@@ -3,7 +3,8 @@ import { supabaseAdmin } from '@/lib/db/supabase'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { canViewReport } from '@/lib/utils/report-access'
-import { getLowestDOSActiveListings, getListingsStats } from '@/lib/utils/listing-filters'
+import { getListingsStats } from '@/lib/utils/listing-filters'
+import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintToolbar } from './PrintToolbar'
 import { SUPPORT_EMAIL } from '@/lib/constants'
@@ -114,8 +115,14 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
     marketCheck?.recentComparables?.listings || marketCheck?.comparables || []
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const validatedListings = allListings.filter((l: any) => l.url_validated === true)
-  const displayedComparables = getLowestDOSActiveListings(
+  const rankSubject = {
+    year: Number(autodevData?.vehicle?.year),
+    mileage: report.mileage ?? 0,
+    zip: report.zip_code ?? null,
+  }
+  const displayedComparables = getBestMatchListings(
     validatedListings.length > 0 ? validatedListings : allListings,
+    rankSubject,
     10
   )
   const listingsStats = getListingsStats(allListings)

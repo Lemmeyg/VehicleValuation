@@ -4,7 +4,8 @@
  * After URL validation, if fewer than MIN_VALID (10) listings are confirmed valid,
  * this utility fires the MarketCheck search fallback in up to two paginated passes
  * (rows 0–49, then 50–99 if still < 10 valid), validates those listings in
- * year-closeness-then-distance order, and merges the results into the prediction.
+ * best-match order (year, then location, then mileage — see comparables-ranker.ts),
+ * and merges the results into the prediction.
  * Original listing flags are preserved; fallback listings are appended.
  * The full array is never truncated.
  *
@@ -18,26 +19,9 @@ import {
 } from '@/lib/api/marketcheck-client'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
+import { rankByBestMatch } from '@/lib/utils/comparables-ranker'
 
 const MIN_VALID = 10
-
-/**
- * Sort comparables by year closeness to subject vehicle (ascending), then by
- * distance from the subject ZIP (ascending). Listings without distance_miles
- * sort to the end within each year group.
- */
-function sortByYearThenDistance(
-  listings: MarketCheckComparable[],
-  subjectYear: number
-): MarketCheckComparable[] {
-  return [...listings].sort((a, b) => {
-    const yearDiff = Math.abs(a.year - subjectYear) - Math.abs(b.year - subjectYear)
-    if (yearDiff !== 0) return yearDiff
-    const aDist = a.location?.distance_miles ?? Infinity
-    const bDist = b.location?.distance_miles ?? Infinity
-    return aDist - bDist
-  })
-}
 
 /**
  * Apply progressive year widening (±2, ±5, all) to a list of fallback listings.
@@ -65,7 +49,7 @@ function applyYearFilter(
 }
 
 /**
- * Fetch one page of search fallback listings, apply year filter, sort by year+distance,
+ * Fetch one page of search fallback listings, apply year filter, rank by best match,
  * and validate URLs. Returns the validated listings array or null on any failure.
  */
 async function fetchAndValidatePage(
@@ -109,7 +93,7 @@ async function fetchAndValidatePage(
   }
 
   const { prediction: validated } = await validateListingUrls(predictionForValidation, {
-    sortFn: l => sortByYearThenDistance(l, subjectVehicle.year),
+    sortFn: l => rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip }),
   })
 
   return validated.recentComparables?.listings ?? null
