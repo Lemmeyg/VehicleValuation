@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { canViewReport } from '@/lib/utils/report-access'
 import { SUPPORT_EMAIL } from '@/lib/constants'
+import { PrintChecklistButton } from './PrintChecklistButton'
 import {
   CheckCircle,
   Clock,
@@ -21,7 +22,6 @@ import {
   AlertCircle,
   Scale,
   TrendingUp,
-  Download,
   ArrowLeft,
 } from 'lucide-react'
 
@@ -135,13 +135,7 @@ export default async function ActionPlanPage({ params, searchParams }: PageProps
               <h1 className="text-3xl font-bold text-slate-900">Your Next Steps Guide</h1>
               <p className="text-slate-600 mt-2">{vehicleName}</p>
             </div>
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Print Checklist
-            </button>
+            <PrintChecklistButton reportId={id} />
           </div>
         </div>
 
