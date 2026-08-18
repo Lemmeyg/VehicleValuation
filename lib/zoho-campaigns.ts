@@ -1,3 +1,12 @@
+// Zoho's own API answers in ~0.35s measured from outside, so 3s looked generous.
+// It was not: on 2026-08-18 a real purchase's report-delivery enrolment died with
+// `TimeoutError: The operation was aborted due to timeout`, and the customer never
+// received their download email. 3 of 11 purchases since 2026-07-27 failed the same
+// way. AbortSignal.timeout is wall-clock, so a cold connection or a busy Lambda eats
+// the budget before Zoho is even reached. 10s costs nothing when the call succeeds
+// (it returns in well under a second) and buys real headroom when it does not.
+const ZOHO_TIMEOUT_MS = 10000
+
 async function getAccessToken(): Promise<string | null> {
   const clientId = process.env.ZOHO_CAMPAIGNS_CLIENT_ID
   const clientSecret = process.env.ZOHO_CAMPAIGNS_CLIENT_SECRET
@@ -13,7 +22,7 @@ async function getAccessToken(): Promise<string | null> {
 
   const response = await fetch(`https://accounts.zoho.com/oauth/v2/token?${params.toString()}`, {
     method: 'POST',
-    signal: AbortSignal.timeout(3000),
+    signal: AbortSignal.timeout(ZOHO_TIMEOUT_MS),
   })
   if (!response.ok) return null
 
@@ -56,7 +65,7 @@ async function callListSubscribe(
     {
       method: 'POST',
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(ZOHO_TIMEOUT_MS),
     }
   )
 
@@ -99,7 +108,7 @@ async function callAddListSubscribersInBulk(
         Authorization: `Zoho-oauthtoken ${accessToken}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(ZOHO_TIMEOUT_MS),
     }
   )
 

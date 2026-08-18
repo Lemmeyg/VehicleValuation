@@ -10,7 +10,18 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const MIN_AGE_MS = 2 * 60 * 60 * 1000 // 2 hours — give checkout a real chance to complete
-const MAX_AGE_MS = 26 * 60 * 60 * 1000 // 26 hours — cap the query, never re-scan very old rows
+// 7 days. This was 26 hours, which silently made every missed run permanent: a
+// report older than the window can never be enrolled, and there is no retry.
+// That is not hypothetical — this project is on Vercel's Hobby plan, where cron
+// invocations are best-effort ("within the hour", no delivery guarantee), and the
+// 2026-08-18 run did not fire at all. Five reports were lost this way before it
+// was noticed, because a skipped invocation produces no error, no log, nothing.
+//
+// A wider window can only ever recover misses, never duplicate: enrolment is
+// gated on abandoned_recovery_sent_at being null, and that flag is stamped only
+// after Zoho confirms success. If a run processes part of a backlog and hits the
+// 60s function limit, the remainder simply stays eligible for the next one.
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
