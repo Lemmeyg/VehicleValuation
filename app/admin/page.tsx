@@ -7,6 +7,7 @@
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import Link from 'next/link'
 import { CreateFreeReportModal } from './components/CreateFreeReportModal'
+import { formatDateET } from '@/lib/utils/format-date-eastern'
 
 export default async function AdminDashboardPage() {
   const supabase = await createServerSupabaseClient()
@@ -203,9 +204,7 @@ export default async function AdminDashboardPage() {
                       <p className="text-sm font-medium text-gray-900 truncate">
                         VIN: {report.vin}
                       </p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(report.created_at).toLocaleDateString()}
-                      </p>
+                      <p className="text-sm text-gray-500">{formatDateET(report.created_at)}</p>
                     </div>
                     <div className="ml-4 flex-shrink-0">
                       <span
@@ -249,9 +248,7 @@ export default async function AdminDashboardPage() {
                       <p className="text-sm font-medium text-gray-900">
                         {formatCurrency(payment.amount || 0)}
                       </p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(payment.created_at).toLocaleDateString()}
-                      </p>
+                      <p className="text-sm text-gray-500">{formatDateET(payment.created_at)}</p>
                     </div>
                     <div className="ml-4 flex-shrink-0">
                       <span

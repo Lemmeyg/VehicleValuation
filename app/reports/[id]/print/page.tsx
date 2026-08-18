@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { canViewReport } from '@/lib/utils/report-access'
 import { getListingsStats } from '@/lib/utils/listing-filters'
 import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
+import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintToolbar } from './PrintToolbar'
 import { SUPPORT_EMAIL } from '@/lib/constants'
@@ -177,7 +178,7 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
               TOTALLOSSTOOLKIT REPORT &rsaquo; ID: {report.id.substring(0, 8).toUpperCase()}
             </div>
             <div className="text-xs text-slate-500">
-              {new Date(report.created_at).toLocaleDateString('en-US', {
+              {formatDateET(report.created_at, {
                 month: '2-digit',
                 day: '2-digit',
                 year: 'numeric',

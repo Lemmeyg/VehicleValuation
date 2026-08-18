@@ -8,6 +8,7 @@ import { Metadata } from 'next'
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import { requireAuth, checkIfUserIsAdmin } from '@/lib/db/auth'
 import { redirect } from 'next/navigation'
+import { formatDateTimeET } from '@/lib/utils/format-date-eastern'
 
 export const metadata: Metadata = {
   title: 'API Call Logs | Admin',
@@ -24,10 +25,12 @@ export default async function ApiLogsPage() {
 
   const supabase = await createServerSupabaseClient()
 
-  // Fetch API call logs (last 30 days)
+  // Fetch API call logs (last 30 days). Server Component computing a per-request
+  // query window — "now" is legitimately supposed to vary per request here.
   const { data: apiLogs, error } = await supabase
     .from('api_call_logs')
     .select('*')
+    // eslint-disable-next-line react-hooks/purity
     .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
     .order('created_at', { ascending: false })
     .limit(100)
@@ -41,7 +44,8 @@ export default async function ApiLogsPage() {
   const successfulCalls = apiLogs?.filter(log => log.success).length || 0
   const failedCalls = apiLogs?.filter(log => !log.success).length || 0
   const totalCost = apiLogs?.reduce((sum, log) => sum + parseFloat(log.cost || '0'), 0) || 0
-  const avgResponseTime = apiLogs?.reduce((sum, log) => sum + (log.response_time_ms || 0), 0) / (totalCalls || 1) || 0
+  const avgResponseTime =
+    apiLogs?.reduce((sum, log) => sum + (log.response_time_ms || 0), 0) / (totalCalls || 1) || 0
   const successRate = totalCalls > 0 ? (successfulCalls / totalCalls) * 100 : 0
 
   // Group by provider
@@ -49,9 +53,8 @@ export default async function ApiLogsPage() {
   const marketCheckCost = marketCheckLogs.reduce((sum, log) => sum + parseFloat(log.cost || '0'), 0)
   const marketCheckSuccess = marketCheckLogs.filter(log => log.success).length
   const marketCheckFailed = marketCheckLogs.filter(log => !log.success).length
-  const marketCheckSuccessRate = marketCheckLogs.length > 0
-    ? (marketCheckSuccess / marketCheckLogs.length) * 100
-    : 0
+  const marketCheckSuccessRate =
+    marketCheckLogs.length > 0 ? (marketCheckSuccess / marketCheckLogs.length) * 100 : 0
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -86,7 +89,9 @@ export default async function ApiLogsPage() {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="text-sm text-gray-600 mb-2">Avg Response Time</div>
           <div className="text-3xl font-bold">{avgResponseTime.toFixed(0)}ms</div>
-          <div className={`text-sm mt-2 ${avgResponseTime < 3000 ? 'text-green-600' : 'text-yellow-600'}`}>
+          <div
+            className={`text-sm mt-2 ${avgResponseTime < 3000 ? 'text-green-600' : 'text-yellow-600'}`}
+          >
             {avgResponseTime < 3000 ? 'Fast' : 'Moderate'}
           </div>
         </div>
@@ -120,27 +125,43 @@ export default async function ApiLogsPage() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Endpoint</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Response Time</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Error</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Timestamp
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Provider
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Endpoint
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Cost
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Response Time
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Error
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {apiLogs?.map((log) => (
+            {apiLogs?.map(log => (
               <tr key={log.id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {new Date(log.created_at).toLocaleString()}
+                  {formatDateTimeET(log.created_at)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    log.api_provider === 'marketcheck'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      log.api_provider === 'marketcheck'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
                     {log.api_provider}
                   </span>
                 </td>
@@ -148,11 +169,11 @@ export default async function ApiLogsPage() {
                   {log.endpoint}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    log.success
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}>
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      log.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}
+                  >
                     {log.success ? 'Success' : 'Failed'}
                   </span>
                 </td>

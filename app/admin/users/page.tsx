@@ -5,6 +5,7 @@
  */
 
 import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { formatDateET } from '@/lib/utils/format-date-eastern'
 
 export default async function AdminUsersPage() {
   const supabase = await createServerSupabaseClient()
@@ -16,21 +17,22 @@ export default async function AdminUsersPage() {
     .order('created_at', { ascending: false })
 
   // Get all payments grouped by user
-  const { data: payments } = await supabase
-    .from('payments')
-    .select('user_id, amount')
+  const { data: payments } = await supabase.from('payments').select('user_id, amount')
 
   // Aggregate user data
-  const userMap = new Map<string, {
-    userId: string
-    totalReports: number
-    paidReports: number
-    totalSpent: number
-    firstReport: string
-    lastReport: string
-  }>()
+  const userMap = new Map<
+    string,
+    {
+      userId: string
+      totalReports: number
+      paidReports: number
+      totalSpent: number
+      firstReport: string
+      lastReport: string
+    }
+  >()
 
-  reports?.forEach((report) => {
+  reports?.forEach(report => {
     if (!report.user_id) return
 
     const existing = userMap.get(report.user_id) || {
@@ -56,7 +58,7 @@ export default async function AdminUsersPage() {
     userMap.set(report.user_id, existing)
   })
 
-  payments?.forEach((payment) => {
+  payments?.forEach(payment => {
     if (!payment.user_id) return
 
     const existing = userMap.get(payment.user_id)
@@ -78,7 +80,7 @@ export default async function AdminUsersPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return formatDateET(dateString, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -87,7 +89,7 @@ export default async function AdminUsersPage() {
 
   const totalUsers = users.length
   const totalRevenue = users.reduce((sum, u) => sum + u.totalSpent, 0)
-  const activeUsers = users.filter((u) => u.paidReports > 0).length
+  const activeUsers = users.filter(u => u.paidReports > 0).length
 
   return (
     <div>
@@ -146,7 +148,7 @@ export default async function AdminUsersPage() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {users.length > 0 ? (
-              users.map((user) => (
+              users.map(user => (
                 <tr key={user.userId} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-mono text-gray-900">

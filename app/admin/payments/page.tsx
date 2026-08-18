@@ -5,6 +5,7 @@
  */
 
 import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { formatDateTimeET } from '@/lib/utils/format-date-eastern'
 
 export default async function AdminPaymentsPage() {
   const supabase = await createServerSupabaseClient()
@@ -12,7 +13,8 @@ export default async function AdminPaymentsPage() {
   // Fetch all payments
   const { data: payments, error } = await supabase
     .from('payments')
-    .select(`
+    .select(
+      `
       id,
       report_id,
       user_id,
@@ -22,7 +24,8 @@ export default async function AdminPaymentsPage() {
       status,
       metadata,
       created_at
-    `)
+    `
+    )
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -38,7 +41,7 @@ export default async function AdminPaymentsPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
+    return formatDateTimeET(dateString, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -49,8 +52,8 @@ export default async function AdminPaymentsPage() {
 
   // Calculate totals
   const totalRevenue = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
-  const successfulPayments = payments?.filter((p) => p.status === 'succeeded').length || 0
-  const failedPayments = payments?.filter((p) => p.status === 'failed').length || 0
+  const successfulPayments = payments?.filter(p => p.status === 'succeeded').length || 0
+  const failedPayments = payments?.filter(p => p.status === 'failed').length || 0
 
   return (
     <div>
@@ -107,7 +110,7 @@ export default async function AdminPaymentsPage() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {payments && payments.length > 0 ? (
-              payments.map((payment) => {
+              payments.map(payment => {
                 const metadata = payment.metadata as { reportType?: string } | null
                 return (
                   <tr key={payment.id} className="hover:bg-gray-50">

@@ -9,6 +9,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ReassignReportForm } from '../../components/ReassignReportForm'
 import { getPaidReportType } from '@/lib/utils/payment-tier'
+import { formatDateTimeET } from '@/lib/utils/format-date-eastern'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -46,7 +47,7 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
+    return formatDateTimeET(dateString, {
       month: 'long',
       day: 'numeric',
       year: 'numeric',
