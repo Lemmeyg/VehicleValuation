@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/Button'
 import { Check, CheckCircle2, Quote, ShieldCheck, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import ReportPreviewCondensed from '@/components/ReportPreviewCondensed'
-import ExitIntentPopup from '@/components/ExitIntentPopup'
 import {
   trackReportWorkflow,
   trackPaymentInitiated,
@@ -1141,14 +1140,6 @@ function PricingContent() {
           </div>
         </div>
       )}
-      <ExitIntentPopup
-        vin={report.vin}
-        reportId={report.id}
-        vehicleYear={report.vehicle_data?.year}
-        vehicleMake={report.vehicle_data?.make}
-        vehicleModel={report.vehicle_data?.model}
-        onSelectPlan={discountCode => handleSelectPlan(PRICING_TIERS[0], discountCode)}
-      />
     </div>
   )
 }
