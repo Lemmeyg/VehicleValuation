@@ -4,7 +4,7 @@
  * View single report with admin actions (regenerate PDF, etc.)
  */
 
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { supabaseAdmin } from '@/lib/db/supabase'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ReassignReportForm } from '../../components/ReassignReportForm'
@@ -17,7 +17,12 @@ interface PageProps {
 
 export default async function AdminReportDetailsPage({ params }: PageProps) {
   const { id } = await params
-  const supabase = await createServerSupabaseClient()
+  // This page is already gated to admins only by app/admin/layout.tsx's
+  // checkIsAdmin(). It needs to look up any customer's report, not just the
+  // logged-in admin's own — the row-level-security-respecting client can't do
+  // that ("Users can view own reports" restricts SELECT to auth.uid() = user_id),
+  // so it silently 404'd here for every report the admin didn't happen to own.
+  const supabase = supabaseAdmin
 
   // Fetch report
   const { data: report, error } = await supabase.from('reports').select('*').eq('id', id).single()
