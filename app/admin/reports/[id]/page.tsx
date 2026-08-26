@@ -90,6 +90,17 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
               </button>
             </form>
           )}
+          {report.price_paid && report.price_paid > 0 && (
+            <form action={`/api/admin/reports/${id}/create-radius-corrected-report`} method="POST">
+              <button
+                type="submit"
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+                title="Creates a brand-new $0 report with comps re-checked to be within 300 miles of the customer's ZIP. Never modifies this report."
+              >
+                Fix Comps (300mi Radius)
+              </button>
+            </form>
+          )}
         </div>
       </div>
 
