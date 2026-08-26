@@ -855,7 +855,61 @@ Change to:
                 }),
 ```
 
-In `lib/utils/comparables-supplementer.ts`, `supplementComparables()`'s signature and its internal `fetchAndValidatePage` calls both need the price threaded through. Add a `predictedPrice: number` parameter to `supplementComparables`:
+In `lib/utils/comparables-supplementer.ts`, `supplementComparables()`'s signature and its internal `fetchAndValidatePage` calls both need the price threaded through.
+
+Find `fetchAndValidatePage`'s signature and its `rankByBestMatch` call:
+
+```ts
+async function fetchAndValidatePage(
+  apiKey: string,
+  subjectVehicle: { year: number; make: string; model: string; trim?: string },
+  vin: string,
+  mileage: number,
+  zip: string,
+  start: number
+): Promise<MarketCheckComparable[] | null> {
+```
+
+```ts
+const { prediction: validated } = await validateListingUrls(predictionForValidation, {
+  sortFn: l => rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip }),
+})
+```
+
+Change to:
+
+```ts
+async function fetchAndValidatePage(
+  apiKey: string,
+  subjectVehicle: { year: number; make: string; model: string; trim?: string },
+  vin: string,
+  mileage: number,
+  zip: string,
+  start: number,
+  predictedPrice: number
+): Promise<MarketCheckComparable[] | null> {
+```
+
+```ts
+const { prediction: validated } = await validateListingUrls(predictionForValidation, {
+  sortFn: l => rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip, predictedPrice }),
+})
+```
+
+Then find `supplementComparables`'s signature:
+
+```ts
+export async function supplementComparables(
+  prediction: MarketCheckPrediction,
+  validCount: number,
+  subjectVehicle: { year: number; make: string; model: string; trim?: string } | undefined,
+  vin: string,
+  mileage: number | null,
+  zip: string | null
+): Promise<{ prediction: MarketCheckPrediction; supplemented: boolean }> {
+```
+
+Change to:
 
 ```ts
 export async function supplementComparables(
@@ -869,7 +923,31 @@ export async function supplementComparables(
 ): Promise<{ prediction: MarketCheckPrediction; supplemented: boolean }> {
 ```
 
-and pass it into both `fetchAndValidatePage` calls inside the same function (the two `await fetchAndValidatePage(apiKey, searchVehicle, vin, mileage, zip, 0)` / `...50)` calls) by adding a matching parameter to `fetchAndValidatePage` itself and its own `rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip })` sortFn call — same pattern as the route change above: add `predictedPrice: predictedPrice` to that object literal, and add `predictedPrice: number` to `fetchAndValidatePage`'s own parameter list, passed through from its caller.
+Finally, find its two calls to `fetchAndValidatePage` (Pass 1 and Pass 2) — search for `await fetchAndValidatePage(apiKey, searchVehicle, vin, mileage, zip, 0)` and `await fetchAndValidatePage(apiKey, searchVehicle, vin, mileage, zip, 50)` — and add the new argument to each:
+
+```ts
+const validated = await fetchAndValidatePage(
+  apiKey,
+  searchVehicle,
+  vin,
+  mileage,
+  zip,
+  0,
+  predictedPrice
+)
+```
+
+```ts
+const validated = await fetchAndValidatePage(
+  apiKey,
+  searchVehicle,
+  vin,
+  mileage,
+  zip,
+  50,
+  predictedPrice
+)
+```
 
 Then update the one call site of `supplementComparables` in `app/api/reports/[id]/fetch-marketcheck/route.ts` to pass the new argument:
 
