@@ -1,8 +1,8 @@
 import type { MarketCheckComparable } from '@/lib/api/marketcheck-client'
 
-export const MAX_DEALER_LISTINGS = 3
-const MAX_YEAR_ABOVE_SUBJECT = 2
-const MIN_YEAR_BELOW_SUBJECT = 5
+export const MAX_DEALER_LISTINGS = 2
+const MAX_YEAR_ABOVE_SUBJECT = 1
+const MIN_YEAR_BELOW_SUBJECT = 3
 
 /**
  * Removes bad data and normalises a raw comparable listings array.
