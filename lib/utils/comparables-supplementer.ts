@@ -58,7 +58,8 @@ async function fetchAndValidatePage(
   vin: string,
   mileage: number,
   zip: string,
-  start: number
+  start: number,
+  predictedPrice: number
 ): Promise<MarketCheckComparable[] | null> {
   const fallbackResult = await fetchMarketCheckSearchFallback(
     apiKey,
@@ -93,7 +94,7 @@ async function fetchAndValidatePage(
   }
 
   const { prediction: validated } = await validateListingUrls(predictionForValidation, {
-    sortFn: l => rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip }),
+    sortFn: l => rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip, predictedPrice }),
   })
 
   return validated.recentComparables?.listings ?? null
@@ -105,7 +106,8 @@ export async function supplementComparables(
   subjectVehicle: { year: number; make: string; model: string; trim?: string } | undefined,
   vin: string,
   mileage: number | null,
-  zip: string | null
+  zip: string | null,
+  predictedPrice: number
 ): Promise<{ prediction: MarketCheckPrediction; supplemented: boolean }> {
   const unchanged = { prediction, supplemented: false }
 
@@ -133,7 +135,15 @@ export async function supplementComparables(
   // ── Pass 1 (rows 0–49) ───────────────────────────────────────────────────────
   let pass1Listings: MarketCheckComparable[] = []
   try {
-    const validated = await fetchAndValidatePage(apiKey, searchVehicle, vin, mileage, zip, 0)
+    const validated = await fetchAndValidatePage(
+      apiKey,
+      searchVehicle,
+      vin,
+      mileage,
+      zip,
+      0,
+      predictedPrice
+    )
     if (validated === null) return unchanged
     pass1Listings = validated.filter(l => !originalVinSet.has(l.vin))
   } catch (err) {
@@ -152,7 +162,15 @@ export async function supplementComparables(
       ...pass1Listings.map(l => l.vin).filter(Boolean),
     ])
     try {
-      const validated = await fetchAndValidatePage(apiKey, searchVehicle, vin, mileage, zip, 50)
+      const validated = await fetchAndValidatePage(
+        apiKey,
+        searchVehicle,
+        vin,
+        mileage,
+        zip,
+        50,
+        predictedPrice
+      )
       if (validated !== null) {
         pass2Listings = validated.filter(l => !pass1VinSet.has(l.vin))
       }

@@ -414,7 +414,8 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
                 subjectVehicle,
                 report.vin,
                 report.mileage ?? null,
-                report.zip_code ?? null
+                report.zip_code ?? null,
+                marketcheckData.predictedPrice
               )
               validatedPrediction = supplementResult.prediction
               webhookSupplemented = supplementResult.supplemented

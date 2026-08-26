@@ -149,7 +149,8 @@ export async function POST(request: Request) {
           subjectVehicle,
           vin,
           mileage,
-          zipCode
+          zipCode,
+          mcResult.data!.predictedPrice
         )
         marketcheckValuation = supplementResult.prediction
         comparablesSupplemented = supplementResult.supplemented

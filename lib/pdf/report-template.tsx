@@ -891,6 +891,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
     year: Number(data.autodevVinData?.vehicle?.year),
     mileage: data.mileage ?? 0,
     zip: data.zipCode ?? null,
+    predictedPrice: data.marketcheckValuation?.predictedPrice,
   }
   const displayedComparables = getBestMatchListings(allListings, rankSubject, 10)
   const stats = getListingsStats(allListings)

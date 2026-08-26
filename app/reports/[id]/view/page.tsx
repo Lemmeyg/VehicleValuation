@@ -238,6 +238,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
     year: Number(report.vehicle_data?.year),
     mileage: report.mileage ?? 0,
     zip: report.zip_code ?? null,
+    predictedPrice: report.marketcheck_predicted_price ?? undefined,
   }
   const displayedComparables = getBestMatchListings(
     validatedListings.length > 0 ? validatedListings : allListings,
