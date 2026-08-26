@@ -241,7 +241,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         success: true,
         responseTimeMs: apiResponseTime,
         cost: 0.09,
-        requestData: { vin, mileage, zip_code, dealer_type: 'franchise' },
+        requestData: { vin, mileage, zip_code, dealer_type: 'both' },
         responseData: {
           predicted_price: finalPrediction.predictedPrice,
           total_comparables_found: finalPrediction.totalComparablesFound,
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         success: false,
         responseTimeMs: apiResponseTime,
         cost: 0.0,
-        requestData: { vin, mileage, zip_code, dealer_type: 'franchise' },
+        requestData: { vin, mileage, zip_code, dealer_type: 'both' },
         errorMessage: marketcheckResult.error,
       })
 

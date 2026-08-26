@@ -136,7 +136,7 @@ export interface MarketCheckPrediction {
     vin: string
     miles: number
     zip: string
-    dealer_type: 'franchise' | 'independent'
+    dealer_type: 'franchise' | 'independent' | 'both'
   }
 
   // Total comparables found (metadata only - listings not stored)
@@ -382,7 +382,6 @@ export async function fetchMarketCheckData(
       url.searchParams.append('vin', vin)
       url.searchParams.append('miles', miles.toString())
       url.searchParams.append('zip', zipCode)
-      url.searchParams.append('dealer_type', 'franchise')
       url.searchParams.append('is_certified', isCertified ? 'true' : 'false')
 
       // Log the full URL (masking API key for security)
@@ -391,7 +390,7 @@ export async function fetchMarketCheckData(
         vin,
         miles,
         zipCode,
-        dealer_type: 'franchise',
+        dealer_type: 'both',
         is_certified: isCertified,
         fullUrl: debugUrl,
       })
@@ -491,7 +490,7 @@ export async function fetchMarketCheckData(
           vin,
           miles,
           zip: zipCode,
-          dealer_type: 'franchise', // HARDCODED: franchise per user requirement
+          dealer_type: 'both',
         },
 
         // Total comparables found (metadata only - listings NOT stored)
