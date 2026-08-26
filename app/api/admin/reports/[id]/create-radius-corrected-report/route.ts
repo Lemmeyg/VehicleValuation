@@ -24,9 +24,14 @@
  *     by averaging listing prices ourselves.
  *
  * Either way: listings are cleaned with the same rules every report uses,
- * URL-validated, and capped at 10 (working links first) — or fewer, if that's
- * genuinely all that qualifies within radiusMiles. No automatic radius
- * widening.
+ * URL-validated, ranked by closest mileage to the subject vehicle, and capped
+ * at 10 (working links first) — or fewer, if that's genuinely all that
+ * qualifies within radiusMiles. No automatic radius widening.
+ *
+ * Path 2's search spans the same model-year band as every other report
+ * (subjectYear-5..+2), not a single exact year — a single-year search
+ * combined with a radius restriction was found to return zero results even
+ * where nearby, slightly-off-year inventory existed.
  */
 
 import { NextResponse } from 'next/server'
@@ -40,13 +45,18 @@ import {
 } from '@/lib/api/marketcheck-client'
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
 import { validateListingUrls } from '@/lib/utils/url-validator'
-import { rankByBestMatch } from '@/lib/utils/comparables-ranker'
 import { getPaidReportType } from '@/lib/utils/payment-tier'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
 import { logApiCall } from '@/lib/api/api-call-logger'
 
 const DEFAULT_RADIUS_MILES = 300
 const MAX_SHOWN = 10
+
+// Mirrors cleanAndFilterComparables' own year band (subjectYear-5..+2), ordered
+// by closeness to the subject year so the search can stop early once it has a
+// healthy pool without needlessly querying every year in the band.
+const YEAR_OFFSETS = [0, -1, 1, -2, 2, -3, -4, -5]
+const RAW_CANDIDATE_POOL_TARGET = MAX_SHOWN * 3
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -56,7 +66,13 @@ function distanceOf(l: MarketCheckComparable): number {
   return typeof l.location?.distance_miles === 'number' ? l.location.distance_miles : Infinity
 }
 
-/** Working-link listings first, then the rest — each group in the given order. */
+/** Ascending by how close a listing's mileage is to the subject vehicle's. */
+function byClosestMileage(subjectMileage: number) {
+  return (a: MarketCheckComparable, b: MarketCheckComparable) =>
+    Math.abs(a.miles - subjectMileage) - Math.abs(b.miles - subjectMileage)
+}
+
+/** Working-link listings first, then the rest — each group keeps its incoming order. */
 function validatedFirst(listings: MarketCheckComparable[]): MarketCheckComparable[] {
   const validated = listings.filter(l => l.url_validated)
   const unvalidated = listings.filter(l => !l.url_validated)
@@ -175,12 +191,12 @@ export async function POST(request: Request, { params }: RouteParams) {
       // listings that carry a real location.distance_miles when known.
       const allListings = mcResult.data.recentComparables?.listings ?? []
       const { prediction: validated } = await validateListingUrls(mcResult.data, {
-        sortFn: listings => [...listings].sort((a, b) => distanceOf(a) - distanceOf(b)),
+        sortFn: listings => [...listings].sort(byClosestMileage(original.mileage)),
       })
       const validatedListings = validated.recentComparables?.listings ?? allListings
 
       const withinRadius = validatedListings.filter(l => distanceOf(l) <= radiusMiles)
-      candidates = validatedFirst([...withinRadius].sort((a, b) => distanceOf(a) - distanceOf(b)))
+      candidates = validatedFirst([...withinRadius].sort(byClosestMileage(original.mileage)))
 
       valuationSource = 'marketcheck_vin_predict'
       predictedPrice = mcResult.data.predictedPrice
@@ -214,16 +230,17 @@ export async function POST(request: Request, { params }: RouteParams) {
       let merged: MarketCheckComparable[] = []
       let numFoundTotal = 0
 
-      for (const start of [0, 50]) {
+      for (const yearOffset of YEAR_OFFSETS) {
+        const searchYear = subjectVehicle.year + yearOffset
         const searchStartTime = Date.now()
         const searchResult = await fetchMarketCheckSearchByRadius(
           apiKey,
-          subjectVehicle.year,
+          searchYear,
           subjectVehicle.make,
           searchModel,
           original.zip_code,
           radiusMiles,
-          start
+          0
         )
         await logApiCall({
           reportId: newReportId,
@@ -233,28 +250,28 @@ export async function POST(request: Request, { params }: RouteParams) {
           responseTimeMs: Date.now() - searchStartTime,
           cost: 0.0,
           requestData: {
-            year: subjectVehicle.year,
+            year: searchYear,
             make: subjectVehicle.make,
             model: searchModel,
             zip: original.zip_code,
             radiusMiles,
-            start,
           },
           errorMessage: searchResult.success ? undefined : searchResult.error,
         })
 
-        if (!searchResult.success || !searchResult.data) break
+        // A single year turning up nothing (or erroring) doesn't mean the whole
+        // band will — keep checking the other years in it.
+        if (!searchResult.success || !searchResult.data) continue
 
-        numFoundTotal = Math.max(numFoundTotal, searchResult.data.totalComparablesFound)
-        const pageListings = (searchResult.data.recentComparables?.listings ?? []).filter(l => {
+        numFoundTotal += searchResult.data.totalComparablesFound
+        const yearListings = (searchResult.data.recentComparables?.listings ?? []).filter(l => {
           if (!l.vin || seenVins.has(l.vin)) return false
           seenVins.add(l.vin)
           return true
         })
-        merged = merged.concat(pageListings)
+        merged = merged.concat(yearListings)
 
-        // Stop paginating once we already have a healthy pool to validate from.
-        if (merged.length >= MAX_SHOWN * 2) break
+        if (merged.length >= RAW_CANDIDATE_POOL_TARGET) break
       }
 
       const cleaned = cleanAndFilterComparables(merged, subjectVehicle.year)
@@ -273,16 +290,13 @@ export async function POST(request: Request, { params }: RouteParams) {
           recentComparables: { num_found: cleaned.length, listings: cleaned },
           generatedAt: new Date().toISOString(),
         },
-        {
-          sortFn: listings =>
-            rankByBestMatch(listings, {
-              year: subjectVehicle.year,
-              mileage: original.mileage,
-              zip: original.zip_code,
-            }),
-        }
+        { sortFn: listings => [...listings].sort(byClosestMileage(original.mileage)) }
       )
-      candidates = validatedFirst(validated.recentComparables?.listings ?? cleaned)
+      candidates = validatedFirst(
+        [...(validated.recentComparables?.listings ?? cleaned)].sort(
+          byClosestMileage(original.mileage)
+        )
+      )
 
       valuationSource = 'original_preserved_no_marketcheck_prediction'
       predictedPrice = original.marketcheck_predicted_price ?? 0
