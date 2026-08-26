@@ -342,3 +342,90 @@ describe('fetchMarketCheckSearchFallback — API params', () => {
     expect(listing.location?.distance_miles).toBeUndefined()
   })
 })
+
+describe('fetchMarketCheckSearchFallback — price synthesis', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('excludes far-away listings from the price average when nearby ones exist', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 2,
+        listings: [
+          {
+            id: 'near',
+            vin: 'NEARVIN000000001',
+            price: 10000,
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Sacramento', state: 'CA', zip: '95814' }, // ~110mi from 89503
+            vdp_url: 'https://dealer.com/inventory/near',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'far',
+            vin: 'FARVIN0000000001',
+            price: 100000, // wildly different price — should NOT pull the average toward it
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Miami', state: 'FL', zip: '33101' }, // ~2500mi from 89503
+            vdp_url: 'https://dealer.com/inventory/far',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Honda',
+      'Civic',
+      'VIN0',
+      50000,
+      '89503' // subject ZIP — Reno, NV
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data!.predictedPrice).toBe(10000) // only the near listing counted
+  })
+
+  it('falls back to the full cleaned set when nothing is within 750mi', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 1,
+        listings: [
+          {
+            id: 'far',
+            vin: 'FARVIN0000000002',
+            price: 20000,
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Miami', state: 'FL', zip: '33101' },
+            vdp_url: 'https://dealer.com/inventory/far2',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Honda',
+      'Civic',
+      'VIN0',
+      50000,
+      '89503'
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data!.predictedPrice).toBe(20000) // no nearby listings — falls back to using it anyway
+  })
+})

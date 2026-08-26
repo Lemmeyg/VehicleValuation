@@ -16,6 +16,7 @@
  */
 
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
+import { computeDistanceMiles, DISTANCE_TIER_MILES } from '@/lib/utils/geo-distance'
 
 // Retry configuration interface
 interface RetryConfig {
@@ -269,8 +270,24 @@ export async function fetchMarketCheckSearchFallback(
       }))
       .sort((a, b) => b.price - a.price)
 
+    // Clean before pricing off of anything — same rules every other comp
+    // goes through (0-mile/0-price junk, dupes, year band, dealer cap).
+    const cleaned = cleanAndFilterComparables(comparables, year)
+
+    // Prefer pricing off genuinely local comps when we know the subject ZIP
+    // — falls back to the full cleaned set if nothing is within the widest
+    // distance tier, so the price is never computed from zero data.
+    const localRadius = DISTANCE_TIER_MILES[DISTANCE_TIER_MILES.length - 1]
+    const nearby = zip
+      ? cleaned.filter(l => {
+          const dist = computeDistanceMiles(zip, l)
+          return dist !== null && dist <= localRadius
+        })
+      : []
+    const pricingPool = nearby.length > 0 ? nearby : cleaned
+
     // Synthesise predicted price as mean of listing prices
-    const prices = comparables.map(l => l.price).filter(p => p > 0)
+    const prices = pricingPool.map(l => l.price).filter(p => p > 0)
     const predictedPrice =
       prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : 0
 
@@ -281,7 +298,7 @@ export async function fetchMarketCheckSearchFallback(
 
     // Confidence based on listing count
     const confidence: 'low' | 'medium' | 'high' =
-      comparables.length >= 20 ? 'high' : comparables.length >= 5 ? 'medium' : 'low'
+      pricingPool.length >= 20 ? 'high' : pricingPool.length >= 5 ? 'medium' : 'low'
 
     const prediction: MarketCheckPrediction = {
       predictedPrice,
