@@ -83,6 +83,31 @@ describe('rankByBestMatch', () => {
     const result = rankByBestMatch(listings, subject)
     expect(result[0].vin).toBe('HAS_LOCATION')
   })
+
+  it('does not mutate the input array', () => {
+    const listings = [
+      makeListing({ vin: 'A', year: 2015, location: { zip: '89503' } }),
+      makeListing({ vin: 'B', year: 2019, location: { zip: '33101' } }),
+      makeListing({ vin: 'C', year: 2020, location: { zip: '95814' } }),
+    ]
+    const originalVinOrder = listings.map(l => l.vin)
+    rankByBestMatch(listings, subject)
+    expect(listings.map(l => l.vin)).toEqual(originalVinOrder)
+  })
+
+  it('prefers a nearer distance tier over a better price match in a farther tier', () => {
+    const subjectWithPrice: RankSubject = { ...subject, predictedPrice: 15000 }
+    const listings = [
+      // Sacramento, CA — same distance tier as subject's tier-0 range (~110mi),
+      // but a bad price match (+66%).
+      makeListing({ vin: 'NEAR_BAD_PRICE', price: 25000, location: { zip: '95814' } }),
+      // Miami, FL — thousands of miles away (worst distance tier), but a
+      // near-perfect price match.
+      makeListing({ vin: 'FAR_GREAT_PRICE', price: 15100, location: { zip: '33101' } }),
+    ]
+    const result = rankByBestMatch(listings, subjectWithPrice)
+    expect(result[0].vin).toBe('NEAR_BAD_PRICE')
+  })
 })
 
 describe('getBestMatchListings', () => {

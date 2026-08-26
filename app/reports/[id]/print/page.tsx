@@ -120,6 +120,7 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
     year: Number(autodevData?.vehicle?.year),
     mileage: report.mileage ?? 0,
     zip: report.zip_code ?? null,
+    predictedPrice: marketCheck?.predictedPrice ?? undefined,
   }
   const displayedComparables = getBestMatchListings(
     validatedListings.length > 0 ? validatedListings : allListings,

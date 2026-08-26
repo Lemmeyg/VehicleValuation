@@ -4,8 +4,8 @@
  * After URL validation, if fewer than MIN_VALID (10) listings are confirmed valid,
  * this utility fires the MarketCheck search fallback in up to two paginated passes
  * (rows 0–49, then 50–99 if still < 10 valid), validates those listings in
- * best-match order (year, then location, then mileage — see comparables-ranker.ts),
- * and merges the results into the prediction.
+ * best-match order (year, then distance, then price proximity, then mileage —
+ * see comparables-ranker.ts), and merges the results into the prediction.
  * Original listing flags are preserved; fallback listings are appended.
  * The full array is never truncated.
  *
@@ -31,6 +31,10 @@ function applyYearFilter(
   listings: MarketCheckComparable[],
   subjectYear: number
 ): MarketCheckComparable[] {
+  // These widening stages are independent of, and deliberately looser than, the
+  // cleaner's own year band (subjectYear-3/+1) — the goal here is just to find
+  // *some* fallback results; cleanAndFilterComparables re-applies its tighter
+  // band afterward, so a wide match here doesn't bypass that filter.
   const YEAR_DELTAS = [2, 5, Infinity]
   for (const delta of YEAR_DELTAS) {
     const band =
@@ -59,7 +63,7 @@ async function fetchAndValidatePage(
   mileage: number,
   zip: string,
   start: number,
-  predictedPrice: number | undefined
+  predictedPrice?: number
 ): Promise<MarketCheckComparable[] | null> {
   const fallbackResult = await fetchMarketCheckSearchFallback(
     apiKey,
@@ -80,7 +84,7 @@ async function fetchAndValidatePage(
   const yearFiltered = applyYearFilter(listings, subjectVehicle.year)
   if (yearFiltered.length === 0) return null
 
-  // cleanAndFilterComparables also applies a hard year cap (subjectYear±5/+2),
+  // cleanAndFilterComparables also applies a hard year cap (subjectYear-3/+1),
   // 0-mile/price filters, dedup, and dealer cap on the already year-narrowed set.
   const cleaned = cleanAndFilterComparables(yearFiltered, subjectVehicle.year)
   if (cleaned.length === 0) return null
@@ -107,7 +111,7 @@ export async function supplementComparables(
   vin: string,
   mileage: number | null,
   zip: string | null,
-  predictedPrice: number | undefined
+  predictedPrice?: number
 ): Promise<{ prediction: MarketCheckPrediction; supplemented: boolean }> {
   const unchanged = { prediction, supplemented: false }
 

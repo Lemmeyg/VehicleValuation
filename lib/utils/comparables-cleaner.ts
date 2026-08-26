@@ -12,7 +12,7 @@ const MIN_YEAR_BELOW_SUBJECT = 3
  * 1. Drop miles === 0 or missing (new/unlisted inventory — not comparable to a used vehicle)
  * 2. Drop price === 0 or missing
  * 3. Drop duplicate VINs — keep first occurrence
- * 4. Year range: subjectYear-5 → subjectYear+2 (skipped when subjectYear undefined)
+ * 4. Year range: subjectYear-3 → subjectYear+1 (skipped when subjectYear undefined)
  * 5. Dealer cap: max MAX_DEALER_LISTINGS per named dealer
  */
 export function cleanAndFilterComparables(

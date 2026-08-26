@@ -229,7 +229,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
     marketCheck?.recentComparables?.listings || marketCheck?.comparables || []
 
   // Pre-filter to URL-validated listings only, then take the 10 best matches by
-  // model year, location, and mileage (see comparables-ranker.ts). Fallback to
+  // model year, distance, price proximity, and mileage (see comparables-ranker.ts). Fallback to
   // allListings if none are validated (handles reports created before this feature
   // was deployed — those listings lack the url_validated field).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

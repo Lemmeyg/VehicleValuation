@@ -36,11 +36,18 @@ export function computeDistanceMiles(
 ): number | null {
   const listingZip = listing.location?.zip
   if (listingZip) {
+    // MarketCheck's dealer_address.zip is untrusted third-party data — it can
+    // arrive as a ZIP+4 (e.g. "89503-1234") or with stray whitespace, both of
+    // which make zipcodes.distance() return null. Normalize to a plain 5-digit
+    // ZIP before looking it up.
+    const normalizedZip = String(listingZip).trim().slice(0, 5)
     try {
-      const dist = zipcodes.distance(subjectZip, listingZip)
-      return typeof dist === 'number' && !Number.isNaN(dist) ? dist : null
+      const dist = zipcodes.distance(subjectZip, normalizedZip)
+      if (typeof dist === 'number' && !Number.isNaN(dist)) {
+        return dist
+      }
     } catch {
-      return null
+      // fall through to the lat/long path below
     }
   }
 

@@ -25,6 +25,14 @@ describe('computeDistanceMiles', () => {
     expect(dist!).toBeLessThan(125)
   })
 
+  it('normalizes a ZIP+4 listing ZIP before computing distance (Reno, NV -> Sacramento, CA)', () => {
+    const listing = makeListing({ location: { zip: '89503-1234' } })
+    const dist = computeDistanceMiles('95814', listing)
+    expect(dist).not.toBeNull()
+    expect(dist!).toBeGreaterThan(100)
+    expect(dist!).toBeLessThan(125)
+  })
+
   it('falls back to raw latitude/longitude when no ZIP is present', () => {
     // Sacramento, CA coordinates, no location.zip at all
     const listing = makeListing({ latitude: '38.5816', longitude: '-121.4944' })
