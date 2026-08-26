@@ -59,7 +59,7 @@ async function fetchAndValidatePage(
   mileage: number,
   zip: string,
   start: number,
-  predictedPrice: number
+  predictedPrice: number | undefined
 ): Promise<MarketCheckComparable[] | null> {
   const fallbackResult = await fetchMarketCheckSearchFallback(
     apiKey,
@@ -107,7 +107,7 @@ export async function supplementComparables(
   vin: string,
   mileage: number | null,
   zip: string | null,
-  predictedPrice: number
+  predictedPrice: number | undefined
 ): Promise<{ prediction: MarketCheckPrediction; supplemented: boolean }> {
   const unchanged = { prediction, supplemented: false }
 
