@@ -185,6 +185,11 @@ export async function POST(request: Request, { params }: RouteParams) {
     let confidence: 'low' | 'medium' | 'high'
     let totalComparablesFound: number
     let fallbackUsed: boolean
+    // Only Path 2 sends a radius to MarketCheck, so only it can hit the
+    // account plan's radius cap and need to fall back to a smaller value.
+    // Path 1 filters on real distance_miles data returned by the VIN lookup
+    // itself — no radius parameter is ever sent, so no cap applies to it.
+    let effectiveRadiusMilesUsed: number = radiusMiles
 
     if (mcResult.success && mcResult.data && !mcResult.fallbackUsed) {
       // Genuine primary-endpoint success — real MarketCheck valuation, and
@@ -230,7 +235,78 @@ export async function POST(request: Request, { params }: RouteParams) {
       let merged: MarketCheckComparable[] = []
       let numFoundTotal = 0
 
+      // MarketCheck rejects (HTTP 422) any radius beyond what the account's
+      // plan allows, rather than just returning fewer results — found by
+      // inspecting a prior run's logged errors after every year in the band
+      // came back empty. Calibrate against the subject year first (cheapest
+      // way to find a radius that's actually accepted) before spending calls
+      // across the rest of the year band.
+      const radiusCascade = [radiusMiles, 200, 100, 50, 25].filter(
+        (r, i, arr) => r <= radiusMiles && arr.indexOf(r) === i
+      )
+      let effectiveRadiusMiles: number | null = null
+      for (const candidateRadius of radiusCascade) {
+        const calibStartTime = Date.now()
+        const calibResult = await fetchMarketCheckSearchByRadius(
+          apiKey,
+          subjectVehicle.year,
+          subjectVehicle.make,
+          searchModel,
+          original.zip_code,
+          candidateRadius,
+          0
+        )
+        await logApiCall({
+          reportId: newReportId,
+          provider: 'marketcheck',
+          endpoint: '/v2/search/car/active',
+          success: calibResult.success,
+          responseTimeMs: Date.now() - calibStartTime,
+          cost: 0.0,
+          requestData: {
+            purpose: 'radius_calibration',
+            year: subjectVehicle.year,
+            make: subjectVehicle.make,
+            model: searchModel,
+            zip: original.zip_code,
+            radiusMiles: candidateRadius,
+          },
+          errorMessage: calibResult.success ? undefined : calibResult.error,
+        })
+
+        if (calibResult.statusCode === 422) continue // plan rejects this radius — try smaller
+
+        // Radius accepted (whether or not this specific year had listings) —
+        // and its results, if any, count toward the pool so the call isn't wasted.
+        effectiveRadiusMiles = candidateRadius
+        if (calibResult.success && calibResult.data) {
+          numFoundTotal += calibResult.data.totalComparablesFound
+          const listings = (calibResult.data.recentComparables?.listings ?? []).filter(l => {
+            if (!l.vin || seenVins.has(l.vin)) return false
+            seenVins.add(l.vin)
+            return true
+          })
+          merged = merged.concat(listings)
+        }
+        break
+      }
+
+      if (effectiveRadiusMiles === null) {
+        await supabaseAdmin.from('reports').update({ status: 'failed' }).eq('id', newReportId)
+        return NextResponse.json(
+          {
+            error: `MarketCheck rejected every radius tried, down to ${radiusCascade[radiusCascade.length - 1]}mi — the account's plan may not support radius search at all`,
+            newReportId,
+          },
+          { status: 500 }
+        )
+      }
+      effectiveRadiusMilesUsed = effectiveRadiusMiles
+
       for (const yearOffset of YEAR_OFFSETS) {
+        if (yearOffset === 0) continue // subject year already covered by calibration above
+        if (merged.length >= RAW_CANDIDATE_POOL_TARGET) break
+
         const searchYear = subjectVehicle.year + yearOffset
         const searchStartTime = Date.now()
         const searchResult = await fetchMarketCheckSearchByRadius(
@@ -239,7 +315,7 @@ export async function POST(request: Request, { params }: RouteParams) {
           subjectVehicle.make,
           searchModel,
           original.zip_code,
-          radiusMiles,
+          effectiveRadiusMiles,
           0
         )
         await logApiCall({
@@ -254,7 +330,7 @@ export async function POST(request: Request, { params }: RouteParams) {
             make: subjectVehicle.make,
             model: searchModel,
             zip: original.zip_code,
-            radiusMiles,
+            radiusMiles: effectiveRadiusMiles,
           },
           errorMessage: searchResult.success ? undefined : searchResult.error,
         })
@@ -270,8 +346,6 @@ export async function POST(request: Request, { params }: RouteParams) {
           return true
         })
         merged = merged.concat(yearListings)
-
-        if (merged.length >= RAW_CANDIDATE_POOL_TARGET) break
       }
 
       const cleaned = cleanAndFilterComparables(merged, subjectVehicle.year)
@@ -411,7 +485,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       success: true,
       originalReportId,
       newReportId,
-      radiusMiles,
+      radiusMilesRequested: radiusMiles,
+      effectiveRadiusMilesUsed,
       valuationSource,
       qualifyingListingsFound,
       listingsShown: finalListings.length,

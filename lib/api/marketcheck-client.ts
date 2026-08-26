@@ -363,7 +363,7 @@ export async function fetchMarketCheckSearchByRadius(
       })
       return {
         success: false,
-        error: `MarketCheck radius search failed: ${response.status} ${response.statusText}`,
+        error: `MarketCheck radius search failed: ${response.status} ${errorText || response.statusText}`,
         statusCode: response.status,
       }
     }
