@@ -11,35 +11,37 @@
  *
  * Body: { radiusMiles?: number }  (default 300)
  *
+ * Distance is always computed locally (zipcodes.distance, offline, no extra
+ * API calls) from each listing's dealer ZIP — never trusted from MarketCheck.
+ * Two reasons: MarketCheck's returned distance/dist field is frequently just
+ * absent, and MarketCheck's own zip+radius search parameter turned out to be
+ * capped by the account's subscription plan — a 300mi request was rejected
+ * outright (HTTP 422), not just answered with fewer results. Computing it
+ * ourselves sidesteps both problems entirely.
+ *
  * Two paths, tried in order:
  *  1. Retry the VIN-based MarketCheck prediction. If it succeeds this time,
- *     its comparables carry a real `location.distance_miles`, and its
- *     predictedPrice/priceRange/confidence are MarketCheck's own valuation —
- *     not something this app calculates.
- *  2. If VIN decode still fails, fall back to MarketCheck's search endpoint
- *     with zip+radius (MarketCheck enforces the radius server-side; this
- *     endpoint never returns a distance field or a valuation). In this path
- *     there is no MarketCheck-native price available, so the original
- *     report's valuation is carried forward unchanged rather than computed
- *     by averaging listing prices ourselves.
+ *     its predictedPrice/priceRange/confidence are MarketCheck's own
+ *     valuation — not something this app calculates.
+ *  2. If VIN decode still fails, no MarketCheck-native valuation is
+ *     available, so the original report's valuation is carried forward
+ *     unchanged (never synthesized by us). Listings come from a nationwide
+ *     year/make/model search spanning the same model-year band every other
+ *     report uses (subjectYear-5..+2), filtered to radiusMiles ourselves.
  *
  * Either way: listings are cleaned with the same rules every report uses,
  * URL-validated, ranked by closest mileage to the subject vehicle, and capped
  * at 10 (working links first) — or fewer, if that's genuinely all that
  * qualifies within radiusMiles. No automatic radius widening.
- *
- * Path 2's search spans the same model-year band as every other report
- * (subjectYear-5..+2), not a single exact year — a single-year search
- * combined with a radius restriction was found to return zero results even
- * where nearby, slightly-off-year inventory existed.
  */
 
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/db/admin-auth'
 import { supabaseAdmin } from '@/lib/db/supabase'
+import zipcodes from 'zipcodes'
 import {
   fetchMarketCheckData,
-  fetchMarketCheckSearchByRadius,
+  fetchMarketCheckSearchFallback,
   type MarketCheckComparable,
   type MarketCheckPrediction,
 } from '@/lib/api/marketcheck-client'
@@ -54,9 +56,12 @@ const MAX_SHOWN = 10
 
 // Mirrors cleanAndFilterComparables' own year band (subjectYear-5..+2), ordered
 // by closeness to the subject year so the search can stop early once it has a
-// healthy pool without needlessly querying every year in the band.
+// healthy within-radius pool without needlessly querying every year in it.
 const YEAR_OFFSETS = [0, -1, 1, -2, 2, -3, -4, -5]
 const RAW_CANDIDATE_POOL_TARGET = MAX_SHOWN * 3
+// Bounds total search-endpoint calls (year x page) regardless of how thin the
+// local market turns out to be — keeps cost/time predictable.
+const MAX_SEARCH_CALLS = 16
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -64,6 +69,29 @@ interface RouteParams {
 
 function distanceOf(l: MarketCheckComparable): number {
   return typeof l.location?.distance_miles === 'number' ? l.location.distance_miles : Infinity
+}
+
+/**
+ * Straight-line miles between the subject ZIP and a listing's dealer ZIP,
+ * computed locally via the offline `zipcodes` package. Returns a copy of the
+ * listing with location.distance_miles set to that value, or null if the
+ * listing has no usable ZIP (excluded — an unverifiable distance can't be
+ * counted as "within radiusMiles").
+ */
+function withComputedDistance(
+  subjectZip: string,
+  listing: MarketCheckComparable
+): MarketCheckComparable | null {
+  const listingZip = listing.location?.zip
+  if (!listingZip) return null
+  let dist: number | null
+  try {
+    dist = zipcodes.distance(subjectZip, listingZip)
+  } catch {
+    return null
+  }
+  if (typeof dist !== 'number' || Number.isNaN(dist)) return null
+  return { ...listing, location: { ...listing.location, distance_miles: dist } }
 }
 
 /** Ascending by how close a listing's mileage is to the subject vehicle's. */
@@ -102,6 +130,14 @@ export async function POST(request: Request, { params }: RouteParams) {
     if (!original.vin || !original.mileage || !original.zip_code) {
       return NextResponse.json(
         { error: 'Original report is missing vin, mileage, or zip_code' },
+        { status: 400 }
+      )
+    }
+    if (!zipcodes.lookup(original.zip_code)) {
+      return NextResponse.json(
+        {
+          error: `ZIP ${original.zip_code} isn't in the offline zip database — can't compute distance`,
+        },
         { status: 400 }
       )
     }
@@ -185,22 +221,21 @@ export async function POST(request: Request, { params }: RouteParams) {
     let confidence: 'low' | 'medium' | 'high'
     let totalComparablesFound: number
     let fallbackUsed: boolean
-    // Only Path 2 sends a radius to MarketCheck, so only it can hit the
-    // account plan's radius cap and need to fall back to a smaller value.
-    // Path 1 filters on real distance_miles data returned by the VIN lookup
-    // itself — no radius parameter is ever sent, so no cap applies to it.
-    let effectiveRadiusMilesUsed: number = radiusMiles
 
     if (mcResult.success && mcResult.data && !mcResult.fallbackUsed) {
-      // Genuine primary-endpoint success — real MarketCheck valuation, and
-      // listings that carry a real location.distance_miles when known.
+      // Genuine primary-endpoint success — real MarketCheck valuation.
+      // Distance is still computed locally per listing ZIP (see
+      // withComputedDistance), not trusted from MarketCheck's own field.
       const allListings = mcResult.data.recentComparables?.listings ?? []
       const { prediction: validated } = await validateListingUrls(mcResult.data, {
         sortFn: listings => [...listings].sort(byClosestMileage(original.mileage)),
       })
       const validatedListings = validated.recentComparables?.listings ?? allListings
 
-      const withinRadius = validatedListings.filter(l => distanceOf(l) <= radiusMiles)
+      const withinRadius = validatedListings
+        .map(l => withComputedDistance(original.zip_code, l))
+        .filter((l): l is MarketCheckComparable => l !== null && distanceOf(l) <= radiusMiles)
+
       candidates = validatedFirst([...withinRadius].sort(byClosestMileage(original.mileage)))
 
       valuationSource = 'marketcheck_vin_predict'
@@ -210,10 +245,11 @@ export async function POST(request: Request, { params }: RouteParams) {
       totalComparablesFound = mcResult.data.totalComparablesFound
       fallbackUsed = false
     } else {
-      // VIN decode still fails — no MarketCheck-native valuation is available.
-      // Carry the original report's valuation forward unchanged (never
-      // synthesized by us) and source listings from a radius-bounded search
-      // instead, paginating once more if the first page comes up short.
+      // VIN decode still fails — no MarketCheck-native valuation is
+      // available. Carry the original report's valuation forward unchanged
+      // and source listings from a nationwide year/make/model search
+      // (same endpoint/params as the original bug's fallback), filtering to
+      // radiusMiles ourselves from each listing's own ZIP.
       const apiKey = process.env.MARKETCHECK_API_KEY
       if (!apiKey || !subjectVehicle) {
         await supabaseAdmin.from('reports').update({ status: 'failed' }).eq('id', newReportId)
@@ -232,123 +268,59 @@ export async function POST(request: Request, { params }: RouteParams) {
         subjectVehicle.model
 
       const seenVins = new Set<string>()
-      let merged: MarketCheckComparable[] = []
+      const withinRadiusPool: MarketCheckComparable[] = []
       let numFoundTotal = 0
+      let searchCallsMade = 0
 
-      // MarketCheck rejects (HTTP 422) any radius beyond what the account's
-      // plan allows, rather than just returning fewer results — found by
-      // inspecting a prior run's logged errors after every year in the band
-      // came back empty. Calibrate against the subject year first (cheapest
-      // way to find a radius that's actually accepted) before spending calls
-      // across the rest of the year band.
-      const radiusCascade = [radiusMiles, 200, 100, 50, 25].filter(
-        (r, i, arr) => r <= radiusMiles && arr.indexOf(r) === i
-      )
-      let effectiveRadiusMiles: number | null = null
-      for (const candidateRadius of radiusCascade) {
-        const calibStartTime = Date.now()
-        const calibResult = await fetchMarketCheckSearchByRadius(
-          apiKey,
-          subjectVehicle.year,
-          subjectVehicle.make,
-          searchModel,
-          original.zip_code,
-          candidateRadius,
-          0
-        )
-        await logApiCall({
-          reportId: newReportId,
-          provider: 'marketcheck',
-          endpoint: '/v2/search/car/active',
-          success: calibResult.success,
-          responseTimeMs: Date.now() - calibStartTime,
-          cost: 0.0,
-          requestData: {
-            purpose: 'radius_calibration',
-            year: subjectVehicle.year,
-            make: subjectVehicle.make,
-            model: searchModel,
-            zip: original.zip_code,
-            radiusMiles: candidateRadius,
-          },
-          errorMessage: calibResult.success ? undefined : calibResult.error,
-        })
-
-        if (calibResult.statusCode === 422) continue // plan rejects this radius — try smaller
-
-        // Radius accepted (whether or not this specific year had listings) —
-        // and its results, if any, count toward the pool so the call isn't wasted.
-        effectiveRadiusMiles = candidateRadius
-        if (calibResult.success && calibResult.data) {
-          numFoundTotal += calibResult.data.totalComparablesFound
-          const listings = (calibResult.data.recentComparables?.listings ?? []).filter(l => {
-            if (!l.vin || seenVins.has(l.vin)) return false
-            seenVins.add(l.vin)
-            return true
-          })
-          merged = merged.concat(listings)
-        }
-        break
-      }
-
-      if (effectiveRadiusMiles === null) {
-        await supabaseAdmin.from('reports').update({ status: 'failed' }).eq('id', newReportId)
-        return NextResponse.json(
-          {
-            error: `MarketCheck rejected every radius tried, down to ${radiusCascade[radiusCascade.length - 1]}mi — the account's plan may not support radius search at all`,
-            newReportId,
-          },
-          { status: 500 }
-        )
-      }
-      effectiveRadiusMilesUsed = effectiveRadiusMiles
-
-      for (const yearOffset of YEAR_OFFSETS) {
-        if (yearOffset === 0) continue // subject year already covered by calibration above
-        if (merged.length >= RAW_CANDIDATE_POOL_TARGET) break
-
+      yearLoop: for (const yearOffset of YEAR_OFFSETS) {
         const searchYear = subjectVehicle.year + yearOffset
-        const searchStartTime = Date.now()
-        const searchResult = await fetchMarketCheckSearchByRadius(
-          apiKey,
-          searchYear,
-          subjectVehicle.make,
-          searchModel,
-          original.zip_code,
-          effectiveRadiusMiles,
-          0
-        )
-        await logApiCall({
-          reportId: newReportId,
-          provider: 'marketcheck',
-          endpoint: '/v2/search/car/active',
-          success: searchResult.success,
-          responseTimeMs: Date.now() - searchStartTime,
-          cost: 0.0,
-          requestData: {
-            year: searchYear,
-            make: subjectVehicle.make,
-            model: searchModel,
-            zip: original.zip_code,
-            radiusMiles: effectiveRadiusMiles,
-          },
-          errorMessage: searchResult.success ? undefined : searchResult.error,
-        })
 
-        // A single year turning up nothing (or erroring) doesn't mean the whole
-        // band will — keep checking the other years in it.
-        if (!searchResult.success || !searchResult.data) continue
+        for (const start of [0, 50, 100]) {
+          if (searchCallsMade >= MAX_SEARCH_CALLS) break yearLoop
+          if (withinRadiusPool.length >= RAW_CANDIDATE_POOL_TARGET) break yearLoop
 
-        numFoundTotal += searchResult.data.totalComparablesFound
-        const yearListings = (searchResult.data.recentComparables?.listings ?? []).filter(l => {
-          if (!l.vin || seenVins.has(l.vin)) return false
-          seenVins.add(l.vin)
-          return true
-        })
-        merged = merged.concat(yearListings)
+          searchCallsMade++
+          const searchStartTime = Date.now()
+          const searchResult = await fetchMarketCheckSearchFallback(
+            apiKey,
+            searchYear,
+            subjectVehicle.make,
+            searchModel,
+            original.vin,
+            original.mileage,
+            original.zip_code,
+            start
+          )
+          await logApiCall({
+            reportId: newReportId,
+            provider: 'marketcheck',
+            endpoint: '/v2/search/car/active',
+            success: searchResult.success,
+            responseTimeMs: Date.now() - searchStartTime,
+            cost: 0.0,
+            requestData: { year: searchYear, make: subjectVehicle.make, model: searchModel, start },
+            errorMessage: searchResult.success ? undefined : searchResult.error,
+          })
+
+          if (!searchResult.success || !searchResult.data) break // no more pages for this year
+
+          numFoundTotal += searchResult.data.totalComparablesFound
+          const pageListings = searchResult.data.recentComparables?.listings ?? []
+          if (pageListings.length === 0) break // exhausted this year's results
+
+          for (const l of pageListings) {
+            if (!l.vin || seenVins.has(l.vin)) continue
+            seenVins.add(l.vin)
+            const withDist = withComputedDistance(original.zip_code, l)
+            if (!withDist || distanceOf(withDist) > radiusMiles) continue
+            withinRadiusPool.push(withDist)
+          }
+
+          if (pageListings.length < 50) break // last page for this year
+        }
       }
 
-      const cleaned = cleanAndFilterComparables(merged, subjectVehicle.year)
+      const cleaned = cleanAndFilterComparables(withinRadiusPool, subjectVehicle.year)
       const { prediction: validated } = await validateListingUrls(
         {
           predictedPrice: 0,
@@ -485,8 +457,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       success: true,
       originalReportId,
       newReportId,
-      radiusMilesRequested: radiusMiles,
-      effectiveRadiusMilesUsed,
+      radiusMiles,
       valuationSource,
       qualifyingListingsFound,
       listingsShown: finalListings.length,

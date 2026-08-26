@@ -9,11 +9,7 @@ global.fetch = mockFetch
 
 process.env.MARKETCHECK_API_KEY = 'test-api-key'
 
-import {
-  fetchMarketCheckData,
-  fetchMarketCheckSearchFallback,
-  fetchMarketCheckSearchByRadius,
-} from '@/lib/api/marketcheck-client'
+import { fetchMarketCheckData, fetchMarketCheckSearchFallback } from '@/lib/api/marketcheck-client'
 
 describe('fetchMarketCheckData - search fallback', () => {
   beforeEach(() => {
@@ -344,61 +340,5 @@ describe('fetchMarketCheckSearchFallback — API params', () => {
     )
     const listing = result.data!.recentComparables!.listings[0]
     expect(listing.location?.distance_miles).toBeUndefined()
-  })
-})
-
-describe('fetchMarketCheckSearchByRadius — API params', () => {
-  beforeEach(() => {
-    mockFetch.mockReset()
-  })
-
-  function mockSearchSuccess() {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        num_found: 1,
-        listings: [
-          {
-            id: 'abc',
-            vin: 'VIN1',
-            price: 10000,
-            miles: 50000,
-            seller_type: 'franchise',
-            build: { year: 2020, make: 'Honda', model: 'Civic' },
-            dealer_address: { city: 'Reno', state: 'NV', zip: '89503' },
-            vdp_url: 'https://dealer.com/inventory/abc',
-            first_seen_at_date: '2025-01-01',
-          },
-        ],
-      }),
-    })
-  }
-
-  it('DOES include zip and radius in the search URL', async () => {
-    mockSearchSuccess()
-    await fetchMarketCheckSearchByRadius('key', 2020, 'Honda', 'Civic', '89503', 300)
-    const calledUrl = mockFetch.mock.calls[0][0] as string
-    const params = new URL(calledUrl).searchParams
-    expect(params.get('zip')).toBe('89503')
-    expect(params.get('radius')).toBe('300')
-  })
-
-  it('uses start=0 by default and passes start=50 when requested', async () => {
-    mockSearchSuccess()
-    await fetchMarketCheckSearchByRadius('key', 2020, 'Honda', 'Civic', '89503', 300)
-    expect(new URL(mockFetch.mock.calls[0][0] as string).searchParams.get('start')).toBe('0')
-
-    mockSearchSuccess()
-    await fetchMarketCheckSearchByRadius('key', 2020, 'Honda', 'Civic', '89503', 300, 50)
-    expect(new URL(mockFetch.mock.calls[1][0] as string).searchParams.get('start')).toBe('50')
-  })
-
-  it('returns success:false with no listings found', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ num_found: 0, listings: [] }),
-    })
-    const result = await fetchMarketCheckSearchByRadius('key', 2020, 'Honda', 'Civic', '89503', 300)
-    expect(result.success).toBe(false)
   })
 })
