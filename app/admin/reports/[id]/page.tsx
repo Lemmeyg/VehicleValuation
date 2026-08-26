@@ -100,9 +100,21 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
               <button
                 type="submit"
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
-                title="Creates a brand-new $0 report with comps re-checked to be within 300 miles of the customer's ZIP. Never modifies this report."
+                title="Creates a brand-new $0 report with comps re-checked to be within 300 miles of the customer's ZIP, searching the usual +2/-5 model-year band. Never modifies this report."
               >
                 Fix Comps (300mi Radius)
+              </button>
+            </form>
+          )}
+          {report.price_paid && report.price_paid > 0 && (
+            <form action={`/api/admin/reports/${id}/create-radius-corrected-report`} method="POST">
+              <input type="hidden" name="strictYear" value="true" />
+              <button
+                type="submit"
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-800 hover:bg-emerald-900"
+                title="Same as Fix Comps, but searches only the vehicle's exact model year instead of the usual +2/-5 band. Never modifies this report."
+              >
+                Fix Comps (300mi, Exact Year)
               </button>
             </form>
           )}

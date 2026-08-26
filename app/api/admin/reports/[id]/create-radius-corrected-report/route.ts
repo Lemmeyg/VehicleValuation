@@ -9,8 +9,15 @@
  * customer's ZIP, and writes the result to a brand-new report row — the
  * original report (and its PDF/download link) is never modified.
  *
- * Body: { radiusMiles?: number }  (default 300)
+ * Body: { radiusMiles?: number, strictYear?: boolean }  (default 300mi, whole year band)
+ * Accepts JSON or a plain HTML form POST (application/x-www-form-urlencoded) —
+ * the admin page's buttons use the latter, since a plain <form> can't send JSON.
  *
+ * strictYear searches only the subject vehicle's exact model year instead of
+ * the usual subjectYear-5..+2 band — useful for isolating how much the
+ * year-band widening (vs. the mileage-closest ranking) changes the result.
+ *
+
  * Distance is always computed locally (zipcodes.distance, offline, no extra
  * API calls) from each listing's dealer ZIP — never trusted from MarketCheck.
  * Two reasons: MarketCheck's returned distance/dist field is frequently just
@@ -112,11 +119,35 @@ export async function POST(request: Request, { params }: RouteParams) {
     await requireAdmin()
 
     const { id: originalReportId } = await params
-    const body = await request.json().catch(() => ({}))
+
+    // Accepts either a JSON body (curl/fetch) or a plain HTML form POST
+    // (application/x-www-form-urlencoded — the admin page's buttons submit
+    // this way, since a plain <form> can't send JSON). Read the raw text
+    // once and try JSON first, falling back to URL-encoded form parsing.
+    const rawBody = await request.text()
+    let body: Record<string, unknown> = {}
+    if (rawBody) {
+      try {
+        body = JSON.parse(rawBody)
+      } catch {
+        body = Object.fromEntries(new URLSearchParams(rawBody).entries())
+      }
+    }
+
+    const radiusMilesRaw = body.radiusMiles
     const radiusMiles: number =
-      typeof body.radiusMiles === 'number' && body.radiusMiles > 0
-        ? body.radiusMiles
-        : DEFAULT_RADIUS_MILES
+      typeof radiusMilesRaw === 'number' && radiusMilesRaw > 0
+        ? radiusMilesRaw
+        : typeof radiusMilesRaw === 'string' && Number(radiusMilesRaw) > 0
+          ? Number(radiusMilesRaw)
+          : DEFAULT_RADIUS_MILES
+
+    // strictYear: search only the subject vehicle's exact model year, not the
+    // usual subjectYear-5..+2 band. Added on request to isolate the effect of
+    // the year-band widening from the mileage-closest ranking change — both
+    // landed in the same run originally.
+    const strictYear = body.strictYear === true || body.strictYear === 'true'
+    const yearOffsetsToUse = strictYear ? [0] : YEAR_OFFSETS
 
     const { data: original, error: fetchError } = await supabaseAdmin
       .from('reports')
@@ -177,7 +208,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         status: 'draft',
         data_retrieval_status: 'pending',
         price_paid: 0,
-        'GL Notes': `Corrected replacement for report ${originalReportId} — ${radiusMiles}mi radius fix, ${today}. Customer reported comps not within driving distance.`,
+        'GL Notes': `Corrected replacement for report ${originalReportId} — ${radiusMiles}mi radius fix${strictYear && subjectVehicle ? ` (model year ${subjectVehicle.year} only)` : ''}, ${today}. Customer reported comps not within driving distance.`,
       })
       .select()
       .single()
@@ -272,7 +303,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       let numFoundTotal = 0
       let searchCallsMade = 0
 
-      yearLoop: for (const yearOffset of YEAR_OFFSETS) {
+      yearLoop: for (const yearOffset of yearOffsetsToUse) {
         const searchYear = subjectVehicle.year + yearOffset
 
         for (const start of [0, 50, 100]) {
@@ -458,6 +489,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       originalReportId,
       newReportId,
       radiusMiles,
+      strictYear,
+      yearsSearched: yearOffsetsToUse.map(o => (subjectVehicle ? subjectVehicle.year + o : o)),
       valuationSource,
       qualifyingListingsFound,
       listingsShown: finalListings.length,
