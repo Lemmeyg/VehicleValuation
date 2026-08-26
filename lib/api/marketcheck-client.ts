@@ -308,6 +308,159 @@ export async function fetchMarketCheckSearchFallback(
 }
 
 /**
+ * Geo-restricted search: same endpoint as fetchMarketCheckSearchFallback, but with
+ * zip + radius so MarketCheck only returns listings within that many miles of zip.
+ * Kept separate from fetchMarketCheckSearchFallback (which deliberately omits
+ * zip/radius for a nationwide sweep) so that function's existing contract and tests
+ * are untouched.
+ *
+ * The predictedPrice on the returned prediction is synthesized (mean of listing
+ * prices) exactly like fetchMarketCheckSearchFallback's — this endpoint never
+ * returns a MarketCheck-native valuation. Callers that need an authoritative
+ * MarketCheck price should get it from fetchMarketCheckData instead and use this
+ * function only for its recentComparables.listings.
+ */
+export async function fetchMarketCheckSearchByRadius(
+  apiKey: string,
+  year: number,
+  make: string,
+  model: string,
+  zip: string,
+  radiusMiles: number,
+  start: number = 0
+): Promise<MarketCheckResponse> {
+  const url = new URL('https://api.marketcheck.com/v2/search/car/active')
+  url.searchParams.append('api_key', apiKey)
+  url.searchParams.append('make', make)
+  url.searchParams.append('model', model)
+  url.searchParams.append('year', year.toString())
+  url.searchParams.append('zip', zip)
+  url.searchParams.append('radius', radiusMiles.toString())
+  url.searchParams.append('rows', '50')
+  url.searchParams.append('start', start.toString())
+
+  console.log('[MarketCheck Radius Search] Trying search endpoint', {
+    make,
+    model,
+    year,
+    zip,
+    radiusMiles,
+    start,
+  })
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'VehicleValuationSaaS/1.0' },
+      signal: AbortSignal.timeout(30000),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[MarketCheck Radius Search] Search failed', {
+        status: response.status,
+        body: errorText,
+      })
+      return {
+        success: false,
+        error: `MarketCheck radius search failed: ${response.status} ${response.statusText}`,
+        statusCode: response.status,
+      }
+    }
+
+    const data = (await response.json()) as { num_found: number; listings: unknown[] }
+    const listings = data.listings || []
+    const numFound = data.num_found
+
+    console.log('[MarketCheck Radius Search] Search succeeded', {
+      num_found: numFound,
+      returned: listings.length,
+    })
+
+    if (listings.length === 0) {
+      return {
+        success: false,
+        error: 'MarketCheck radius search returned no listings',
+        statusCode: 404,
+      }
+    }
+
+    // Map search listings to MarketCheckComparable shape — same mapping as
+    // fetchMarketCheckSearchFallback (this endpoint never returns a distance
+    // field even with zip+radius set, per MarketCheck's own docs).
+    const comparables: MarketCheckComparable[] = listings
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((l: any) => ({
+        id: l.id,
+        vin: l.vin,
+        year: l.build?.year ?? l.year ?? year,
+        make: l.build?.make ?? l.make ?? make,
+        model: l.build?.model ?? l.model ?? model,
+        trim: l.build?.trim ?? l.trim,
+        miles: l.miles ?? 0,
+        price: l.price ?? 0,
+        dom: l.dom,
+        dom_180: l.dom_180,
+        dom_active: l.dom_active,
+        dos_active: l.dos_active,
+        dealer_type: (l.seller_type === 'franchise' ? 'franchise' : 'independent') as
+          | 'franchise'
+          | 'independent',
+        dealer_id: l.seller_id,
+        dealer_name: l.dealer?.name,
+        location:
+          l.dealer_address || l.dealer
+            ? {
+                city: l.dealer_address?.city ?? l.dealer?.city,
+                state: l.dealer_address?.state ?? l.dealer?.state,
+                zip: l.dealer_address?.zip ?? l.dealer?.zip,
+                distance_miles: l.distance ?? undefined,
+              }
+            : undefined,
+        latitude: l.latitude,
+        longitude: l.longitude,
+        photo_url: l.media?.photo_links?.[0],
+        vdp_url: l.vdp_url,
+        listing_date: l.first_seen_at_date ?? l.first_seen_at,
+        mc_website_id: l.mc_website_id,
+        source: 'marketcheck',
+      }))
+      .sort((a, b) => b.price - a.price)
+
+    const prices = comparables.map(l => l.price).filter(p => p > 0)
+    const predictedPrice =
+      prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : 0
+    const sorted = [...prices].sort((a, b) => a - b)
+    const p10 = sorted[Math.floor(sorted.length * 0.1)] ?? sorted[0] ?? 0
+    const p90 = sorted[Math.floor(sorted.length * 0.9)] ?? sorted[sorted.length - 1] ?? 0
+    const confidence: 'low' | 'medium' | 'high' =
+      comparables.length >= 20 ? 'high' : comparables.length >= 5 ? 'medium' : 'low'
+
+    const prediction: MarketCheckPrediction = {
+      predictedPrice,
+      priceRange: { min: p10, max: p90 },
+      confidence,
+      dataSource: 'marketcheck',
+      requestParams: { vin: '', miles: 0, zip, dealer_type: 'franchise' },
+      totalComparablesFound: numFound,
+      comparablesStats: undefined,
+      recentComparables: {
+        num_found: comparables.length,
+        listings: comparables,
+        stats: undefined,
+      },
+      generatedAt: new Date().toISOString(),
+    }
+
+    return { success: true, data: prediction }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[MarketCheck Radius Search] Exception:', msg)
+    return { success: false, error: msg, statusCode: 500 }
+  }
+}
+
+/**
  * Fetch price prediction from MarketCheck API with retry logic
  *
  * @param vin - Vehicle Identification Number (17 characters)
