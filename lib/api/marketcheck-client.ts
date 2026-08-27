@@ -270,8 +270,10 @@ export async function fetchMarketCheckSearchFallback(
       }))
       .sort((a, b) => b.price - a.price)
 
-    // Clean before pricing off of anything — same rules every other comp
-    // goes through (0-mile/0-price junk, dupes, year band, dealer cap).
+    // Clean before pricing off of — or storing — anything: the same rules every
+    // other comp goes through (0-mile/0-price junk, dupes, year band, dealer cap).
+    // The VIN-matched path already runs this; the fallback path must too, or its
+    // raw "call for price" ($0) listings end up on the report.
     const cleaned = cleanAndFilterComparables(comparables, year)
 
     // Prefer pricing off genuinely local comps when we know the subject ZIP
@@ -309,8 +311,8 @@ export async function fetchMarketCheckSearchFallback(
       totalComparablesFound: numFound,
       comparablesStats: undefined,
       recentComparables: {
-        num_found: comparables.length,
-        listings: comparables,
+        num_found: cleaned.length,
+        listings: cleaned,
         stats: undefined,
       },
       generatedAt: new Date().toISOString(),

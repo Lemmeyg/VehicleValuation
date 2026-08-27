@@ -429,3 +429,73 @@ describe('fetchMarketCheckSearchFallback — price synthesis', () => {
     expect(result.data!.predictedPrice).toBe(20000) // no nearby listings — falls back to using it anyway
   })
 })
+
+describe('fetchMarketCheckSearchFallback — comp cleanup', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('excludes listings with no usable price from the stored comparables', async () => {
+    // The search endpoint routinely returns "call for price" listings (price 0 or
+    // absent). The VIN-matched path drops these via cleanAndFilterComparables; the
+    // fallback path must do the same before its listings are stored/displayed.
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 3,
+        listings: [
+          {
+            id: 'priced',
+            vin: 'PRICEDVIN00000001',
+            price: 18000,
+            miles: 40000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Austin', state: 'TX', zip: '78701' },
+            vdp_url: 'https://dealer.com/inventory/priced',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'zero',
+            vin: 'ZEROVIN0000000001',
+            price: 0,
+            miles: 45000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Dallas', state: 'TX', zip: '75201' },
+            vdp_url: 'https://dealer.com/inventory/zero',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'noprice',
+            vin: 'NOPRICEVIN0000001',
+            // price field absent entirely
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Houston', state: 'TX', zip: '77002' },
+            vdp_url: 'https://dealer.com/inventory/noprice',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Honda',
+      'Civic',
+      'VIN0',
+      50000,
+      '78701'
+    )
+
+    expect(result.success).toBe(true)
+    const listings = result.data!.recentComparables!.listings
+    expect(listings).toHaveLength(1)
+    expect(listings[0].id).toBe('priced')
+    expect(listings.every(l => l.price > 0)).toBe(true)
+    expect(result.data!.recentComparables!.num_found).toBe(1)
+  })
+})
