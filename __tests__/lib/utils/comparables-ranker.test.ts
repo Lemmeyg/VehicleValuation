@@ -147,4 +147,56 @@ describe('getBestMatchListings', () => {
     const result = getBestMatchListings(listings, subject, 10)
     expect(result.map(l => l.vin)).toEqual(['PRICED'])
   })
+
+  it('drops listings priced far from the valuation, even when they rank better on distance', () => {
+    // The displayed comps justify the report's own Fair Market Value, so they
+    // must be priced like it — a closer-but-wildly-mispriced listing is worse
+    // than a fairly-priced one further away.
+    const subjectWithPrice: RankSubject = { ...subject, predictedPrice: 15000 }
+    const listings = [
+      // Subject's own ZIP (best distance tier) but ~47% underpriced
+      makeListing({ vin: 'NEAR_CHEAP_1', price: 8000, location: { zip: '89503' } }),
+      makeListing({ vin: 'NEAR_CHEAP_2', price: 8000, location: { zip: '89503' } }),
+      makeListing({ vin: 'NEAR_CHEAP_3', price: 8000, location: { zip: '89503' } }),
+      // Miami — far away, but right on the valuation
+      ...Array.from({ length: 10 }, (_, i) =>
+        makeListing({ vin: `FAR_FAIR_${i}`, price: 15000, location: { zip: '33101' } })
+      ),
+    ]
+    const result = getBestMatchListings(listings, subjectWithPrice, 10)
+    expect(result.every(l => Math.abs(l.price - 15000) / 15000 <= 0.1)).toBe(true)
+    expect(result.some(l => l.vin.startsWith('NEAR_CHEAP'))).toBe(false)
+  })
+
+  it('widens the price band when the tightest one cannot fill the table', () => {
+    const subjectWithPrice: RankSubject = { ...subject, predictedPrice: 15000 }
+    const listings = [
+      // 4 within ±10% ($14,500), far away
+      ...Array.from({ length: 4 }, (_, i) =>
+        makeListing({ vin: `TIGHT_${i}`, price: 14500, location: { zip: '33101' } })
+      ),
+      // 8 within ±20% but outside ±10% ($12,100 ≈ −19%), far away
+      ...Array.from({ length: 8 }, (_, i) =>
+        makeListing({ vin: `MID_${i}`, price: 12100, location: { zip: '33101' } })
+      ),
+      // 15 way off ($6,000 = −60%), in the subject's own ZIP (best distance tier)
+      ...Array.from({ length: 15 }, (_, i) =>
+        makeListing({ vin: `OFF_${i}`, price: 6000, location: { zip: '89503' } })
+      ),
+    ]
+    const result = getBestMatchListings(listings, subjectWithPrice, 10)
+    expect(result).toHaveLength(10)
+    expect(result.some(l => l.vin.startsWith('OFF_'))).toBe(false)
+    expect(result.every(l => /^(TIGHT|MID)_/.test(l.vin!))).toBe(true)
+  })
+
+  it('applies no price band when the subject has no predicted price', () => {
+    const listings = [
+      makeListing({ vin: 'CHEAP', price: 3000, location: { zip: '89503' } }),
+      makeListing({ vin: 'FAIR', price: 15000, location: { zip: '89503' } }),
+    ]
+    // `subject` carries no predictedPrice — both listings must survive
+    const result = getBestMatchListings(listings, subject, 10)
+    expect(result.map(l => l.vin).sort()).toEqual(['CHEAP', 'FAIR'])
+  })
 })

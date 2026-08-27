@@ -27,6 +27,12 @@ export interface RankSubject {
 
 const PRICE_PROXIMITY_FRACTION = 0.1 // "within 10% of valuation" — a first guess, not a measured optimum
 
+// Display-time price banding (getBestMatchListings): the shown comps exist to
+// justify the report's own Fair Market Value, so they must be priced like it.
+// Try the tightest band first; widen only if it can't fill the table. Infinity
+// is the terminal band (every priced listing), so this always resolves.
+const DISPLAY_PRICE_BANDS = [0.1, 0.15, 0.2, 0.25, 0.35, Infinity]
+
 /**
  * 0 = within DISTANCE_TIER_MILES[0] (250mi today)
  * 1 = within DISTANCE_TIER_MILES[1] (500mi today)
@@ -81,14 +87,41 @@ export function rankByBestMatch(
 }
 
 /**
+ * Narrows a priced listing set to those near the subject's predicted price,
+ * using the tightest band from DISPLAY_PRICE_BANDS that still holds enough
+ * listings to fill the table (`limit`, or the whole set if it's smaller).
+ * With no predicted price to compare against, returns the input untouched.
+ */
+function withinValuationBand(
+  priced: MarketCheckComparable[],
+  predictedPrice: number | undefined,
+  limit: number
+): MarketCheckComparable[] {
+  if (predictedPrice === undefined || predictedPrice <= 0) return priced
+  const needed = Math.min(limit, priced.length)
+  for (const band of DISPLAY_PRICE_BANDS) {
+    if (band === Infinity) break
+    const inBand = priced.filter(l => Math.abs(l.price - predictedPrice) / predictedPrice <= band)
+    if (inBand.length >= needed) return inBand
+  }
+  return priced // no band tight enough could fill the table — show the full spread
+}
+
+/**
  * The best `limit` matching listings for the subject vehicle, ranked by
  * `rankByBestMatch`. Used at display time to pick which listings a report
  * shows (web view, print page, and PDF all call this).
  *
- * Zero- and missing-price listings are dropped here as a last-resort guard:
- * the pipeline should already have removed them (comparables-cleaner.ts), but
- * a "$0 / call for price" listing must never render on a report even if one
- * slips through, or out-ranks priced listings on year/distance/mileage.
+ * Two display-only guards run before ranking:
+ *  - Zero- and missing-price listings are dropped. The pipeline should already
+ *    have removed them (comparables-cleaner.ts), but a "$0 / call for price"
+ *    listing must never render on a report even if one slips through.
+ *  - When the subject has a predicted price, the set is narrowed to listings
+ *    priced near it (see withinValuationBand) so the shown comps are consistent
+ *    with the report's own Fair Market Value rather than the closest-by-distance
+ *    listings regardless of price.
+ * Neither touches `rankByBestMatch`, which still orders the full set for the
+ * URL-validation pass.
  */
 export function getBestMatchListings(
   listings: MarketCheckComparable[],
@@ -96,5 +129,6 @@ export function getBestMatchListings(
   limit: number = 10
 ): MarketCheckComparable[] {
   const priced = listings.filter(l => l.price != null && l.price > 0)
-  return rankByBestMatch(priced, subject).slice(0, limit)
+  const nearValuation = withinValuationBand(priced, subject.predictedPrice, limit)
+  return rankByBestMatch(nearValuation, subject).slice(0, limit)
 }
