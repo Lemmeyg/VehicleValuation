@@ -335,6 +335,11 @@ export async function fetchMarketCheckSearchFallback(
  * @param subjectVehicle - Subject vehicle info used to filter comparables. The `year` field
  *   drives year-range filtering inside `cleanAndFilterComparables`; `make`, `model`, and
  *   `trim` are used as a VIN-decode fallback when the MarketCheck response is incomplete.
+ * @param dealerType - MarketCheck requires this on every call to this endpoint and only
+ *   accepts 'franchise' or 'independent' — there is no "both" value. Defaults to 'franchise'
+ *   to preserve this app's existing default. To surface both dealer types, call this twice
+ *   (see `lib/utils/dealer-type-supplementer.ts`, which does so only when the first call's
+ *   results come up short).
  * @returns Price prediction with comparables filtered by `cleanAndFilterComparables`
  */
 export async function fetchMarketCheckData(
@@ -348,7 +353,8 @@ export async function fetchMarketCheckData(
     make?: string
     model?: string
     trim?: string
-  }
+  },
+  dealerType: 'franchise' | 'independent' = 'franchise'
 ): Promise<MarketCheckResponse> {
   const apiKey = process.env.MARKETCHECK_API_KEY
 
@@ -399,6 +405,7 @@ export async function fetchMarketCheckData(
       url.searchParams.append('vin', vin)
       url.searchParams.append('miles', miles.toString())
       url.searchParams.append('zip', zipCode)
+      url.searchParams.append('dealer_type', dealerType)
       url.searchParams.append('is_certified', isCertified ? 'true' : 'false')
 
       // Log the full URL (masking API key for security)
@@ -407,7 +414,7 @@ export async function fetchMarketCheckData(
         vin,
         miles,
         zipCode,
-        dealer_type: 'both',
+        dealer_type: dealerType,
         is_certified: isCertified,
         fullUrl: debugUrl,
       })
@@ -507,7 +514,7 @@ export async function fetchMarketCheckData(
           vin,
           miles,
           zip: zipCode,
-          dealer_type: 'both',
+          dealer_type: dealerType,
         },
 
         // Total comparables found (metadata only - listings NOT stored)

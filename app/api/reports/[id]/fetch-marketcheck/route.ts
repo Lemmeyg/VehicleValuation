@@ -14,7 +14,10 @@ import { fetchAutoDevVinDecode } from '@/lib/api/autodev-client'
 import { logApiCall } from '@/lib/api/api-call-logger'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
+import { supplementWithAlternateDealerType } from '@/lib/utils/dealer-type-supplementer'
 import { rankByBestMatch } from '@/lib/utils/comparables-ranker'
+
+const PRIMARY_DEALER_TYPE = 'franchise' as const
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -70,14 +73,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const apiStartTime = Date.now()
 
-    // Call MarketCheck API with retry logic and subject vehicle for filtering
+    // Call MarketCheck API with retry logic and subject vehicle for filtering.
+    // MarketCheck requires a dealer_type on every call to this endpoint and only
+    // accepts one value at a time (no "both") — this asks for franchise first;
+    // supplementWithAlternateDealerType() below asks for independent too, but
+    // only if franchise alone doesn't turn up enough validated listings.
     const marketcheckResult = await fetchMarketCheckData(
       vin,
       mileage,
       zip_code,
       false, // is_certified - default to false
       undefined, // retryConfig (use default)
-      subjectVehicle // NEW: Pass subject vehicle for filtering comparables
+      subjectVehicle, // NEW: Pass subject vehicle for filtering comparables
+      PRIMARY_DEALER_TYPE
     )
 
     const apiResponseTime = Date.now() - apiStartTime
@@ -114,9 +122,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           : undefined
       )
 
-      const supplementResult = await supplementComparables(
+      // If franchise alone didn't turn up enough validated listings, try independent
+      // dealers too before falling back to the broader nationwide search below —
+      // still MarketCheck's own VIN-matched data, just the other dealer type.
+      const dealerTypeResult = await supplementWithAlternateDealerType(
         validatedPrediction,
         urlStats.validatedUrls.length,
+        vin,
+        mileage,
+        zip_code,
+        PRIMARY_DEALER_TYPE,
+        subjectVehicle
+      )
+      const mergedUrlStats = {
+        validatedUrls: [...urlStats.validatedUrls, ...dealerTypeResult.additionalValidatedUrls],
+        failedUrls: [...urlStats.failedUrls, ...dealerTypeResult.additionalFailedUrls],
+        failedCount: urlStats.failedCount + dealerTypeResult.additionalFailedCount,
+      }
+
+      const supplementResult = await supplementComparables(
+        dealerTypeResult.prediction,
+        mergedUrlStats.validatedUrls.length,
         subjectVehicle,
         vin,
         mileage,
@@ -127,8 +153,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       console.log(`[MarketCheck] Pipeline complete`, {
         primaryListings: marketcheckResult.data.recentComparables?.listings?.length ?? 0,
-        urlValidated: urlStats.validatedUrls.length,
-        urlFailed: urlStats.failedCount,
+        urlValidated: mergedUrlStats.validatedUrls.length,
+        urlFailed: mergedUrlStats.failedCount,
+        alternateDealerTypeUsed: dealerTypeResult.supplemented,
         supplemented: supplementResult.supplemented,
         finalListings: finalPrediction.recentComparables?.listings?.length ?? 0,
       })
@@ -215,9 +242,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             finalPrediction.recentComparables?.listings?.length || 0,
 
           // URL validation stats
-          url_validation_failed_count: urlStats.failedCount,
-          url_validation_failed_urls: urlStats.failedUrls,
-          validated_listing_urls: urlStats.validatedUrls,
+          url_validation_failed_count: mergedUrlStats.failedCount,
+          url_validation_failed_urls: mergedUrlStats.failedUrls,
+          validated_listing_urls: mergedUrlStats.validatedUrls,
           comparables_supplemented: supplementResult.supplemented,
 
           // Also update valuation_result (replaces CarsXE)
@@ -247,8 +274,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
         success: true,
         responseTimeMs: apiResponseTime,
-        cost: 0.09,
-        requestData: { vin, mileage, zip_code, dealer_type: 'both' },
+        cost: dealerTypeResult.supplemented ? 0.18 : 0.09, // a second dealer_type call, when it fires, is a second billed request
+        requestData: {
+          vin,
+          mileage,
+          zip_code,
+          dealer_type: finalPrediction.requestParams.dealer_type,
+        },
         responseData: {
           predicted_price: finalPrediction.predictedPrice,
           total_comparables_found: finalPrediction.totalComparablesFound,
@@ -272,7 +304,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         success: false,
         responseTimeMs: apiResponseTime,
         cost: 0.0,
-        requestData: { vin, mileage, zip_code, dealer_type: 'both' },
+        requestData: { vin, mileage, zip_code, dealer_type: PRIMARY_DEALER_TYPE },
         errorMessage: marketcheckResult.error,
       })
 
