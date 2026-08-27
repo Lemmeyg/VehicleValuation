@@ -132,3 +132,28 @@ export function getBestMatchListings(
   const nearValuation = withinValuationBand(priced, subject.predictedPrice, limit)
   return rankByBestMatch(nearValuation, subject).slice(0, limit)
 }
+
+/** The subset of a stored marketcheck_valuation this selector needs. */
+interface StoredValuation {
+  predictedPrice?: number
+  recentComparables?: { listings?: MarketCheckComparable[] }
+}
+
+/**
+ * The single entry point the web view, print page, and PDF template all use to
+ * pick the comparables a report displays — so all three render the exact same
+ * rows. Reads both the listings and the predicted price straight out of the
+ * stored `marketcheck_valuation`; the caller supplies only year/mileage/zip.
+ */
+export function selectDisplayComparables(
+  valuation: StoredValuation | null | undefined,
+  subject: { year: number; mileage: number; zip: string | null },
+  limit: number = 10
+): MarketCheckComparable[] {
+  const listings = valuation?.recentComparables?.listings ?? []
+  return getBestMatchListings(
+    listings,
+    { ...subject, predictedPrice: valuation?.predictedPrice },
+    limit
+  )
+}

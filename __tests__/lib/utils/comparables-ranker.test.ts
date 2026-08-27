@@ -5,6 +5,7 @@ import type { MarketCheckComparable } from '@/lib/api/marketcheck-client'
 import {
   rankByBestMatch,
   getBestMatchListings,
+  selectDisplayComparables,
   type RankSubject,
 } from '@/lib/utils/comparables-ranker'
 
@@ -198,5 +199,55 @@ describe('getBestMatchListings', () => {
     // `subject` carries no predictedPrice — both listings must survive
     const result = getBestMatchListings(listings, subject, 10)
     expect(result.map(l => l.vin).sort()).toEqual(['CHEAP', 'FAIR'])
+  })
+})
+
+describe('selectDisplayComparables', () => {
+  // The one entry point the web view, print page, and PDF all use, so the three
+  // render identically. Reads listings AND predicted price out of the stored
+  // marketcheck_valuation object; the caller only supplies year/mileage/zip.
+  const displaySubject = { year: 2015, mileage: 115877, zip: '08902' }
+
+  it('returns the year/distance/price-band ranked top listings from the valuation blob', () => {
+    const valuation = {
+      predictedPrice: 15000,
+      recentComparables: {
+        listings: [
+          ...Array.from({ length: 10 }, (_, i) =>
+            makeListing({ vin: `FAIR_${i}`, year: 2015, price: 15000, location: { zip: '33101' } })
+          ),
+          // Same ZIP as subject (best distance) but priced ~47% low — must be
+          // excluded by the price band, proving predictedPrice was read from the blob.
+          makeListing({ vin: 'NEAR_CHEAP', year: 2015, price: 8000, location: { zip: '08902' } }),
+        ],
+      },
+    }
+    const result = selectDisplayComparables(valuation, displaySubject, 10)
+    expect(result).toHaveLength(10)
+    expect(result.some(l => l.vin === 'NEAR_CHEAP')).toBe(false)
+  })
+
+  it('returns an empty array when the valuation has no listings', () => {
+    expect(selectDisplayComparables(null, displaySubject, 10)).toEqual([])
+    expect(selectDisplayComparables({}, displaySubject, 10)).toEqual([])
+    expect(
+      selectDisplayComparables({ recentComparables: { listings: [] } }, displaySubject, 10)
+    ).toEqual([])
+  })
+
+  it("matches getBestMatchListings called directly with the blob's own predictedPrice", () => {
+    const listings = [
+      makeListing({ vin: 'A', year: 2015, price: 14000, location: { zip: '08902' } }),
+      makeListing({ vin: 'B', year: 2015, price: 16000, location: { zip: '33101' } }),
+      makeListing({ vin: 'C', year: 2015, price: 0, location: { zip: '08902' } }),
+    ]
+    const valuation = { predictedPrice: 15000, recentComparables: { listings } }
+    const viaSelector = selectDisplayComparables(valuation, displaySubject, 10)
+    const viaDirect = getBestMatchListings(
+      listings,
+      { ...displaySubject, predictedPrice: 15000 },
+      10
+    )
+    expect(viaSelector.map(l => l.vin)).toEqual(viaDirect.map(l => l.vin))
   })
 })

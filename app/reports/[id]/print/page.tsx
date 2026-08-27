@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { canViewReport } from '@/lib/utils/report-access'
 import { getListingsStats } from '@/lib/utils/listing-filters'
-import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
+import { selectDisplayComparables } from '@/lib/utils/comparables-ranker'
 import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintToolbar } from './PrintToolbar'
@@ -114,19 +114,13 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allListings: any[] =
     marketCheck?.recentComparables?.listings || marketCheck?.comparables || []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const validatedListings = allListings.filter((l: any) => l.url_validated === true)
-  const rankSubject = {
+  // Shared selector — same set the web view and PDF render (no URL-validation
+  // pre-filter). Reads listings + predicted price from marketcheck_valuation.
+  const displayedComparables = selectDisplayComparables(marketCheck, {
     year: Number(autodevData?.vehicle?.year),
     mileage: report.mileage ?? 0,
     zip: report.zip_code ?? null,
-    predictedPrice: marketCheck?.predictedPrice ?? undefined,
-  }
-  const displayedComparables = getBestMatchListings(
-    validatedListings.length > 0 ? validatedListings : allListings,
-    rankSubject,
-    10
-  )
+  })
   const listingsStats = getListingsStats(allListings)
 
   const estimatedValue = (marketCheck?.predictedPrice || 0) as number

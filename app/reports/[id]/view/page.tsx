@@ -13,7 +13,7 @@ import { canViewReport, getPaymentGateStatus } from '@/lib/utils/report-access'
 import Image from 'next/image'
 import { Car, FileText } from 'lucide-react'
 import { getListingsStats } from '@/lib/utils/listing-filters'
-import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
+import { selectDisplayComparables } from '@/lib/utils/comparables-ranker'
 import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintPdfButtons } from './print-pdf-buttons'
@@ -228,23 +228,17 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
   const allListings: any[] =
     marketCheck?.recentComparables?.listings || marketCheck?.comparables || []
 
-  // Pre-filter to URL-validated listings only, then take the 10 best matches by
-  // model year, distance, price proximity, and mileage (see comparables-ranker.ts). Fallback to
-  // allListings if none are validated (handles reports created before this feature
-  // was deployed — those listings lack the url_validated field).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const validatedListings = allListings.filter((l: any) => l.url_validated === true)
-  const rankSubject = {
-    year: Number(report.vehicle_data?.year),
+  // Pick the displayed comps through the one shared selector the print page and
+  // PDF also use, so all three render the identical set. It reads the listings
+  // and the predicted price straight out of marketcheck_valuation; we pass only
+  // year/mileage/zip. No URL-validation pre-filter — a link the automated check
+  // couldn't confirm (it has known false negatives) must not change which comps
+  // a report shows, and must not make the page disagree with the PDF.
+  const displayedComparables = selectDisplayComparables(marketCheck, {
+    year: Number(autodevData?.vehicle?.year),
     mileage: report.mileage ?? 0,
     zip: report.zip_code ?? null,
-    predictedPrice: report.marketcheck_predicted_price ?? undefined,
-  }
-  const displayedComparables = getBestMatchListings(
-    validatedListings.length > 0 ? validatedListings : allListings,
-    rankSubject,
-    10
-  )
+  })
 
   // Get statistics from ALL listings
   const listingsStats = getListingsStats(allListings)

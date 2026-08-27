@@ -20,7 +20,7 @@ import {
   Path,
 } from '@react-pdf/renderer'
 import { getListingsStats } from '@/lib/utils/listing-filters'
-import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
+import { selectDisplayComparables } from '@/lib/utils/comparables-ranker'
 import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { SUPPORT_EMAIL } from '@/lib/constants'
 import {
@@ -887,13 +887,13 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
 
   // Listings
   const allListings = data.marketcheckValuation?.recentComparables?.listings || []
-  const rankSubject = {
+  // Same shared selector the web view and print page use, so all three render
+  // the identical comp set.
+  const displayedComparables = selectDisplayComparables(data.marketcheckValuation, {
     year: Number(data.autodevVinData?.vehicle?.year),
     mileage: data.mileage ?? 0,
     zip: data.zipCode ?? null,
-    predictedPrice: data.marketcheckValuation?.predictedPrice,
-  }
-  const displayedComparables = getBestMatchListings(allListings, rankSubject, 10)
+  })
   const stats = getListingsStats(allListings)
 
   // Vehicle data
