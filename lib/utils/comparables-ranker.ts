@@ -82,13 +82,19 @@ export function rankByBestMatch(
 
 /**
  * The best `limit` matching listings for the subject vehicle, ranked by
- * `rankByBestMatch`. Used at display time to pick which validated listings a
- * report shows.
+ * `rankByBestMatch`. Used at display time to pick which listings a report
+ * shows (web view, print page, and PDF all call this).
+ *
+ * Zero- and missing-price listings are dropped here as a last-resort guard:
+ * the pipeline should already have removed them (comparables-cleaner.ts), but
+ * a "$0 / call for price" listing must never render on a report even if one
+ * slips through, or out-ranks priced listings on year/distance/mileage.
  */
 export function getBestMatchListings(
   listings: MarketCheckComparable[],
   subject: RankSubject,
   limit: number = 10
 ): MarketCheckComparable[] {
-  return rankByBestMatch(listings, subject).slice(0, limit)
+  const priced = listings.filter(l => l.price != null && l.price > 0)
+  return rankByBestMatch(priced, subject).slice(0, limit)
 }

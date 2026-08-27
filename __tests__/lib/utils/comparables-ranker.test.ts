@@ -108,6 +108,17 @@ describe('rankByBestMatch', () => {
     const result = rankByBestMatch(listings, subjectWithPrice)
     expect(result[0].vin).toBe('NEAR_BAD_PRICE')
   })
+
+  it("does NOT drop zero-price listings — filtering is getBestMatchListings' job, not the sort's", () => {
+    // rankByBestMatch also orders listings for URL validation; dropping any here
+    // would silently shrink that pass. The price filter belongs one level up.
+    const listings = [
+      makeListing({ vin: 'ZERO', price: 0, location: { zip: '89503' } }),
+      makeListing({ vin: 'PRICED', price: 15000, location: { zip: '89503' } }),
+    ]
+    const result = rankByBestMatch(listings, subject)
+    expect(result.map(l => l.vin).sort()).toEqual(['PRICED', 'ZERO'])
+  })
 })
 
 describe('getBestMatchListings', () => {
@@ -118,5 +129,22 @@ describe('getBestMatchListings', () => {
     const result = getBestMatchListings(listings, subject, 10)
     expect(result).toHaveLength(10)
     expect(result[0].vin).toBe('V0') // exact mileage match
+  })
+
+  it('never returns a listing with a zero or missing price', () => {
+    // A $0 "call for price" listing must never reach a report, even if it
+    // out-ranks priced listings on year/distance/mileage. Last-resort guard —
+    // the pipeline should already have dropped these upstream.
+    const listings = [
+      makeListing({ vin: 'PRICED', price: 15000, location: { zip: '89503' } }),
+      makeListing({ vin: 'ZERO', price: 0, location: { zip: '89503' } }),
+      makeListing({
+        vin: 'MISSING',
+        price: undefined as unknown as number,
+        location: { zip: '89503' },
+      }),
+    ]
+    const result = getBestMatchListings(listings, subject, 10)
+    expect(result.map(l => l.vin)).toEqual(['PRICED'])
   })
 })
