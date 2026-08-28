@@ -4,8 +4,8 @@
  * After URL validation, if fewer than MIN_VALID (10) listings are confirmed valid,
  * this utility fires the MarketCheck search fallback in up to two paginated passes
  * (rows 0–49, then 50–99 if still < 10 valid), validates those listings in
- * best-match order (year, then location, then mileage — see comparables-ranker.ts),
- * and merges the results into the prediction.
+ * weighted relevance score order (see comp-relevance-score.ts), and merges the
+ * results into the prediction.
  * Original listing flags are preserved; fallback listings are appended.
  * The full array is never truncated.
  *
@@ -19,7 +19,8 @@ import {
 } from '@/lib/api/marketcheck-client'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
-import { rankByBestMatch } from '@/lib/utils/comparables-ranker'
+import { gateListings } from '@/lib/utils/comp-gates'
+import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
 
 const MIN_VALID = 10
 
@@ -31,6 +32,10 @@ function applyYearFilter(
   listings: MarketCheckComparable[],
   subjectYear: number
 ): MarketCheckComparable[] {
+  // These widening stages are independent of, and deliberately looser than, the
+  // cleaner's own year band (subjectYear-3/+1) — the goal here is just to find
+  // *some* fallback results; cleanAndFilterComparables re-applies its tighter
+  // band afterward, so a wide match here doesn't bypass that filter.
   const YEAR_DELTAS = [2, 5, Infinity]
   for (const delta of YEAR_DELTAS) {
     const band =
@@ -58,7 +63,8 @@ async function fetchAndValidatePage(
   vin: string,
   mileage: number,
   zip: string,
-  start: number
+  start: number,
+  predictedPrice?: number
 ): Promise<MarketCheckComparable[] | null> {
   const fallbackResult = await fetchMarketCheckSearchFallback(
     apiKey,
@@ -79,21 +85,34 @@ async function fetchAndValidatePage(
   const yearFiltered = applyYearFilter(listings, subjectVehicle.year)
   if (yearFiltered.length === 0) return null
 
-  // cleanAndFilterComparables also applies a hard year cap (subjectYear±5/+2),
+  // cleanAndFilterComparables also applies a hard year cap (subjectYear-3/+1),
   // 0-mile/price filters, dedup, and dealer cap on the already year-narrowed set.
   const cleaned = cleanAndFilterComparables(yearFiltered, subjectVehicle.year)
   if (cleaned.length === 0) return null
+
+  // Hard gates (model / price / mileage / ±40% band) BEFORE URL validation so a
+  // disqualified comp is never HTTP-checked.
+  const gated = gateListings(cleaned, { model: subjectVehicle.model }, predictedPrice)
 
   const predictionForValidation: MarketCheckPrediction = {
     ...fallbackResult.data,
     recentComparables: {
       ...fallbackResult.data.recentComparables!,
-      listings: cleaned,
+      listings: gated,
     },
   }
 
   const { prediction: validated } = await validateListingUrls(predictionForValidation, {
-    sortFn: l => rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip }),
+    sortFn: makeScoreSortFn(
+      {
+        year: subjectVehicle.year,
+        mileage,
+        zip,
+        model: subjectVehicle.model,
+        trim: subjectVehicle.trim,
+      },
+      predictedPrice
+    ),
   })
 
   return validated.recentComparables?.listings ?? null
@@ -105,7 +124,8 @@ export async function supplementComparables(
   subjectVehicle: { year: number; make: string; model: string; trim?: string } | undefined,
   vin: string,
   mileage: number | null,
-  zip: string | null
+  zip: string | null,
+  predictedPrice?: number
 ): Promise<{ prediction: MarketCheckPrediction; supplemented: boolean }> {
   const unchanged = { prediction, supplemented: false }
 
@@ -133,7 +153,15 @@ export async function supplementComparables(
   // ── Pass 1 (rows 0–49) ───────────────────────────────────────────────────────
   let pass1Listings: MarketCheckComparable[] = []
   try {
-    const validated = await fetchAndValidatePage(apiKey, searchVehicle, vin, mileage, zip, 0)
+    const validated = await fetchAndValidatePage(
+      apiKey,
+      searchVehicle,
+      vin,
+      mileage,
+      zip,
+      0,
+      predictedPrice
+    )
     if (validated === null) return unchanged
     pass1Listings = validated.filter(l => !originalVinSet.has(l.vin))
   } catch (err) {
@@ -152,7 +180,15 @@ export async function supplementComparables(
       ...pass1Listings.map(l => l.vin).filter(Boolean),
     ])
     try {
-      const validated = await fetchAndValidatePage(apiKey, searchVehicle, vin, mileage, zip, 50)
+      const validated = await fetchAndValidatePage(
+        apiKey,
+        searchVehicle,
+        vin,
+        mileage,
+        zip,
+        50,
+        predictedPrice
+      )
       if (validated !== null) {
         pass2Listings = validated.filter(l => !pass1VinSet.has(l.vin))
       }

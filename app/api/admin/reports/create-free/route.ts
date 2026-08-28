@@ -14,7 +14,12 @@ import { fetchAutoDevVinDecode, type AutoDevVinDecodeData } from '@/lib/api/auto
 import { fetchMarketCheckData, type MarketCheckPrediction } from '@/lib/api/marketcheck-client'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
+import { supplementWithAlternateDealerType } from '@/lib/utils/dealer-type-supplementer'
+import { gateListings } from '@/lib/utils/comp-gates'
+import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
+
+const MARKETCHECK_PRIMARY_DEALER_TYPE = 'franchise' as const
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
 import { logApiCall } from '@/lib/api/api-call-logger'
 import { upsertLead } from '@/lib/leads'
@@ -117,6 +122,7 @@ export async function POST(request: Request) {
     let urlValidationFailedUrls: string[] | null = null
     let urlValidatedListingUrls: string[] | null = null
     let comparablesSupplemented = false
+    let alternateDealerTypeUsed = false
     if (vehicleData) {
       const subjectVehicle = {
         year: vehicleData.vehicle.year,
@@ -125,31 +131,78 @@ export async function POST(request: Request) {
         trim: vehicleData.trim,
       }
       const mcStartTime = Date.now()
+      // MarketCheck requires a dealer_type on every call to this endpoint and only
+      // accepts one value at a time (no "both") — this asks for franchise first;
+      // the alternate-dealer-type step below asks for independent too, but only
+      // if franchise alone doesn't turn up enough validated listings.
       const mcResult = await fetchMarketCheckData(
         vin,
         mileage,
         zipCode,
         false,
         undefined,
-        subjectVehicle
+        subjectVehicle,
+        MARKETCHECK_PRIMARY_DEALER_TYPE
       )
 
       if (mcResult.success) {
+        // Gate comps (model / price / mileage / ±40% band) BEFORE URL validation
+        // so a disqualified comp is never HTTP-checked, and check the survivors
+        // in weighted-relevance-score order.
+        const gatedListings = gateListings(
+          mcResult.data!.recentComparables?.listings ?? [],
+          { model: subjectVehicle.model },
+          mcResult.data!.predictedPrice
+        )
         const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
-          mcResult.data!
+          {
+            ...mcResult.data!,
+            recentComparables: {
+              ...mcResult.data!.recentComparables!,
+              listings: gatedListings,
+              num_found: gatedListings.length,
+            },
+          },
+          {
+            sortFn: makeScoreSortFn(
+              {
+                year: subjectVehicle.year,
+                mileage,
+                zip: zipCode,
+                model: subjectVehicle.model,
+                trim: subjectVehicle.trim,
+              },
+              mcResult.data!.predictedPrice
+            ),
+          }
         )
         marketcheckFallbackUsed = mcResult.fallbackUsed === true
-        urlValidationFailedCount = urlStats.failedCount
-        urlValidationFailedUrls = urlStats.failedUrls
-        urlValidatedListingUrls = urlStats.validatedUrls
 
-        const supplementResult = await supplementComparables(
+        const dealerTypeResult = await supplementWithAlternateDealerType(
           validatedPrediction,
           urlStats.validatedUrls.length,
+          vin,
+          mileage,
+          zipCode,
+          MARKETCHECK_PRIMARY_DEALER_TYPE,
+          subjectVehicle
+        )
+        urlValidationFailedCount = urlStats.failedCount + dealerTypeResult.additionalFailedCount
+        urlValidationFailedUrls = [...urlStats.failedUrls, ...dealerTypeResult.additionalFailedUrls]
+        urlValidatedListingUrls = [
+          ...urlStats.validatedUrls,
+          ...dealerTypeResult.additionalValidatedUrls,
+        ]
+        alternateDealerTypeUsed = dealerTypeResult.supplemented
+
+        const supplementResult = await supplementComparables(
+          dealerTypeResult.prediction,
+          urlValidatedListingUrls.length,
           subjectVehicle,
           vin,
           mileage,
-          zipCode
+          zipCode,
+          mcResult.data!.predictedPrice
         )
         marketcheckValuation = supplementResult.prediction
         comparablesSupplemented = supplementResult.supplemented
@@ -161,8 +214,14 @@ export async function POST(request: Request) {
         endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
         success: mcResult.success,
         responseTimeMs: Date.now() - mcStartTime,
-        cost: mcResult.success ? 0.09 : 0.0,
-        requestData: { vin, mileage, zip_code: zipCode, dealer_type: dealerType },
+        cost: mcResult.success ? (alternateDealerTypeUsed ? 0.18 : 0.09) : 0.0, // a second dealer_type call, when it fires, is a second billed request
+        requestData: {
+          vin,
+          mileage,
+          zip_code: zipCode,
+          dealer_type:
+            marketcheckValuation?.requestParams?.dealer_type ?? MARKETCHECK_PRIMARY_DEALER_TYPE,
+        },
         responseData:
           mcResult.success && marketcheckValuation
             ? {

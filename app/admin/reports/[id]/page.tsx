@@ -4,7 +4,7 @@
  * View single report with admin actions (regenerate PDF, etc.)
  */
 
-import { createServerSupabaseClient } from '@/lib/db/supabase'
+import { supabaseAdmin } from '@/lib/db/supabase'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ReassignReportForm } from '../../components/ReassignReportForm'
@@ -17,7 +17,12 @@ interface PageProps {
 
 export default async function AdminReportDetailsPage({ params }: PageProps) {
   const { id } = await params
-  const supabase = await createServerSupabaseClient()
+  // This page is already gated to admins only by app/admin/layout.tsx's
+  // checkIsAdmin(). It needs to look up any customer's report, not just the
+  // logged-in admin's own — the row-level-security-respecting client can't do
+  // that ("Users can view own reports" restricts SELECT to auth.uid() = user_id),
+  // so it silently 404'd here for every report the admin didn't happen to own.
+  const supabase = supabaseAdmin
 
   // Fetch report
   const { data: report, error } = await supabase.from('reports').select('*').eq('id', id).single()
@@ -87,6 +92,29 @@ export default async function AdminReportDetailsPage({ params }: PageProps) {
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
               >
                 {report.pdf_url ? 'Regenerate PDF' : 'Generate PDF'}
+              </button>
+            </form>
+          )}
+          {report.price_paid && report.price_paid > 0 && (
+            <form action={`/api/admin/reports/${id}/create-radius-corrected-report`} method="POST">
+              <button
+                type="submit"
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+                title="Creates a brand-new $0 report with comps re-checked to be within 300 miles of the customer's ZIP, searching the usual +2/-5 model-year band. Never modifies this report."
+              >
+                Fix Comps (300mi Radius)
+              </button>
+            </form>
+          )}
+          {report.price_paid && report.price_paid > 0 && (
+            <form action={`/api/admin/reports/${id}/create-radius-corrected-report`} method="POST">
+              <input type="hidden" name="strictYear" value="true" />
+              <button
+                type="submit"
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-800 hover:bg-emerald-900"
+                title="Same as Fix Comps, but searches only the vehicle's exact model year instead of the usual +2/-5 band. Never modifies this report."
+              >
+                Fix Comps (300mi, Exact Year)
               </button>
             </form>
           )}

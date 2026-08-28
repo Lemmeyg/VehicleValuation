@@ -83,6 +83,26 @@ function mockFetchHomepageRedirect(originalUrl: string) {
   })
 }
 
+// Helper to mock fetch responses keyed by URL rather than by call order.
+// checkUrl() now retries a failing HEAD with GET, so a listing that's meant
+// to fail needs to fail on both the HEAD call and the GET retry — a
+// URL-keyed implementation (rather than a fixed mockResolvedValueOnce queue)
+// gives that for free regardless of exactly how many fetch() calls happen or
+// what order concurrent batch requests resolve in. Every mocked URL gets the
+// same status for both HEAD and GET (a dead link is dead either way); the
+// dedicated HEAD-vs-GET distinction is covered by the "GET retry" describe
+// block below. Call `.mockImplementation(undefined)` after use so this
+// doesn't leak into later tests in the file.
+function mockFetchByUrl(statusByUrl: Record<string, number>) {
+  ;(global.fetch as jest.Mock).mockImplementation((url: string) => {
+    const status = statusByUrl[url]
+    if (status === undefined) {
+      throw new Error(`Unexpected fetch call to unmocked URL in test: ${url}`)
+    }
+    return Promise.resolve({ status, url })
+  })
+}
+
 describe('validateListingUrls', () => {
   it('returns prediction unchanged if no recentComparables', async () => {
     const prediction: MarketCheckPrediction = {
@@ -326,9 +346,9 @@ describe('validateListingUrls', () => {
     for (let i = 0; i < 20; i++) {
       expect(resultListings[i].url_validated).toBe(true)
     }
-    // Listings 20-24 never checked → false
+    // Listings 20-24 never checked → url_validated key absent
     for (let i = 20; i < 25; i++) {
-      expect(resultListings[i].url_validated).toBe(false)
+      expect('url_validated' in resultListings[i]).toBe(false)
     }
   })
 
@@ -341,22 +361,19 @@ describe('validateListingUrls', () => {
     const prediction = makePrediction(listings)
 
     // Batch 1 (indices 0-19): only indices 0, 1, 2 pass (3 valid)
-    for (let i = 0; i < 20; i++) {
-      if (i < 3) {
-        mockFetchOk(`https://dealer.com/inventory/vehicle/${i}`)
-      } else {
-        mockFetch404(`https://dealer.com/inventory/vehicle/${i}`)
-      }
-    }
     // Batch 2 (indices 20-39): all pass
-    for (let i = 20; i < 40; i++) {
-      mockFetchOk(`https://dealer.com/inventory/vehicle/${i}`)
+    const statusByUrl: Record<string, number> = {}
+    for (let i = 0; i < 40; i++) {
+      statusByUrl[`https://dealer.com/inventory/vehicle/${i}`] = i < 3 || i >= 20 ? 200 : 404
     }
+    mockFetchByUrl(statusByUrl)
 
     const { prediction: result, stats } = await validateListingUrls(prediction)
+    ;(global.fetch as jest.Mock).mockImplementation(undefined)
 
-    // fetch called 40 times (both batches)
-    expect(global.fetch).toHaveBeenCalledTimes(40)
+    // fetch called once per passing listing (23) and twice per failing
+    // listing (17, HEAD + GET retry) = 57.
+    expect(global.fetch).toHaveBeenCalledTimes(57)
     expect(stats.batchesUsed).toBe(2)
     expect(stats.failedCount).toBe(17) // 17 failed in batch 1
 
@@ -374,7 +391,7 @@ describe('validateListingUrls', () => {
     }
   })
 
-  it('stops mid-pool when TARGET_VALID reached; unchecked listings get url_validated: false', async () => {
+  it('stops mid-pool when TARGET_VALID reached; unchecked listings have no url_validated key', async () => {
     // 50 listings. Batch 1 (0-19): 5 pass. Batch 2 (20-39): 5 pass → total 10, stop.
     // Listings 40-49 never touched.
     const listings = Array.from({ length: 50 }, (_, i) => ({
@@ -383,20 +400,20 @@ describe('validateListingUrls', () => {
     }))
     const prediction = makePrediction(listings)
 
-    // Batch 1: first 5 pass, rest fail
-    for (let i = 0; i < 20; i++) {
-      if (i < 5) mockFetchOk(`https://dealer.com/inventory/vehicle/${i}`)
-      else mockFetch404(`https://dealer.com/inventory/vehicle/${i}`)
+    // Batch 1: first 5 pass, rest fail. Batch 2: first 5 pass, rest fail.
+    const statusByUrl: Record<string, number> = {}
+    for (let i = 0; i < 40; i++) {
+      const passes = i < 5 || (i >= 20 && i < 25)
+      statusByUrl[`https://dealer.com/inventory/vehicle/${i}`] = passes ? 200 : 404
     }
-    // Batch 2: first 5 pass, rest fail
-    for (let i = 20; i < 40; i++) {
-      if (i < 25) mockFetchOk(`https://dealer.com/inventory/vehicle/${i}`)
-      else mockFetch404(`https://dealer.com/inventory/vehicle/${i}`)
-    }
+    mockFetchByUrl(statusByUrl)
 
     const { prediction: result, stats } = await validateListingUrls(prediction)
+    ;(global.fetch as jest.Mock).mockImplementation(undefined)
 
-    expect(global.fetch).toHaveBeenCalledTimes(40) // batches 1 and 2 only
+    // fetch called once per passing listing (10) and twice per failing
+    // listing (30, HEAD + GET retry) = 70, across batches 1 and 2 only.
+    expect(global.fetch).toHaveBeenCalledTimes(70)
     expect(stats.batchesUsed).toBe(2)
 
     const resultListings = result.recentComparables!.listings
@@ -408,8 +425,8 @@ describe('validateListingUrls', () => {
     for (let i = 20; i < 25; i++) expect(resultListings[i].url_validated).toBe(true)
     // Failed in batch 2
     for (let i = 25; i < 40; i++) expect(resultListings[i].url_validated).toBe(false)
-    // Never checked
-    for (let i = 40; i < 50; i++) expect(resultListings[i].url_validated).toBe(false)
+    // Never checked → url_validated key absent
+    for (let i = 40; i < 50; i++) expect('url_validated' in resultListings[i]).toBe(false)
   })
 
   it('exhausts entire pool when TARGET_VALID is never reached', async () => {
@@ -420,13 +437,17 @@ describe('validateListingUrls', () => {
     }))
     const prediction = makePrediction(listings)
 
+    const statusByUrl: Record<string, number> = {}
     for (let i = 0; i < 25; i++) {
-      mockFetch404(`https://dealer.com/inventory/vehicle/${i}`)
+      statusByUrl[`https://dealer.com/inventory/vehicle/${i}`] = 404
     }
+    mockFetchByUrl(statusByUrl)
 
     const { prediction: result, stats } = await validateListingUrls(prediction)
+    ;(global.fetch as jest.Mock).mockImplementation(undefined)
 
-    expect(global.fetch).toHaveBeenCalledTimes(25)
+    // Every listing fails both HEAD and the GET retry: 25 * 2 = 50 calls.
+    expect(global.fetch).toHaveBeenCalledTimes(50)
     expect(stats.batchesUsed).toBe(2)
     expect(stats.failedCount).toBe(25)
     expect(stats.checkedCount).toBe(25)
@@ -482,5 +503,82 @@ describe('validateListingUrls', () => {
     expect(calls[0][0]).toBe('https://dealer.com/inventory/Y')
     expect(calls[1][0]).toBe('https://dealer.com/inventory/Z')
     expect(calls[2][0]).toBe('https://dealer.com/inventory/X')
+  })
+})
+
+describe('checkUrl — GET retry on HEAD failure', () => {
+  it('retries with GET when HEAD returns a non-200/405 status, and counts a passing GET as valid', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/123', dos_active: 5 },
+    ])
+
+    ;(global.fetch as jest.Mock)
+      .mockResolvedValueOnce({ status: 403, url: 'https://dealer.com/inventory/123' }) // HEAD fails
+      .mockResolvedValueOnce({ status: 200, url: 'https://dealer.com/inventory/123' }) // GET retry succeeds
+
+    const { prediction: result, stats } = await validateListingUrls(prediction)
+
+    expect(result.recentComparables!.listings[0].url_validated).toBe(true)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect((global.fetch as jest.Mock).mock.calls[0][1]?.method).toBe('HEAD')
+    expect((global.fetch as jest.Mock).mock.calls[1][1]?.method).toBe('GET')
+    expect(stats.failedCount).toBe(0)
+  })
+
+  it('marks a listing invalid only when both HEAD and the GET retry fail', async () => {
+    const prediction = makePrediction([
+      { vdp_url: 'https://dealer.com/inventory/456', dos_active: 5 },
+    ])
+
+    ;(global.fetch as jest.Mock)
+      .mockResolvedValueOnce({ status: 403, url: 'https://dealer.com/inventory/456' })
+      .mockResolvedValueOnce({ status: 404, url: 'https://dealer.com/inventory/456' })
+
+    const { prediction: result, stats } = await validateListingUrls(prediction)
+
+    expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(stats.failedCount).toBe(1)
+  })
+
+  describe('url_validated tri-state', () => {
+    it('leaves comps below the early-stop point with no url_validated key', async () => {
+      // 25 listings; first 10 pass on the first batch of 20 -> indices 20-24 never checked
+      const listings = Array.from({ length: 25 }, (_, i) => ({
+        vdp_url: `https://dealer.com/inventory/${i}`,
+        dos_active: i,
+      }))
+      const prediction = makePrediction(listings)
+
+      // All 20 in batch 1 pass (but stop after 10 valid)
+      for (let i = 0; i < 20; i++) {
+        mockFetchOk(`https://dealer.com/inventory/${i}`)
+      }
+
+      const { prediction: result } = await validateListingUrls(prediction)
+      const out = result.recentComparables!.listings
+
+      expect(out.slice(0, 10).every(l => l.url_validated === true)).toBe(true)
+      // Indices 20-24 never checked → url_validated key must be absent
+      out.slice(20).forEach(l => {
+        expect('url_validated' in l).toBe(false)
+      })
+    })
+
+    it('marks a checked-and-failed listing false', async () => {
+      const prediction = makePrediction([{ vdp_url: 'https://dealer.com/inventory/x' }])
+
+      mockFetch404('https://dealer.com/inventory/x')
+
+      const { prediction: result } = await validateListingUrls(prediction)
+      expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+    })
+
+    it('keeps no-vdp_url listings valid', async () => {
+      const prediction = makePrediction([{ vdp_url: undefined }])
+
+      const { prediction: result } = await validateListingUrls(prediction)
+      expect(result.recentComparables!.listings[0].url_validated).toBe(true)
+    })
   })
 })

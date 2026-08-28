@@ -1,8 +1,8 @@
 import type { MarketCheckComparable } from '@/lib/api/marketcheck-client'
 
-export const MAX_DEALER_LISTINGS = 3
-const MAX_YEAR_ABOVE_SUBJECT = 2
-const MIN_YEAR_BELOW_SUBJECT = 5
+export const MAX_DEALER_LISTINGS = 2
+const MAX_YEAR_ABOVE_SUBJECT = 1
+const MIN_YEAR_BELOW_SUBJECT = 3
 
 /**
  * Removes bad data and normalises a raw comparable listings array.
@@ -12,7 +12,7 @@ const MIN_YEAR_BELOW_SUBJECT = 5
  * 1. Drop miles === 0 or missing (new/unlisted inventory — not comparable to a used vehicle)
  * 2. Drop price === 0 or missing
  * 3. Drop duplicate VINs — keep first occurrence
- * 4. Year range: subjectYear-5 → subjectYear+2 (skipped when subjectYear undefined)
+ * 4. Year range: subjectYear-3 → subjectYear+1 (skipped when subjectYear undefined)
  * 5. Dealer cap: max MAX_DEALER_LISTINGS per named dealer
  */
 export function cleanAndFilterComparables(

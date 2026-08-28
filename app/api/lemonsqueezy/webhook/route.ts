@@ -8,8 +8,13 @@ import { logApiCall } from '@/lib/api/api-call-logger'
 import type { LemonSqueezyWebhookEvent } from '@/lib/lemonsqueezy/types'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
+import { supplementWithAlternateDealerType } from '@/lib/utils/dealer-type-supplementer'
+import { gateListings } from '@/lib/utils/comp-gates'
+import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
 import type { ValidationStats } from '@/lib/utils/url-validator'
 import { upsertLead } from '@/lib/leads'
+
+const PRIMARY_DEALER_TYPE = 'franchise' as const
 
 export async function POST(request: NextRequest) {
   try {
@@ -325,7 +330,8 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
             report.zip_code,
             false,
             undefined,
-            subjectVehicle
+            subjectVehicle,
+            PRIMARY_DEALER_TYPE
           )
           const mcResponseTime = Date.now() - mcStartTime
 
@@ -344,12 +350,12 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
               endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
               success: true,
               responseTimeMs: mcResponseTime,
-              cost: 0.09,
+              cost: 0.09, // second dealer-type call, when it fires, is logged separately below
               requestData: {
                 vin: report.vin,
                 mileage: report.mileage,
                 zip_code: report.zip_code,
-                dealer_type: 'franchise',
+                dealer_type: PRIMARY_DEALER_TYPE,
                 fallback_used: mcResult.fallbackUsed ?? false,
               },
               responseData: {
@@ -371,7 +377,7 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
                 vin: report.vin,
                 mileage: report.mileage,
                 zip_code: report.zip_code,
-                dealer_type: 'franchise',
+                dealer_type: PRIMARY_DEALER_TYPE,
               },
               errorMessage: mcResult.error,
             })
@@ -395,7 +401,36 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
           let urlValidationSucceeded = false
 
           try {
-            const urlResult = await validateListingUrls(marketcheckData)
+            // Gate comps (model / price / mileage / ±40% band) BEFORE URL
+            // validation so a disqualified comp is never HTTP-checked, and
+            // check the survivors in weighted-relevance-score order.
+            const gatedListings = gateListings(
+              marketcheckData.recentComparables?.listings ?? [],
+              { model: subjectVehicle?.model },
+              marketcheckData.predictedPrice
+            )
+            const urlResult = await validateListingUrls(
+              {
+                ...marketcheckData,
+                recentComparables: {
+                  ...marketcheckData.recentComparables,
+                  listings: gatedListings,
+                  num_found: gatedListings.length,
+                },
+              },
+              {
+                sortFn: makeScoreSortFn(
+                  {
+                    year: subjectVehicle?.year ?? 0,
+                    mileage: report.mileage ?? 0,
+                    zip: report.zip_code ?? null,
+                    model: subjectVehicle?.model,
+                    trim: subjectVehicle?.trim,
+                  },
+                  marketcheckData.predictedPrice
+                ),
+              }
+            )
             validatedPrediction = urlResult.prediction
             urlStats = urlResult.stats
             urlValidationSucceeded = true
@@ -408,13 +443,55 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
 
           if (urlValidationSucceeded) {
             try {
-              const supplementResult = await supplementComparables(
+              const dealerTypeResult = await supplementWithAlternateDealerType(
                 validatedPrediction,
+                urlStats.validatedUrls.length,
+                report.vin,
+                report.mileage,
+                report.zip_code,
+                PRIMARY_DEALER_TYPE,
+                subjectVehicle
+              )
+              if (dealerTypeResult.supplemented) {
+                await logApiCall({
+                  reportId,
+                  provider: 'marketcheck',
+                  endpoint: '/v2/predict/car/us/marketcheck_price/comparables',
+                  success: true,
+                  responseTimeMs: 0,
+                  cost: 0.09, // the alternate-dealer-type call — logged separately since it only fires conditionally
+                  requestData: {
+                    vin: report.vin,
+                    mileage: report.mileage,
+                    zip_code: report.zip_code,
+                    dealer_type: dealerTypeResult.prediction.requestParams.dealer_type,
+                  },
+                  responseData: {
+                    predicted_price: dealerTypeResult.prediction.predictedPrice,
+                    total_comparables_found: dealerTypeResult.prediction.totalComparablesFound,
+                    recent_comparables_found:
+                      dealerTypeResult.prediction.recentComparables?.num_found ?? 0,
+                  },
+                })
+              }
+              urlStats = {
+                ...urlStats,
+                validatedUrls: [
+                  ...urlStats.validatedUrls,
+                  ...dealerTypeResult.additionalValidatedUrls,
+                ],
+                failedUrls: [...urlStats.failedUrls, ...dealerTypeResult.additionalFailedUrls],
+                failedCount: urlStats.failedCount + dealerTypeResult.additionalFailedCount,
+              }
+
+              const supplementResult = await supplementComparables(
+                dealerTypeResult.prediction,
                 urlStats.validatedUrls.length,
                 subjectVehicle,
                 report.vin,
                 report.mileage ?? null,
-                report.zip_code ?? null
+                report.zip_code ?? null,
+                marketcheckData.predictedPrice
               )
               validatedPrediction = supplementResult.prediction
               webhookSupplemented = supplementResult.supplemented

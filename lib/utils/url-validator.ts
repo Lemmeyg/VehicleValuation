@@ -22,7 +22,7 @@ import type { MarketCheckPrediction, MarketCheckComparable } from '@/lib/api/mar
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
 
-const VALIDATION_TIMEOUT_MS = 4000
+const VALIDATION_TIMEOUT_MS = 8000
 const BATCH_SIZE = 20
 const TARGET_VALID = 10
 
@@ -39,21 +39,13 @@ export interface ValidationStats {
   batchesUsed: number
 }
 
-/**
- * Check a single URL using a HEAD request.
- * Returns true only if the URL is positively confirmed valid.
- *
- * Uses HEAD (not GET) to reduce bot-detection triggers on dealer sites.
- * Accepts 200 and 405 — a 405 means HEAD isn't supported but the server
- * responded to our specific URL, confirming the page exists.
- */
-async function checkUrl(url: string): Promise<boolean> {
+async function fetchOnce(url: string, method: 'HEAD' | 'GET'): Promise<boolean> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS)
 
   try {
     const response = await fetch(url, {
-      method: 'HEAD',
+      method,
       signal: controller.signal,
       redirect: 'follow',
       headers: {
@@ -62,17 +54,12 @@ async function checkUrl(url: string): Promise<boolean> {
       },
     })
 
-    // Accept 200 (OK) or 405 (HEAD not supported but URL exists)
     if (response.status !== 200 && response.status !== 405) return false
 
-    // Compare original hostname to final hostname (cross-domain redirect)
     const parsedOriginal = new URL(url)
     const parsedFinal = new URL(response.url)
     if (parsedOriginal.hostname !== parsedFinal.hostname) return false
 
-    // Check final path: reject homepages ("/") and single-segment index pages
-    // ("/inventory"). Require at least 2 segments to cover common VDP formats
-    // like "/inventory/12345" or "/used-vehicles/vin123456".
     const finalPath = parsedFinal.pathname
     if (finalPath === '/' || finalPath === '') return false
     const pathSegments = finalPath.split('/').filter(s => s.length > 0)
@@ -80,11 +67,23 @@ async function checkUrl(url: string): Promise<boolean> {
 
     return true
   } catch {
-    // Timeout (AbortError), network failure, any exception → reject
     return false
   } finally {
     clearTimeout(timeoutId)
   }
+}
+
+/**
+ * Check a single URL. Tries a HEAD request first (cheap); if that doesn't
+ * pass, retries once with GET before giving up — some dealer sites block or
+ * mishandle HEAD specifically while serving GET normally, which was
+ * confirmed to be producing false "dead link" results (a link that opens
+ * fine in a real browser but fails this check) — see
+ * docs/comp-selection-process-2026-08-26.md, Step 4.
+ */
+async function checkUrl(url: string): Promise<boolean> {
+  if (await fetchOnce(url, 'HEAD')) return true
+  return fetchOnce(url, 'GET')
 }
 
 /**
@@ -94,10 +93,11 @@ async function checkUrl(url: string): Promise<boolean> {
  *   of BATCH_SIZE (20). Each batch is validated in parallel.
  * - Stops as soon as TARGET_VALID (10) listings with passing URLs are found.
  *   Additional batches are only fetched if the previous batch did not supply enough.
- * - Adds url_validated: boolean to every listing.
- *   - Listings that passed URL validation → url_validated: true
- *   - Listings that failed or were never checked → url_validated: false
- *   - Listings with no vdp_url → url_validated: true (data is valid, just no link)
+ * - Annotates listings with url_validated (tri-state):
+ *   - Checked and passed → url_validated: true
+ *   - Checked and failed → url_validated: false
+ *   - Never checked (below early-stop) → url_validated key absent from object
+ *   - No vdp_url → url_validated: true (data is valid, just no link)
  *
  * @returns The annotated prediction plus ValidationStats tracking how many
  *          URLs were checked, how many failed, and which URLs failed.
@@ -127,6 +127,7 @@ export async function validateListingUrls(
     : [...allListings].sort((a, b) => (a.dos_active ?? Infinity) - (b.dos_active ?? Infinity))
 
   const validListingSet = new Set<MarketCheckComparable>()
+  const checkedSet = new Set<MarketCheckComparable>()
   const stats: ValidationStats = {
     checkedCount: 0,
     failedCount: 0,
@@ -160,11 +161,10 @@ export async function validateListingUrls(
       if (result.status === 'fulfilled') {
         const { listing, valid, url } = result.value
         if (url !== null) {
-          // Only count listings where we actually fetched a URL
+          checkedSet.add(listing)
           stats.checkedCount++
-          if (valid) {
-            stats.validatedUrls.push(url)
-          } else {
+          if (valid) stats.validatedUrls.push(url)
+          else {
             stats.failedCount++
             stats.failedUrls.push(url)
           }
@@ -176,11 +176,21 @@ export async function validateListingUrls(
     }
   }
 
-  // Annotate every listing with url_validated
-  const validatedListings = allListings.map(listing => ({
-    ...listing,
-    url_validated: validListingSet.has(listing),
-  }))
+  // Annotate every listing with url_validated (tri-state):
+  // - checked and passed → true
+  // - checked and failed → false
+  // - never checked → undefined (key absent from object)
+  // - no vdp_url → true (valid data, just no link)
+  const validatedListings = allListings.map(listing => {
+    if (validListingSet.has(listing)) return { ...listing, url_validated: true }
+    if (checkedSet.has(listing)) return { ...listing, url_validated: false }
+    if (!listing.vdp_url) return { ...listing, url_validated: true } // no link to check — data still valid
+    const { url_validated: _drop, ...rest } = listing as MarketCheckComparable & {
+      url_validated?: boolean
+    }
+    void _drop
+    return rest as MarketCheckComparable // never checked -> leave undefined
+  })
 
   return {
     prediction: {

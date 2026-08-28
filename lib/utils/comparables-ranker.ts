@@ -1,81 +1,103 @@
 /**
- * Ranks comparable vehicle listings against a subject vehicle by best match, in
- * priority order: model-year closeness, then location closeness, then mileage
- * closeness. Used both to decide which order listings get their links checked in
- * (url-validator.ts) and to pick which validated listings a report displays.
+ * The single entry point the web view, print page, and PDF template all use to
+ * pick the comparables a report displays — so all three render identical rows.
+ *
+ * Pipeline (see docs/plans/2026-08-27-comp-selection-unified-release.md §"The
+ * selection algorithm"):
+ *   hard gates -> link split (live / checked-failed / never-checked)
+ *   -> two-tier pool (franchise+independent primary; nationwide fallback only
+ *      on a <limit shortfall)
+ *   -> weighted relevance score
+ *   -> assemble top `limit`: a full live slate (>= limit) admits no
+ *      checked-failed comps; any live shortfall (including zero live) admits
+ *      up to MAX_DEAD_LINK_COMPS checked-failed comps that score
+ *      >= DEAD_LINK_SCORE_FLOOR to back-fill it.
  */
-
 import type { MarketCheckComparable } from '@/lib/api/marketcheck-client'
-import { resolveStateCodeFromZip } from '@/lib/personalization/zip-to-state'
-import { locationTier } from '@/lib/utils/state-geo'
+import { gateListings } from '@/lib/utils/comp-gates'
+import {
+  weightedRelevanceScore,
+  DEAD_LINK_SCORE_FLOOR,
+  MAX_DEAD_LINK_COMPS,
+  type ScoreSubject,
+} from '@/lib/utils/comp-relevance-score'
 
-export interface RankSubject {
-  year: number
-  mileage: number
-  zip: string | null
+export type RankSubject = ScoreSubject
+
+interface StoredValuation {
+  predictedPrice?: number
+  recentComparables?: { listings?: MarketCheckComparable[] }
 }
 
-/**
- * Resolves a listing's state from whatever location data it has, in order of
- * confidence: an explicit ZIP, then explicit state text. Returns null if neither
- * is present (including listings that only carry raw latitude/longitude — MarketCheck
- * sometimes omits the dealer address block entirely).
- */
-function resolveListingState(listing: MarketCheckComparable): string | null {
-  if (listing.location?.zip) return resolveStateCodeFromZip(listing.location.zip)
-  if (listing.location?.state) return listing.location.state
-  return null
-}
-
-/**
- * How close a listing's location is to the subject, for ranking:
- *   0 = same state
- *   1 = a bordering state, OR only raw coordinates are known (real signal, just
- *       not resolvable to a state without a proper reverse-geocode)
- *   2 = a confirmed non-bordering state, or no location data at all
- */
-function locationTierFor(listing: MarketCheckComparable, subjectState: string | null): 0 | 1 | 2 {
-  const listingState = resolveListingState(listing)
-  if (listingState) return locationTier(subjectState, listingState)
-  if (listing.latitude && listing.longitude) return 1
-  return 2
-}
-
-/**
- * Sorts listings by best match to the subject vehicle: model-year closeness first,
- * then location closeness, then mileage closeness. Does not mutate the input array
- * or limit the result — callers slice to however many they need.
- */
-export function rankByBestMatch(
-  listings: MarketCheckComparable[],
-  subject: RankSubject
+export function selectDisplayComparables(
+  valuation: StoredValuation | null | undefined,
+  subject: { year: number; mileage: number; zip: string | null; model?: string; trim?: string },
+  limit = 10
 ): MarketCheckComparable[] {
-  const subjectState = resolveStateCodeFromZip(subject.zip)
+  const all = valuation?.recentComparables?.listings ?? []
+  if (all.length === 0) return []
 
-  return [...listings].sort((a, b) => {
-    const yearDiffA = Math.abs(a.year - subject.year)
-    const yearDiffB = Math.abs(b.year - subject.year)
-    if (yearDiffA !== yearDiffB) return yearDiffA - yearDiffB
+  const predictedPrice = valuation?.predictedPrice
+  const scoreSubject: ScoreSubject = { ...subject }
+  // Score every comp exactly once — weightedRelevanceScore does a zipcodes
+  // distance lookup, and it is read from inside several sort comparators below.
+  const scoreByComp = new Map<MarketCheckComparable, number>(
+    all.map(c => [c, weightedRelevanceScore(c, scoreSubject, predictedPrice)])
+  )
+  const score = (c: MarketCheckComparable) => scoreByComp.get(c) ?? 0
 
-    const locationA = locationTierFor(a, subjectState)
-    const locationB = locationTierFor(b, subjectState)
-    if (locationA !== locationB) return locationA - locationB
+  // 1. hard gates
+  const gated = gateListings(all, subject, predictedPrice)
+  if (gated.length === 0) {
+    console.warn('[selectDisplayComparables] all comps failed the hard gates', {
+      total: all.length,
+      predictedPrice,
+    })
+    return []
+  }
 
-    const mileageDiffA = Math.abs(a.miles - subject.mileage)
-    const mileageDiffB = Math.abs(b.miles - subject.mileage)
-    return mileageDiffA - mileageDiffB
-  })
-}
+  // 2. link split
+  const anyHasFlag = gated.some(c => Object.prototype.hasOwnProperty.call(c, 'url_validated'))
+  let live: MarketCheckComparable[]
+  let failedCheck: MarketCheckComparable[]
+  if (!anyHasFlag) {
+    live = gated // report predates link validation
+    failedCheck = []
+  } else {
+    live = gated.filter(c => c.url_validated === true)
+    failedCheck = gated.filter(c => c.url_validated === false)
+  }
 
-/**
- * The best `limit` matching listings for the subject vehicle, ranked by
- * `rankByBestMatch`. Used at display time to pick which validated listings a
- * report shows.
- */
-export function getBestMatchListings(
-  listings: MarketCheckComparable[],
-  subject: RankSubject,
-  limit: number = 10
-): MarketCheckComparable[] {
-  return rankByBestMatch(listings, subject).slice(0, limit)
+  // 3. two-tier pool (on `live`)
+  const livePrimary = live.filter(c => c.source_tier !== 'fallback_search')
+  const poolForScoring = livePrimary.length >= limit ? livePrimary : live
+
+  // 4. how many checked-failed comps we may admit: none when the live pool
+  //    already fills the report; otherwise up to MAX_DEAD_LINK_COMPS high
+  //    scorers to back-fill the shortfall (covers "no link survived" too).
+  const deadBudget = poolForScoring.length >= limit ? 0 : MAX_DEAD_LINK_COMPS
+
+  const deadAllowance =
+    deadBudget === 0
+      ? []
+      : [...failedCheck]
+          .filter(c => score(c) >= DEAD_LINK_SCORE_FLOOR)
+          .sort((a, b) => score(b) - score(a))
+          .slice(0, deadBudget)
+
+  // 5. assemble
+  const assembled = [...poolForScoring, ...deadAllowance]
+    .sort((a, b) => score(b) - score(a))
+    .slice(0, limit)
+
+  if (assembled.length === 0) {
+    console.warn('[selectDisplayComparables] no comp survived link/score selection', {
+      gated: gated.length,
+      live: live.length,
+      failedCheck: failedCheck.length,
+    })
+    return []
+  }
+
+  return assembled
 }

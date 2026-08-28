@@ -16,6 +16,7 @@
  */
 
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
+import { computeDistanceMiles, DISTANCE_TIER_MILES } from '@/lib/utils/geo-distance'
 
 // Retry configuration interface
 interface RetryConfig {
@@ -116,6 +117,11 @@ export interface MarketCheckComparable {
   listing_date?: string
   mc_website_id?: number
   source: string
+
+  /** Which acquisition path produced this listing. Set once at fetch/map time,
+   * before merge into recentComparables.listings. Absent on reports created
+   * before 2026-08-27 → treated as primary by the selector. */
+  source_tier?: 'franchise' | 'independent' | 'fallback_search'
 }
 
 export interface MarketCheckPrediction {
@@ -136,7 +142,7 @@ export interface MarketCheckPrediction {
     vin: string
     miles: number
     zip: string
-    dealer_type: 'franchise' | 'independent'
+    dealer_type: 'franchise' | 'independent' | 'both'
   }
 
   // Total comparables found (metadata only - listings not stored)
@@ -266,11 +272,30 @@ export async function fetchMarketCheckSearchFallback(
         listing_date: l.first_seen_at_date ?? l.first_seen_at,
         mc_website_id: l.mc_website_id,
         source: 'marketcheck',
+        source_tier: 'fallback_search' as const,
       }))
       .sort((a, b) => b.price - a.price)
 
+    // Clean before pricing off of — or storing — anything: the same rules every
+    // other comp goes through (0-mile/0-price junk, dupes, year band, dealer cap).
+    // The VIN-matched path already runs this; the fallback path must too, or its
+    // raw "call for price" ($0) listings end up on the report.
+    const cleaned = cleanAndFilterComparables(comparables, year)
+
+    // Prefer pricing off genuinely local comps when we know the subject ZIP
+    // — falls back to the full cleaned set if nothing is within the widest
+    // distance tier, so the price is never computed from zero data.
+    const localRadius = DISTANCE_TIER_MILES[DISTANCE_TIER_MILES.length - 1]
+    const nearby = zip
+      ? cleaned.filter(l => {
+          const dist = computeDistanceMiles(zip, l)
+          return dist !== null && dist <= localRadius
+        })
+      : []
+    const pricingPool = nearby.length > 0 ? nearby : cleaned
+
     // Synthesise predicted price as mean of listing prices
-    const prices = comparables.map(l => l.price).filter(p => p > 0)
+    const prices = pricingPool.map(l => l.price).filter(p => p > 0)
     const predictedPrice =
       prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : 0
 
@@ -281,7 +306,7 @@ export async function fetchMarketCheckSearchFallback(
 
     // Confidence based on listing count
     const confidence: 'low' | 'medium' | 'high' =
-      comparables.length >= 20 ? 'high' : comparables.length >= 5 ? 'medium' : 'low'
+      pricingPool.length >= 20 ? 'high' : pricingPool.length >= 5 ? 'medium' : 'low'
 
     const prediction: MarketCheckPrediction = {
       predictedPrice,
@@ -292,8 +317,8 @@ export async function fetchMarketCheckSearchFallback(
       totalComparablesFound: numFound,
       comparablesStats: undefined,
       recentComparables: {
-        num_found: comparables.length,
-        listings: comparables,
+        num_found: cleaned.length,
+        listings: cleaned,
         stats: undefined,
       },
       generatedAt: new Date().toISOString(),
@@ -318,6 +343,11 @@ export async function fetchMarketCheckSearchFallback(
  * @param subjectVehicle - Subject vehicle info used to filter comparables. The `year` field
  *   drives year-range filtering inside `cleanAndFilterComparables`; `make`, `model`, and
  *   `trim` are used as a VIN-decode fallback when the MarketCheck response is incomplete.
+ * @param dealerType - MarketCheck requires this on every call to this endpoint and only
+ *   accepts 'franchise' or 'independent' — there is no "both" value. Defaults to 'franchise'
+ *   to preserve this app's existing default. To surface both dealer types, call this twice
+ *   (see `lib/utils/dealer-type-supplementer.ts`, which does so only when the first call's
+ *   results come up short).
  * @returns Price prediction with comparables filtered by `cleanAndFilterComparables`
  */
 export async function fetchMarketCheckData(
@@ -331,7 +361,8 @@ export async function fetchMarketCheckData(
     make?: string
     model?: string
     trim?: string
-  }
+  },
+  dealerType: 'franchise' | 'independent' = 'franchise'
 ): Promise<MarketCheckResponse> {
   const apiKey = process.env.MARKETCHECK_API_KEY
 
@@ -382,7 +413,7 @@ export async function fetchMarketCheckData(
       url.searchParams.append('vin', vin)
       url.searchParams.append('miles', miles.toString())
       url.searchParams.append('zip', zipCode)
-      url.searchParams.append('dealer_type', 'franchise')
+      url.searchParams.append('dealer_type', dealerType)
       url.searchParams.append('is_certified', isCertified ? 'true' : 'false')
 
       // Log the full URL (masking API key for security)
@@ -391,7 +422,7 @@ export async function fetchMarketCheckData(
         vin,
         miles,
         zipCode,
-        dealer_type: 'franchise',
+        dealer_type: dealerType,
         is_certified: isCertified,
         fullUrl: debugUrl,
       })
@@ -491,7 +522,7 @@ export async function fetchMarketCheckData(
           vin,
           miles,
           zip: zipCode,
-          dealer_type: 'franchise', // HARDCODED: franchise per user requirement
+          dealer_type: dealerType,
         },
 
         // Total comparables found (metadata only - listings NOT stored)
@@ -554,6 +585,7 @@ export async function fetchMarketCheckData(
                     source: 'marketcheck',
                     vdp_url: listing.vdp_url,
                     dealer_name: listing.dealer_name,
+                    source_tier: dealerType,
                   })),
                 subjectVehicle?.year
               ).sort((a, b) => b.price - a.price),

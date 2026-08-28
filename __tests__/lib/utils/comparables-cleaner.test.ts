@@ -68,36 +68,33 @@ describe('cleanAndFilterComparables', () => {
     })
 
     it('keeps listings with no VIN (cannot deduplicate)', () => {
-      const listings = [
-        makeListing({ vin: undefined }),
-        makeListing({ vin: undefined }),
-      ]
+      const listings = [makeListing({ vin: undefined }), makeListing({ vin: undefined })]
       const result = cleanAndFilterComparables(listings)
       expect(result).toHaveLength(2)
     })
   })
 
   describe('year range filter', () => {
-    it('drops listings newer than subjectYear + 2', () => {
+    it('drops listings newer than subjectYear + 1', () => {
       const listings = [
-        makeListing({ year: 2023 }), // 2020 + 2 = 2022, so 2023 is out
-        makeListing({ year: 2022 }), // exactly at ceiling — kept
+        makeListing({ year: 2022 }), // 2020 + 1 = 2021, so 2022 is out
+        makeListing({ year: 2021 }), // exactly at ceiling — kept
         makeListing({ year: 2020 }),
       ]
       const result = cleanAndFilterComparables(listings, 2020)
       expect(result).toHaveLength(2)
-      expect(result.map(l => l.year)).toEqual(expect.not.arrayContaining([2023]))
+      expect(result.map(l => l.year)).toEqual(expect.not.arrayContaining([2022]))
     })
 
-    it('drops listings older than subjectYear - 5', () => {
+    it('drops listings older than subjectYear - 3', () => {
       const listings = [
-        makeListing({ year: 2014 }), // 2020 - 5 = 2015, so 2014 is out
-        makeListing({ year: 2015 }), // exactly at floor — kept
+        makeListing({ year: 2016 }), // 2020 - 3 = 2017, so 2016 is out
+        makeListing({ year: 2017 }), // exactly at floor — kept
         makeListing({ year: 2020 }),
       ]
       const result = cleanAndFilterComparables(listings, 2020)
       expect(result).toHaveLength(2)
-      expect(result.map(l => l.year)).toEqual(expect.not.arrayContaining([2014]))
+      expect(result.map(l => l.year)).toEqual(expect.not.arrayContaining([2016]))
     })
 
     it('skips year filtering when subjectYear is not provided', () => {
@@ -115,25 +112,24 @@ describe('cleanAndFilterComparables', () => {
         makeListing({ year: 2026, miles: 0, price: 42000 })
       )
       const result = cleanAndFilterComparables(listings, 2020)
-      // Both 0-mile AND year filters fire — should drop all
       expect(result).toHaveLength(0)
     })
   })
 
   describe('dealer cap', () => {
-    it('allows at most 3 listings from the same dealer', () => {
+    it('allows at most 2 listings from the same dealer', () => {
       const listings = Array.from({ length: 5 }, (_, i) =>
         makeListing({ dealer_name: 'Heritage Mazda Towson', price: 18000 + i * 100 })
       )
       const result = cleanAndFilterComparables(listings)
-      expect(result).toHaveLength(3)
+      expect(result).toHaveLength(2)
     })
 
     it('applies cap per dealer independently', () => {
       const dealerA = Array.from({ length: 4 }, () => makeListing({ dealer_name: 'Dealer A' }))
       const dealerB = Array.from({ length: 4 }, () => makeListing({ dealer_name: 'Dealer B' }))
       const result = cleanAndFilterComparables([...dealerA, ...dealerB])
-      expect(result).toHaveLength(6) // 3 from A + 3 from B
+      expect(result).toHaveLength(4) // 2 from A + 2 from B
     })
 
     it('keeps listings with no dealer info regardless of count', () => {
@@ -149,7 +145,7 @@ describe('cleanAndFilterComparables', () => {
         makeListing({ dealer_name: undefined, dealer_id: 42, price: 18000 + i * 100 })
       )
       const result = cleanAndFilterComparables(listings)
-      expect(result).toHaveLength(3)
+      expect(result).toHaveLength(2)
     })
   })
 

@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { canViewReport } from '@/lib/utils/report-access'
 import { getListingsStats } from '@/lib/utils/listing-filters'
-import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
+import { selectDisplayComparables } from '@/lib/utils/comparables-ranker'
+import { isHttpUrl } from '@/lib/utils/is-http-url'
 import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintToolbar } from './PrintToolbar'
@@ -114,18 +115,15 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allListings: any[] =
     marketCheck?.recentComparables?.listings || marketCheck?.comparables || []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const validatedListings = allListings.filter((l: any) => l.url_validated === true)
-  const rankSubject = {
+  // Shared selector — same set the web view and PDF render (no URL-validation
+  // pre-filter). Reads listings + predicted price from marketcheck_valuation.
+  const displayedComparables = selectDisplayComparables(marketCheck, {
     year: Number(autodevData?.vehicle?.year),
     mileage: report.mileage ?? 0,
     zip: report.zip_code ?? null,
-  }
-  const displayedComparables = getBestMatchListings(
-    validatedListings.length > 0 ? validatedListings : allListings,
-    rankSubject,
-    10
-  )
+    model: autodevData?.model ?? report.vehicle_model ?? undefined,
+    trim: autodevData?.trim ?? undefined,
+  })
   const listingsStats = getListingsStats(allListings)
 
   const estimatedValue = (marketCheck?.predictedPrice || 0) as number
@@ -306,6 +304,16 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
                   Avg {formatCurrency(Math.round(listingsStats.avgPrice))} &bull; Range{' '}
                   {formatCurrency(listingsStats.minPrice)}–{formatCurrency(listingsStats.maxPrice)}
                 </div>
+                {marketCheck?.generatedAt && (
+                  <div>
+                    Comparable listings retrieved{' '}
+                    {formatDateET(marketCheck.generatedAt, {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -352,7 +360,20 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
                     </td>
                     <td className="py-2 pr-2 align-top">
                       <div className="font-semibold text-slate-900">
-                        {comp.year} {comp.make} {comp.model}
+                        {isHttpUrl(comp.vdp_url) ? (
+                          <a
+                            href={comp.vdp_url as string}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 underline"
+                          >
+                            {comp.year} {comp.make} {comp.model}
+                          </a>
+                        ) : (
+                          <>
+                            {comp.year} {comp.make} {comp.model}
+                          </>
+                        )}
                       </div>
                       {comp.trim && <div className="text-slate-500">{comp.trim}</div>}
                     </td>
@@ -369,7 +390,7 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
                       {comp.state ?? comp.location?.state ?? '—'}
                     </td>
                     <td className="py-2 align-top">
-                      {comp.vdp_url ? (
+                      {isHttpUrl(comp.vdp_url) ? (
                         <a
                           href={comp.vdp_url as string}
                           className="text-blue-600 underline break-all"

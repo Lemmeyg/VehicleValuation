@@ -342,3 +342,231 @@ describe('fetchMarketCheckSearchFallback — API params', () => {
     expect(listing.location?.distance_miles).toBeUndefined()
   })
 })
+
+describe('fetchMarketCheckSearchFallback — price synthesis', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('excludes far-away listings from the price average when nearby ones exist', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 2,
+        listings: [
+          {
+            id: 'near',
+            vin: 'NEARVIN000000001',
+            price: 10000,
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Sacramento', state: 'CA', zip: '95814' }, // ~110mi from 89503
+            vdp_url: 'https://dealer.com/inventory/near',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'far',
+            vin: 'FARVIN0000000001',
+            price: 100000, // wildly different price — should NOT pull the average toward it
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Miami', state: 'FL', zip: '33101' }, // ~2500mi from 89503
+            vdp_url: 'https://dealer.com/inventory/far',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Honda',
+      'Civic',
+      'VIN0',
+      50000,
+      '89503' // subject ZIP — Reno, NV
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data!.predictedPrice).toBe(10000) // only the near listing counted
+  })
+
+  it('falls back to the full cleaned set when nothing is within 750mi', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 1,
+        listings: [
+          {
+            id: 'far',
+            vin: 'FARVIN0000000002',
+            price: 20000,
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Miami', state: 'FL', zip: '33101' },
+            vdp_url: 'https://dealer.com/inventory/far2',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Honda',
+      'Civic',
+      'VIN0',
+      50000,
+      '89503'
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data!.predictedPrice).toBe(20000) // no nearby listings — falls back to using it anyway
+  })
+})
+
+describe('fetchMarketCheckSearchFallback — comp cleanup', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('excludes listings with no usable price from the stored comparables', async () => {
+    // The search endpoint routinely returns "call for price" listings (price 0 or
+    // absent). The VIN-matched path drops these via cleanAndFilterComparables; the
+    // fallback path must do the same before its listings are stored/displayed.
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 3,
+        listings: [
+          {
+            id: 'priced',
+            vin: 'PRICEDVIN00000001',
+            price: 18000,
+            miles: 40000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Austin', state: 'TX', zip: '78701' },
+            vdp_url: 'https://dealer.com/inventory/priced',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'zero',
+            vin: 'ZEROVIN0000000001',
+            price: 0,
+            miles: 45000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Dallas', state: 'TX', zip: '75201' },
+            vdp_url: 'https://dealer.com/inventory/zero',
+            first_seen_at_date: '2025-01-01',
+          },
+          {
+            id: 'noprice',
+            vin: 'NOPRICEVIN0000001',
+            // price field absent entirely
+            miles: 50000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Honda', model: 'Civic' },
+            dealer_address: { city: 'Houston', state: 'TX', zip: '77002' },
+            vdp_url: 'https://dealer.com/inventory/noprice',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Honda',
+      'Civic',
+      'VIN0',
+      50000,
+      '78701'
+    )
+
+    expect(result.success).toBe(true)
+    const listings = result.data!.recentComparables!.listings
+    expect(listings).toHaveLength(1)
+    expect(listings[0].id).toBe('priced')
+    expect(listings.every(l => l.price > 0)).toBe(true)
+    expect(result.data!.recentComparables!.num_found).toBe(1)
+  })
+})
+
+describe('source_tier tagging', () => {
+  it('tags primary-endpoint listings with the dealer type the call used', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        marketcheck_price: 15000,
+        recent_comparables: {
+          num_found: 1,
+          listings: [
+            {
+              id: 'a',
+              vin: 'AAAAAAAAAAAAAAAAA',
+              year: 2020,
+              make: 'Toyota',
+              model: 'Highlander',
+              miles: 50000,
+              price: 15000,
+              dealer_name: 'D',
+              dealer_type: 'independent',
+            },
+          ],
+        },
+      }),
+    })
+    const res = await fetchMarketCheckData(
+      'AAAAAAAAAAAAAAAAA',
+      50000,
+      '89503',
+      false,
+      undefined,
+      { year: 2020, make: 'Toyota', model: 'Highlander' },
+      'independent'
+    )
+    expect(res.success).toBe(true)
+    expect(res.data!.recentComparables!.listings[0].source_tier).toBe('independent')
+  })
+
+  it('tags nationwide fallback-search listings as fallback_search', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 1,
+        listings: [
+          {
+            id: 'f',
+            vin: 'FFFFFFFFFFFFFFFFF',
+            miles: 60000,
+            price: 14000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Toyota', model: 'Highlander' },
+            dealer_address: { zip: '95814' },
+            vdp_url: 'https://d.com/i/1',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+    const res = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Toyota',
+      'Highlander',
+      'VIN0',
+      60000,
+      '89503'
+    )
+    expect(res.success).toBe(true)
+    expect(res.data!.recentComparables!.listings[0].source_tier).toBe('fallback_search')
+  })
+})

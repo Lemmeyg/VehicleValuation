@@ -20,7 +20,8 @@ import {
   Path,
 } from '@react-pdf/renderer'
 import { getListingsStats } from '@/lib/utils/listing-filters'
-import { getBestMatchListings } from '@/lib/utils/comparables-ranker'
+import { selectDisplayComparables } from '@/lib/utils/comparables-ranker'
+import { isHttpUrl } from '@/lib/utils/is-http-url'
 import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { SUPPORT_EMAIL } from '@/lib/constants'
 import {
@@ -172,6 +173,11 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#64748b',
     marginBottom: 12,
+  },
+  metaNote: {
+    fontSize: 8,
+    color: '#666',
+    marginBottom: 4,
   },
 
   // ── VEHICLE SPECS GRID ──────────────────────────────────────
@@ -346,6 +352,10 @@ const styles = StyleSheet.create({
   dealerPlainStyle: {
     fontSize: 7,
     color: '#475569',
+  },
+  compLink: {
+    color: '#1a56db',
+    textDecoration: 'none',
   },
 
   // ── ADDITIONAL VALUATION CONSIDERATIONS ─────────────────────
@@ -887,12 +897,15 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
 
   // Listings
   const allListings = data.marketcheckValuation?.recentComparables?.listings || []
-  const rankSubject = {
+  // Same shared selector the web view and print page use, so all three render
+  // the identical comp set.
+  const displayedComparables = selectDisplayComparables(data.marketcheckValuation, {
     year: Number(data.autodevVinData?.vehicle?.year),
     mileage: data.mileage ?? 0,
     zip: data.zipCode ?? null,
-  }
-  const displayedComparables = getBestMatchListings(allListings, rankSubject, 10)
+    model: data.autodevVinData?.model ?? undefined,
+    trim: data.autodevVinData?.trim ?? undefined,
+  })
   const stats = getListingsStats(allListings)
 
   // Vehicle data
@@ -1019,6 +1032,11 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
           <Text style={styles.sectionSubtext}>
             Based on {allListings.length} live comparable listings from recent market data
           </Text>
+          {data.marketcheckValuation?.generatedAt && (
+            <Text style={styles.metaNote}>
+              Comparable listings retrieved {formatDateShort(data.marketcheckValuation.generatedAt)}
+            </Text>
+          )}
 
           {allListings.length > 0 && (
             <>
@@ -1169,9 +1187,18 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
                     )}
                   </View>
                   <View style={styles.colVehicle}>
-                    <Text style={styles.vehicleNameText}>
-                      {comp.year} {comp.make} {comp.model}
-                    </Text>
+                    {isHttpUrl(comp.vdp_url) ? (
+                      <Link
+                        src={comp.vdp_url as string}
+                        style={[styles.vehicleNameText, styles.compLink]}
+                      >
+                        {comp.year} {comp.make} {comp.model}
+                      </Link>
+                    ) : (
+                      <Text style={styles.vehicleNameText}>
+                        {comp.year} {comp.make} {comp.model}
+                      </Text>
+                    )}
                     {comp.trim && <Text style={styles.vehicleTrimText}>{comp.trim}</Text>}
                   </View>
                   <View style={styles.colMileage}>
@@ -1190,7 +1217,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
                     </Text>
                   </View>
                   <View style={styles.colDealer}>
-                    {comp.vdp_url && comp.dealer_name ? (
+                    {isHttpUrl(comp.vdp_url) && comp.dealer_name ? (
                       <Link src={comp.vdp_url as string} style={styles.dealerLinkStyle}>
                         {comp.dealer_name as string}
                       </Link>
