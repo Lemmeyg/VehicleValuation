@@ -391,7 +391,7 @@ describe('validateListingUrls', () => {
     }
   })
 
-  it('stops mid-pool when TARGET_VALID reached; unchecked listings get url_validated: false', async () => {
+  it('stops mid-pool when TARGET_VALID reached; unchecked listings have no url_validated key', async () => {
     // 50 listings. Batch 1 (0-19): 5 pass. Batch 2 (20-39): 5 pass → total 10, stop.
     // Listings 40-49 never touched.
     const listings = Array.from({ length: 50 }, (_, i) => ({
@@ -542,8 +542,8 @@ describe('checkUrl — GET retry on HEAD failure', () => {
   })
 
   describe('url_validated tri-state', () => {
-    it('leaves comps below the early-stop point with url_validated undefined, not false', async () => {
-      // 25 listings; first 10 pass on the first batch of 20 -> listings 21..25 never checked
+    it('leaves comps below the early-stop point with no url_validated key', async () => {
+      // 25 listings; first 10 pass on the first batch of 20 -> indices 20-24 never checked
       const listings = Array.from({ length: 25 }, (_, i) => ({
         vdp_url: `https://dealer.com/inventory/${i}`,
         dos_active: i,
@@ -559,10 +559,10 @@ describe('checkUrl — GET retry on HEAD failure', () => {
       const out = result.recentComparables!.listings
 
       expect(out.slice(0, 10).every(l => l.url_validated === true)).toBe(true)
-      // Listings 20-24 never checked → url_validated should be undefined
-      expect(
-        out.slice(20).every(l => !('url_validated' in l) || l.url_validated === undefined)
-      ).toBe(true)
+      // Indices 20-24 never checked → url_validated key must be absent
+      out.slice(20).forEach(l => {
+        expect('url_validated' in l).toBe(false)
+      })
     })
 
     it('marks a checked-and-failed listing false', async () => {
