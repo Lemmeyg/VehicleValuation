@@ -1110,8 +1110,14 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
             </>
           )}
 
-          {allListings.length === 0 && (
-            <Text style={styles.chartsNote}>No comparable listings available for analysis</Text>
+          {data.marketcheckValuation && displayedComparables.length === 0 && (
+            <Text style={styles.chartsNote}>
+              No active local listings were found for this vehicle. This valuation is based on{' '}
+              {data.marketcheckValuation.totalComparablesFound ??
+                data.marketcheckValuation.recentComparables?.num_found ??
+                0}{' '}
+              statistical comparable vehicles from recent market data.
+            </Text>
           )}
 
           <View style={styles.valueBoxesRow} wrap={false}>

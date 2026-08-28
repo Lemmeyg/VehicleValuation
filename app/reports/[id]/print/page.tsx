@@ -412,6 +412,20 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
           </div>
         )}
 
+        {/* ── NO LOCAL LISTINGS (statistical-only valuation) ──── */}
+        {marketCheck && displayedComparables.length === 0 && (
+          <div className="bg-white border border-slate-200 rounded-lg p-5 mb-5 avoid-break">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-2">
+              Comparable Vehicles
+            </h2>
+            <p className="text-xs text-slate-600">
+              No active local listings were found for this vehicle. This valuation is based on{' '}
+              {marketCheck?.totalComparablesFound ?? marketCheck?.recentComparables?.num_found ?? 0}{' '}
+              statistical comparable vehicles from recent market data.
+            </p>
+          </div>
+        )}
+
         {/* ── ADDITIONAL VALUATION CONSIDERATIONS ────────────── */}
         <div className="bg-slate-50 rounded-lg border border-slate-200 p-6 mb-5">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-3 text-center">

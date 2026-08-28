@@ -533,7 +533,11 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
                 />
               ) : (
                 <div className="text-center py-12 text-slate-500">
-                  No comparable listings available for visualization
+                  No active local listings were found for this vehicle. This valuation is based on{' '}
+                  {marketCheck?.totalComparablesFound ??
+                    marketCheck?.recentComparables?.num_found ??
+                    0}{' '}
+                  statistical comparable vehicles from recent market data.
                 </div>
               )}
 

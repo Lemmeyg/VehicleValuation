@@ -173,6 +173,12 @@ export interface MarketCheckPrediction {
   // Statistical analysis from ALL comparables (Premium API)
   comparablesStats?: ComparableStats
 
+  // Set by the LemonSqueezy webhook when recentComparables.listings ends up
+  // empty after every supplement — the render surfaces show an explicit
+  // "valuation rests on statistical data" line and the report is flagged for
+  // manual review. Persists with the blob; no migration. No delivery gate.
+  compsEmpty?: boolean
+
   // Recent comparables (Premium API - actual sales data) - ONLY THESE LISTINGS ARE STORED
   recentComparables?: {
     num_found: number
