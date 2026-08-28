@@ -173,6 +173,11 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginBottom: 12,
   },
+  metaNote: {
+    fontSize: 8,
+    color: '#666',
+    marginBottom: 4,
+  },
 
   // ── VEHICLE SPECS GRID ──────────────────────────────────────
   specsGrid: {
@@ -346,6 +351,10 @@ const styles = StyleSheet.create({
   dealerPlainStyle: {
     fontSize: 7,
     color: '#475569',
+  },
+  compLink: {
+    color: '#1a56db',
+    textDecoration: 'none',
   },
 
   // ── ADDITIONAL VALUATION CONSIDERATIONS ─────────────────────
@@ -893,6 +902,8 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
     year: Number(data.autodevVinData?.vehicle?.year),
     mileage: data.mileage ?? 0,
     zip: data.zipCode ?? null,
+    model: data.autodevVinData?.model ?? undefined,
+    trim: data.autodevVinData?.trim ?? undefined,
   })
   const stats = getListingsStats(allListings)
 
@@ -1020,6 +1031,11 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
           <Text style={styles.sectionSubtext}>
             Based on {allListings.length} live comparable listings from recent market data
           </Text>
+          {data.marketcheckValuation?.generatedAt && (
+            <Text style={styles.metaNote}>
+              Comparable listings retrieved {formatDateShort(data.marketcheckValuation.generatedAt)}
+            </Text>
+          )}
 
           {allListings.length > 0 && (
             <>
@@ -1170,9 +1186,18 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
                     )}
                   </View>
                   <View style={styles.colVehicle}>
-                    <Text style={styles.vehicleNameText}>
-                      {comp.year} {comp.make} {comp.model}
-                    </Text>
+                    {comp.vdp_url ? (
+                      <Link
+                        src={comp.vdp_url as string}
+                        style={[styles.vehicleNameText, styles.compLink]}
+                      >
+                        {comp.year} {comp.make} {comp.model}
+                      </Link>
+                    ) : (
+                      <Text style={styles.vehicleNameText}>
+                        {comp.year} {comp.make} {comp.model}
+                      </Text>
+                    )}
                     {comp.trim && <Text style={styles.vehicleTrimText}>{comp.trim}</Text>}
                   </View>
                   <View style={styles.colMileage}>
