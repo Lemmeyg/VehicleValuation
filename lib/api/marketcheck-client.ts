@@ -117,6 +117,11 @@ export interface MarketCheckComparable {
   listing_date?: string
   mc_website_id?: number
   source: string
+
+  /** Which acquisition path produced this listing. Set once at fetch/map time,
+   * before merge into recentComparables.listings. Absent on reports created
+   * before 2026-08-27 → treated as primary by the selector. */
+  source_tier?: 'franchise' | 'independent' | 'fallback_search'
 }
 
 export interface MarketCheckPrediction {
@@ -267,6 +272,7 @@ export async function fetchMarketCheckSearchFallback(
         listing_date: l.first_seen_at_date ?? l.first_seen_at,
         mc_website_id: l.mc_website_id,
         source: 'marketcheck',
+        source_tier: 'fallback_search' as const,
       }))
       .sort((a, b) => b.price - a.price)
 
@@ -579,6 +585,7 @@ export async function fetchMarketCheckData(
                     source: 'marketcheck',
                     vdp_url: listing.vdp_url,
                     dealer_name: listing.dealer_name,
+                    source_tier: dealerType,
                   })),
                 subjectVehicle?.year
               ).sort((a, b) => b.price - a.price),

@@ -499,3 +499,74 @@ describe('fetchMarketCheckSearchFallback — comp cleanup', () => {
     expect(result.data!.recentComparables!.num_found).toBe(1)
   })
 })
+
+describe('source_tier tagging', () => {
+  it('tags primary-endpoint listings with the dealer type the call used', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        marketcheck_price: 15000,
+        recent_comparables: {
+          num_found: 1,
+          listings: [
+            {
+              id: 'a',
+              vin: 'AAAAAAAAAAAAAAAAA',
+              year: 2020,
+              make: 'Toyota',
+              model: 'Highlander',
+              miles: 50000,
+              price: 15000,
+              dealer_name: 'D',
+              dealer_type: 'independent',
+            },
+          ],
+        },
+      }),
+    })
+    const res = await fetchMarketCheckData(
+      'AAAAAAAAAAAAAAAAA',
+      50000,
+      '89503',
+      false,
+      undefined,
+      { year: 2020, make: 'Toyota', model: 'Highlander' },
+      'independent'
+    )
+    expect(res.success).toBe(true)
+    expect(res.data!.recentComparables!.listings[0].source_tier).toBe('independent')
+  })
+
+  it('tags nationwide fallback-search listings as fallback_search', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 1,
+        listings: [
+          {
+            id: 'f',
+            vin: 'FFFFFFFFFFFFFFFFF',
+            miles: 60000,
+            price: 14000,
+            seller_type: 'franchise',
+            build: { year: 2020, make: 'Toyota', model: 'Highlander' },
+            dealer_address: { zip: '95814' },
+            vdp_url: 'https://d.com/i/1',
+            first_seen_at_date: '2025-01-01',
+          },
+        ],
+      }),
+    })
+    const res = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Toyota',
+      'Highlander',
+      'VIN0',
+      60000,
+      '89503'
+    )
+    expect(res.success).toBe(true)
+    expect(res.data!.recentComparables!.listings[0].source_tier).toBe('fallback_search')
+  })
+})
