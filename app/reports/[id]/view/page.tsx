@@ -238,6 +238,8 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
     year: Number(autodevData?.vehicle?.year),
     mileage: report.mileage ?? 0,
     zip: report.zip_code ?? null,
+    model: autodevData?.model ?? report.vehicle_model ?? undefined,
+    trim: autodevData?.trim ?? undefined,
   })
 
   // Get statistics from ALL listings
@@ -500,9 +502,19 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
                   CONFIDENCE: {confidence.toUpperCase()}
                 </div>
               </div>
-              <p className="text-sm text-slate-600 mb-8">
+              <p className="text-sm text-slate-600 mb-2">
                 Based on {allListings.length} live comparable listings from recent market data
               </p>
+              {marketCheck?.generatedAt && (
+                <p className="text-sm text-slate-500 mb-8">
+                  Comparable listings retrieved{' '}
+                  {formatDateET(marketCheck.generatedAt, {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </p>
+              )}
 
               {/* Interactive Charts */}
               {allListings.length > 0 ? (

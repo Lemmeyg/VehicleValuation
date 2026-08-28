@@ -120,6 +120,8 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
     year: Number(autodevData?.vehicle?.year),
     mileage: report.mileage ?? 0,
     zip: report.zip_code ?? null,
+    model: autodevData?.model ?? report.vehicle_model ?? undefined,
+    trim: autodevData?.trim ?? undefined,
   })
   const listingsStats = getListingsStats(allListings)
 
@@ -301,6 +303,16 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
                   Avg {formatCurrency(Math.round(listingsStats.avgPrice))} &bull; Range{' '}
                   {formatCurrency(listingsStats.minPrice)}–{formatCurrency(listingsStats.maxPrice)}
                 </div>
+                {marketCheck?.generatedAt && (
+                  <div>
+                    Comparable listings retrieved{' '}
+                    {formatDateET(marketCheck.generatedAt, {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -347,7 +359,20 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
                     </td>
                     <td className="py-2 pr-2 align-top">
                       <div className="font-semibold text-slate-900">
-                        {comp.year} {comp.make} {comp.model}
+                        {comp.vdp_url ? (
+                          <a
+                            href={comp.vdp_url as string}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 underline"
+                          >
+                            {comp.year} {comp.make} {comp.model}
+                          </a>
+                        ) : (
+                          <>
+                            {comp.year} {comp.make} {comp.model}
+                          </>
+                        )}
                       </div>
                       {comp.trim && <div className="text-slate-500">{comp.trim}</div>}
                     </td>
