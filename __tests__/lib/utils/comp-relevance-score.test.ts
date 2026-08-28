@@ -6,7 +6,6 @@ import {
   weightedRelevanceScore,
   tokenTrimMatch,
   makeScoreSortFn,
-  DEAD_LINK_SCORE_FLOOR,
   type ScoreSubject,
 } from '@/lib/utils/comp-relevance-score'
 
@@ -135,11 +134,5 @@ describe('makeScoreSortFn', () => {
     const sorted = makeScoreSortFn(subject, 20000)(input)
     expect(sorted.map(l => l.vin)).toEqual(['NEAR', 'FAR'])
     expect(input[0].vin).toBe('FAR') // unchanged
-  })
-})
-
-describe('constants', () => {
-  it('DEAD_LINK_SCORE_FLOOR is 90', () => {
-    expect(DEAD_LINK_SCORE_FLOOR).toBe(90)
   })
 })

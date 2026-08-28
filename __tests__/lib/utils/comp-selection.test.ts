@@ -126,9 +126,9 @@ describe('selectDisplayComparables', () => {
     expect(out.includes('F')).toBe(false)
   })
 
-  it('admits at most MAX_DEAD_LINK_COMPS failed-check comps that score >= 90, unlabelled', () => {
-    // 8 live comps, deliberately mediocre so they score < a near-perfect comp
-    const live = Array.from({ length: 8 }, (_, i) =>
+  it('back-fills the live shortfall from failed-check comps (fill toward `limit`), unlabelled', () => {
+    // 6 live comps + 6 failed-check comps, limit 10 -> shortfall of 4 is filled.
+    const live = Array.from({ length: 6 }, (_, i) =>
       makeListing({
         vin: `L${i}`,
         url_validated: true,
@@ -139,27 +139,30 @@ describe('selectDisplayComparables', () => {
         location: { zip: '90001' },
       })
     )
-    const perfect = (vin: string) =>
+    const failedComp = (vin: string, miles: number) =>
       makeListing({
         vin,
         url_validated: false,
-        miles: 100000,
+        url_check_result: 'blocked',
+        miles,
         price: 20000,
         year: 2020,
         trim: 'XLE',
         dos_active: 5,
         location: { zip: '89502' },
       })
-    const failedHigh = [perfect('D1'), perfect('D2'), perfect('D3')]
+    const failedHigh = Array.from({ length: 6 }, (_, i) => failedComp(`D${i}`, 100000 + i * 500))
     const out = selectDisplayComparables(valuation([...live, ...failedHigh]), subject, 10)
-    const deadShown = out.filter(l => l.url_validated === false).map(l => l.vin)
-    expect(deadShown.length).toBe(2) // cap
+    const deadShown = out.filter(l => l.url_validated === false)
     expect(out.length).toBe(10)
+    expect(deadShown.length).toBe(4) // the whole shortfall, no cap of 2
+    // back-filled rows carry no distinguishing flag
+    expect(deadShown.every(l => !('backfilled' in l) && !('is_dead_link' in l))).toBe(true)
   })
 
-  it('caps admitted failed-check comps at MAX_DEAD_LINK_COMPS even when the shortfall is larger', () => {
-    // 5 live "nothing special" comps + 3 near-perfect failed-check comps, limit 10.
-    // Shortfall is 5, but only the 2 highest-scoring dead comps may be admitted.
+  it('fills the ENTIRE live shortfall from failed-check comps, not a cap of 2', () => {
+    // 5 live "nothing special" comps + 6 failed-check comps, limit 10.
+    // Shortfall is 5 -> all 5 slots go to failed-check comps.
     const live = Array.from({ length: 5 }, (_, i) =>
       makeListing({
         vin: `L${i}`,
@@ -171,12 +174,12 @@ describe('selectDisplayComparables', () => {
         location: { zip: '90001' },
       })
     )
-    // Odometer separates the three: D1 (best) > D2 > D3 (still >= 90).
-    const dead = [0, 3000, 6000].map((delta, i) =>
+    const dead = Array.from({ length: 6 }, (_, i) =>
       makeListing({
-        vin: `D${i + 1}`,
+        vin: `D${i}`,
         url_validated: false,
-        miles: 100000 + delta,
+        url_check_result: 'blocked',
+        miles: 100000 + i * 1000,
         price: 20000,
         year: 2020,
         trim: 'XLE',
@@ -185,18 +188,19 @@ describe('selectDisplayComparables', () => {
       })
     )
     const out = selectDisplayComparables(valuation([...live, ...dead]), subject, 10)
-    expect(out.length).toBe(7) // 5 live + 2 dead
-    const deadShown = out.filter(l => l.url_validated === false).map(l => l.vin)
-    expect(deadShown.sort()).toEqual(['D1', 'D2'])
+    expect(out.length).toBe(10) // 5 live + 5 back-filled
+    expect(out.filter(l => l.url_validated === false).length).toBe(5)
   })
 
-  it('does NOT admit a failed-check comp scoring below the floor', () => {
+  it('admits a gate-passing failed-check comp regardless of relevance score (no floor)', () => {
     const live = Array.from({ length: 3 }, (_, i) =>
       makeListing({ vin: `L${i}`, url_validated: true })
     )
+    // Mediocre score, but it passes the hard gates (price within +-40%, has miles).
     const failedMediocre = makeListing({
       vin: 'D',
       url_validated: false,
+      url_check_result: 'dead',
       miles: 100000,
       price: 26000,
       year: 2018,
@@ -207,7 +211,7 @@ describe('selectDisplayComparables', () => {
     const out = selectDisplayComparables(valuation([...live, failedMediocre]), subject, 10).map(
       l => l.vin
     )
-    expect(out.includes('D')).toBe(false)
+    expect(out.includes('D')).toBe(true)
   })
 
   it('a live comp outranks an admitted failed-check comp of marginally lower score', () => {
@@ -237,11 +241,12 @@ describe('selectDisplayComparables', () => {
     expect(out).toEqual(['LIVEBEST', 'DEADHIGH'])
   })
 
-  it('all links failed, one comp >= 90 -> returns that one, not []', () => {
+  it('all links failed -> back-fills every gate-passing failed comp, best score first (no floor)', () => {
     const failed = [
       makeListing({
         vin: 'HI',
         url_validated: false,
+        url_check_result: 'dead',
         miles: 100000,
         price: 20000,
         trim: 'XLE',
@@ -251,6 +256,7 @@ describe('selectDisplayComparables', () => {
       makeListing({
         vin: 'LO',
         url_validated: false,
+        url_check_result: 'dead',
         miles: 100000,
         price: 26000,
         year: 2018,
@@ -259,23 +265,26 @@ describe('selectDisplayComparables', () => {
         location: { zip: '33101' },
       }),
     ]
-    expect(selectDisplayComparables(valuation(failed), subject, 10).map(l => l.vin)).toEqual(['HI'])
+    // Both pass the hard gates, so both are shown; HI outscores LO.
+    expect(selectDisplayComparables(valuation(failed), subject, 10).map(l => l.vin)).toEqual([
+      'HI',
+      'LO',
+    ])
   })
 
-  it('all links failed, none >= 90 -> returns []', () => {
-    const failed = Array.from({ length: 5 }, (_, i) =>
+  it('no live comp and no failed-check comp (every comp never-checked) -> returns []', () => {
+    // A url_validated flag is present on the set, but no comp is true or false,
+    // so both the live pool and the back-fill pool are empty.
+    const neverChecked = Array.from({ length: 5 }, (_, i) =>
       makeListing({
         vin: `X${i}`,
-        url_validated: false,
-        miles: 150000,
-        price: 26000,
-        year: 2018,
-        trim: 'Base',
-        dos_active: 170,
+        url_validated: undefined as unknown as boolean,
+        miles: 120000,
+        price: 21000,
         location: { zip: '33101' },
       })
     )
-    expect(selectDisplayComparables(valuation(failed), subject, 10)).toEqual([])
+    expect(selectDisplayComparables(valuation(neverChecked), subject, 10)).toEqual([])
   })
 
   it('returns fewer than `limit` rather than padding with junk', () => {
