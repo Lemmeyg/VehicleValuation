@@ -102,11 +102,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // ========================================
       // URL Validation + Supplementation
       // ========================================
-      // Check links in best-match order (year, then distance, then price proximity, then
-      // mileage) rather than
-      // freshness order, so the "find 10 live links" search spends its budget on the
-      // listings that are actually the best candidates to show — not just whichever
-      // happened to be freshest.
+      // Check links in weighted-relevance-score order (the same score the display
+      // selector ranks by) rather than freshness order, so the "find 10 live links"
+      // search spends its budget on the listings that are actually the best
+      // candidates to show — not just whichever happened to be freshest.
       const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
         marketcheckResult.data,
         subjectVehicle

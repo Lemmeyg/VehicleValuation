@@ -62,14 +62,14 @@ No new MarketCheck API calls. No database migration. One PR. Test-first througho
 
 ### Gaps this release closes
 
-| # | Gap | Fix |
-|---|---|---|
-| 1 | `selectDisplayComparables()` does **not** filter to live links — the unify kept the PDF's non-filtered behaviour | Add a `url_validated === true` filter with a zero-validated fallback |
-| 2 | Ranking is lexicographic tiers, ignores trim and days-on-market | Replace with the weighted 0–100 relevance score |
-| 3 | No way at display time to prefer real dealer data over nationwide-fallback comps | Tag each stored comp with `source_tier`; select in two tiers |
-| 4 | Report generation date and per-comp links not consistently surfaced | Show `valuation.generatedAt` + render each shown comp's `vdp_url` on all three paths |
-| 5 | `withinValuationBand` double-counts price once the score + 40% gate exist | Remove it |
-| 6 | `docs/comp-selection-process-2026-08-26.md` describes the old behaviour | Rewrite it to match, and **commit** it this time |
+| #   | Gap                                                                                                              | Fix                                                                                  |
+| --- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 1   | `selectDisplayComparables()` does **not** filter to live links — the unify kept the PDF's non-filtered behaviour | Add a `url_validated === true` filter with a zero-validated fallback                 |
+| 2   | Ranking is lexicographic tiers, ignores trim and days-on-market                                                  | Replace with the weighted 0–100 relevance score                                      |
+| 3   | No way at display time to prefer real dealer data over nationwide-fallback comps                                 | Tag each stored comp with `source_tier`; select in two tiers                         |
+| 4   | Report generation date and per-comp links not consistently surfaced                                              | Show `valuation.generatedAt` + render each shown comp's `vdp_url` on all three paths |
+| 5   | `withinValuationBand` double-counts price once the score + 40% gate exist                                        | Remove it                                                                            |
+| 6   | `docs/comp-selection-process-2026-08-26.md` describes the old behaviour                                          | Rewrite it to match, and **commit** it this time                                     |
 
 ### Nothing is on `main`
 
@@ -163,11 +163,11 @@ still read from the `valuation` argument internally.
 Each `MarketCheckComparable` gains `source_tier?: 'franchise' | 'independent' | 'fallback_search'`,
 written where the listing enters the pipeline:
 
-| Path | Sets `source_tier` to |
-|---|---|
-| Primary VIN lookup (`fetchMarketCheckData`, franchise call) | `'franchise'` |
-| `supplementWithAlternateDealerType` (independent call) | `'independent'` |
-| `supplementComparables` (nationwide YMM search) | `'fallback_search'` |
+| Path                                                        | Sets `source_tier` to |
+| ----------------------------------------------------------- | --------------------- |
+| Primary VIN lookup (`fetchMarketCheckData`, franchise call) | `'franchise'`         |
+| `supplementWithAlternateDealerType` (independent call)      | `'independent'`       |
+| `supplementComparables` (nationwide YMM search)             | `'fallback_search'`   |
 
 Written once, at map time, before the listing is merged into `recentComparables.listings`.
 Reports created before this ships have no tag → the selector treats missing as **primary**
@@ -191,12 +191,12 @@ Reports created before this ships have no tag → the selector treats missing as
 - `predictedPrice` present and `|comp.price − predictedPrice| / predictedPrice > 0.40`
 
 The gates are cheap (field comparisons). They run **before** the link filter so a disqualified
-comp is never URL-checked at creation time — see *Creation-time pipeline* below.
+comp is never URL-checked at creation time — see _Creation-time pipeline_ below.
 
 ### 3. Link split
 
 Read the stored per-comp `url_validated` flag (three states after this release — see
-*Creation-time pipeline*):
+_Creation-time pipeline_):
 
 - `live = gated.filter(c => c.url_validated === true)`
 - `failedCheck = gated.filter(c => c.url_validated === false)` — checked and did not pass
@@ -222,23 +222,24 @@ neutral value 0.5 for every comp, so it neither divides by zero nor distorts the
 missing **comp-side** input is handled per-factor in the table (distance `null` → 0.15, `dom`
 `null` → 0.5, etc.).
 
-| Factor | Sub-score | Weight |
-|---|---|---|
-| Mileage closeness | `1 − min(|comp.miles − subject.mileage| ÷ subject.mileage, 1)` | 0.35 |
-| Distance closeness | `computeDistanceMiles(subject.zip, comp)` → `d`; `d == null ? 0.15 : 1 − min(d ÷ 500, 1)` | 0.25 |
-| Price plausibility | `predictedPrice` known: `1 − min(|comp.price − predictedPrice| ÷ predictedPrice ÷ 0.40, 1)`; else 0.5 | 0.15 |
-| Trim match | `tokenTrimMatch(subject.trim, comp.trim)` → exact 1.0 / partial 0.5 / none 0.15 / unknown 0.5 | 0.10 |
-| Listing freshness | `dom = comp.dos_active ?? comp.dom`; `dom == null ? 0.5 : dom ≤ 45 ? 1.0 : dom ≥ 180 ? 0 : 1 − (dom − 45) ÷ 135` | 0.10 |
-| Year closeness | `1 − min(|comp.year − subject.year| ÷ 3, 1)` | 0.05 |
+| Factor             | Sub-score                                                                                                        | Weight                       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------- | ---- |
+| Mileage closeness  | `1 − min(                                                                                                        | comp.miles − subject.mileage | ÷ subject.mileage, 1)`                 | 0.35 |
+| Distance closeness | `computeDistanceMiles(subject.zip, comp)` → `d`; `d == null ? 0.15 : 1 − min(d ÷ 500, 1)`                        | 0.25                         |
+| Price plausibility | `predictedPrice` known: `1 − min(                                                                                | comp.price − predictedPrice  | ÷ predictedPrice ÷ 0.40, 1)`; else 0.5 | 0.15 |
+| Trim match         | `tokenTrimMatch(subject.trim, comp.trim)` → exact 1.0 / partial 0.5 / none 0.15 / unknown 0.5                    | 0.10                         |
+| Listing freshness  | `dom = comp.dos_active ?? comp.dom`; `dom == null ? 0.5 : dom ≤ 45 ? 1.0 : dom ≥ 180 ? 0 : 1 − (dom − 45) ÷ 135` | 0.10                         |
+| Year closeness     | `1 − min(                                                                                                        | comp.year − subject.year     | ÷ 3, 1)`                               | 0.05 |
 
 `score = 100 × Σ(weightᵢ × sub_scoreᵢ)`
 
 ### 6. Assemble the final set
 
 1. Score every comp in `poolForScoring`.
-2. Score every comp in `failedCheck`; keep those with `score ≥ DEAD_LINK_SCORE_FLOOR` (90),
-   highest first, at most `MAX_DEAD_LINK_COMPS` (2).
-3. `candidates = poolForScoring ∪ (those ≤2 failed-check comps)`
+2. **If `poolForScoring.length >= limit`** (the live pool already fills the report) → no
+   failed-check comps are admitted; skip to step 4.
+3. Otherwise score every comp in `failedCheck`; take those with `score ≥ DEAD_LINK_SCORE_FLOOR`
+   (90), highest first, at most `MAX_DEAD_LINK_COMPS` (2). `candidates = poolForScoring ∪ those`.
 4. Sort `candidates` by `score` descending; return `.slice(0, limit)`.
 
 A failed-check comp is rendered identically to any other — **no "inactive" label** — because
@@ -257,7 +258,7 @@ first guesses, defined as named constants in one place** — not measured optima
 
 URL validation makes real HTTP requests and happens once, at report creation, in
 `fetch-marketcheck` / the LemonSqueezy webhook / `create-free` / the two supplementers. The
-display selector above only *reads* the stored flag. Order at creation:
+display selector above only _reads_ the stored flag. Order at creation:
 
 ```
 clean (cleanAndFilterComparables — existing)
@@ -351,7 +352,7 @@ Read-only surfacing; no schema change.
 - `__tests__/lib/utils/comparables-ranker.test.ts` — retune from tier assertions to score
   assertions; drop `withinValuationBand` and `getBestMatchListings` cases
 - `__tests__/lib/utils/url-validator.test.ts` — never-checked comps end up `url_validated:
-  undefined`, not `false`; check order follows the supplied score `sortFn`
+undefined`, not `false`; check order follows the supplied score `sortFn`
 - creation-path test (`fetch-marketcheck` route or supplementer): a comp failing a hard gate
   is filtered out before `validateListingUrls` is called (assert it's not among the checked set)
 - the three render call sites' existing expectations
@@ -391,15 +392,15 @@ Read-only surfacing; no schema change.
 
 ## Risks & mitigations
 
-| Risk | Mitigation |
-|---|---|
-| Live-link filter leaves many reports with <10 comps (floor analysis: ~9/25 recent) | Accepted and expected — fewer accurate comps beats padding with dead links. The two-tier pool, the `linkDataUnavailable` fallback, and the ≤2 ≥90 failed-check allowance all soften it. Surface the per-report shown-count in the PR. |
-| The ≥90 failed-check allowance re-admits a genuinely dead listing | Bounded: at most 2 per report, and only at a score reachable by a near-identical car. The URL check has real false negatives (a link that opens fine but fails HEAD+GET), so ≥90 comps are the ones most worth the benefit of the doubt. Tunable via `DEAD_LINK_SCORE_FLOOR` / `MAX_DEAD_LINK_COMPS`. |
-| Trim matching is unreliable (verbose VIN-decoder trim vs MarketCheck short trim) | Weight is only 0.10; `unknown` maps to neutral 0.5 so it never dominates. Noted as tunable. |
-| Weights are guesses; the new order could look worse on some reports | Verification step 2 quantifies the shift on real reports before merge; weights are one-place constants for fast iteration. |
-| Big unmerged branch + this on top = large PR | Unavoidable — the branch was never merged. PR description walks the reviewer through it task-group by task-group. Every task is independently tested. |
-| `comp-selection-refinements` local working tree / stale worktree confusion in the website repo | Implementation starts by confirming a clean checkout of `comp-selection-refinements` (or a fresh `git worktree`), not the half-state currently on disk. |
-| Older reports with no `source_tier` and no `url_validated` | Explicit fallbacks: missing tag → primary; no link data anywhere → gated set. Both covered by tests. |
+| Risk                                                                                           | Mitigation                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live-link filter leaves many reports with <10 comps (floor analysis: ~9/25 recent)             | Accepted and expected — fewer accurate comps beats padding with dead links. The two-tier pool, the `linkDataUnavailable` fallback, and the ≤2 ≥90 failed-check allowance all soften it. Surface the per-report shown-count in the PR.                                                                 |
+| The ≥90 failed-check allowance re-admits a genuinely dead listing                              | Bounded: at most 2 per report, and only at a score reachable by a near-identical car. The URL check has real false negatives (a link that opens fine but fails HEAD+GET), so ≥90 comps are the ones most worth the benefit of the doubt. Tunable via `DEAD_LINK_SCORE_FLOOR` / `MAX_DEAD_LINK_COMPS`. |
+| Trim matching is unreliable (verbose VIN-decoder trim vs MarketCheck short trim)               | Weight is only 0.10; `unknown` maps to neutral 0.5 so it never dominates. Noted as tunable.                                                                                                                                                                                                           |
+| Weights are guesses; the new order could look worse on some reports                            | Verification step 2 quantifies the shift on real reports before merge; weights are one-place constants for fast iteration.                                                                                                                                                                            |
+| Big unmerged branch + this on top = large PR                                                   | Unavoidable — the branch was never merged. PR description walks the reviewer through it task-group by task-group. Every task is independently tested.                                                                                                                                                 |
+| `comp-selection-refinements` local working tree / stale worktree confusion in the website repo | Implementation starts by confirming a clean checkout of `comp-selection-refinements` (or a fresh `git worktree`), not the half-state currently on disk.                                                                                                                                               |
+| Older reports with no `source_tier` and no `url_validated`                                     | Explicit fallbacks: missing tag → primary; no link data anywhere → gated set. Both covered by tests.                                                                                                                                                                                                  |
 
 ---
 

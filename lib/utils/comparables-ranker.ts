@@ -8,9 +8,10 @@
  *   -> two-tier pool (franchise+independent primary; nationwide fallback only
  *      on a <limit shortfall)
  *   -> weighted relevance score
- *   -> assemble top `limit`, allowing <= MAX_DEAD_LINK_COMPS checked-failed
- *      comps that score >= DEAD_LINK_SCORE_FLOOR to back-fill a small live
- *      shortfall (or to stand in entirely when no link survived validation).
+ *   -> assemble top `limit`: a full live slate (>= limit) admits no
+ *      checked-failed comps; any live shortfall (including zero live) admits
+ *      up to MAX_DEAD_LINK_COMPS checked-failed comps that score
+ *      >= DEAD_LINK_SCORE_FLOOR to back-fill it.
  */
 import type { MarketCheckComparable } from '@/lib/api/marketcheck-client'
 import { gateListings } from '@/lib/utils/comp-gates'
@@ -75,19 +76,10 @@ export function selectDisplayComparables(
   const livePrimary = live.filter(c => c.source_tier !== 'fallback_search')
   const poolForScoring = livePrimary.length >= limit ? livePrimary : live
 
-  // 4. how many checked-failed comps we may admit.
-  //    - no live comp survived  -> stand in with up to MAX_DEAD_LINK_COMPS high scorers
-  //    - live pool is <= MAX short of `limit` -> back-fill exactly that gap
-  //    - live pool is full, or too far short to paper over -> none
-  const gap = limit - poolForScoring.length
-  let deadBudget: number
-  if (poolForScoring.length === 0) {
-    deadBudget = MAX_DEAD_LINK_COMPS
-  } else if (gap > 0 && gap <= MAX_DEAD_LINK_COMPS) {
-    deadBudget = gap
-  } else {
-    deadBudget = 0
-  }
+  // 4. how many checked-failed comps we may admit: none when the live pool
+  //    already fills the report; otherwise up to MAX_DEAD_LINK_COMPS high
+  //    scorers to back-fill the shortfall (covers "no link survived" too).
+  const deadBudget = poolForScoring.length >= limit ? 0 : MAX_DEAD_LINK_COMPS
 
   const deadAllowance =
     deadBudget === 0

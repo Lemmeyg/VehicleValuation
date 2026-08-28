@@ -42,12 +42,26 @@ describe('selectDisplayComparables', () => {
     expect(out).toEqual(['OK'])
   })
 
-  it('returns only url_validated === true comps in the normal case', () => {
-    const listings = [
-      makeListing({ vin: 'LIVE', url_validated: true }),
-      makeListing({ vin: 'DEAD', url_validated: false, miles: 100000 }),
-    ]
-    expect(selectDisplayComparables(valuation(listings), subject).map(l => l.vin)).toEqual(['LIVE'])
+  it('a full live slate (>= limit) admits no failed-check comp, even a high-scoring one', () => {
+    const live = Array.from({ length: 12 }, (_, i) =>
+      makeListing({ vin: `LIVE${i}`, url_validated: true, miles: 100000 + i * 100 })
+    )
+    // Near-identical to the subject, so it would clear the 90 floor — but the
+    // live pool already fills the report, so it must not displace a live comp.
+    const dead = makeListing({
+      vin: 'DEAD',
+      url_validated: false,
+      miles: 100000,
+      price: 20000,
+      year: 2020,
+      trim: 'XLE',
+      dos_active: 5,
+      location: { zip: '89502' },
+    })
+    const out = selectDisplayComparables(valuation([...live, dead]), subject, 10)
+    expect(out.length).toBe(10)
+    expect(out.every(l => l.url_validated === true)).toBe(true)
+    expect(out.some(l => l.vin === 'DEAD')).toBe(false)
   })
 
   it('ignores never-checked (undefined) comps entirely', () => {
@@ -136,6 +150,39 @@ describe('selectDisplayComparables', () => {
     expect(out.length).toBe(10)
   })
 
+  it('caps admitted failed-check comps at MAX_DEAD_LINK_COMPS even when the shortfall is larger', () => {
+    // 5 live "nothing special" comps + 3 near-perfect failed-check comps, limit 10.
+    // Shortfall is 5, but only the 2 highest-scoring dead comps may be admitted.
+    const live = Array.from({ length: 5 }, (_, i) =>
+      makeListing({
+        vin: `L${i}`,
+        url_validated: true,
+        miles: 160000,
+        price: 24000,
+        trim: 'Base',
+        dos_active: 175,
+        location: { zip: '90001' },
+      })
+    )
+    // Odometer separates the three: D1 (best) > D2 > D3 (still >= 90).
+    const dead = [0, 3000, 6000].map((delta, i) =>
+      makeListing({
+        vin: `D${i + 1}`,
+        url_validated: false,
+        miles: 100000 + delta,
+        price: 20000,
+        year: 2020,
+        trim: 'XLE',
+        dos_active: 5,
+        location: { zip: '89502' },
+      })
+    )
+    const out = selectDisplayComparables(valuation([...live, ...dead]), subject, 10)
+    expect(out.length).toBe(7) // 5 live + 2 dead
+    const deadShown = out.filter(l => l.url_validated === false).map(l => l.vin)
+    expect(deadShown.sort()).toEqual(['D1', 'D2'])
+  })
+
   it('does NOT admit a failed-check comp scoring below the floor', () => {
     const live = Array.from({ length: 3 }, (_, i) =>
       makeListing({ vin: `L${i}`, url_validated: true })
@@ -156,7 +203,9 @@ describe('selectDisplayComparables', () => {
     expect(out.includes('D')).toBe(false)
   })
 
-  it('a live comp scoring 91 outranks a failed-check comp scoring 90', () => {
+  it('a live comp outranks an admitted failed-check comp of marginally lower score', () => {
+    // limit 2 with only 1 live comp -> a shortfall, so the >= 90 dead comp IS
+    // admitted into candidates and the sort tiebreak is actually exercised.
     const liveBest = makeListing({
       vin: 'LIVEBEST',
       url_validated: true,
@@ -169,16 +218,16 @@ describe('selectDisplayComparables', () => {
     const deadHigh = makeListing({
       vin: 'DEADHIGH',
       url_validated: false,
-      miles: 100000,
+      miles: 100500, // marginally worse odometer match -> scores just below liveBest, still >= 90
       price: 20000,
       trim: 'XLE',
       dos_active: 5,
-      location: { zip: '89504' },
+      location: { zip: '89503' },
     })
-    const out = selectDisplayComparables(valuation([deadHigh, liveBest]), subject, 1).map(
+    const out = selectDisplayComparables(valuation([deadHigh, liveBest]), subject, 2).map(
       l => l.vin
     )
-    expect(out).toEqual(['LIVEBEST'])
+    expect(out).toEqual(['LIVEBEST', 'DEADHIGH'])
   })
 
   it('all links failed, one comp >= 90 -> returns that one, not []', () => {
