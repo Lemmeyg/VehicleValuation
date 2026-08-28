@@ -146,7 +146,7 @@ export async function POST(request: Request) {
       )
 
       if (mcResult.success) {
-        // Gate comps (model / price / mileage / ±40% band) BEFORE URL validation
+        // Gate comps (price / mileage / ±40% band) BEFORE URL validation
         // so a disqualified comp is never HTTP-checked, and check the survivors
         // in weighted-relevance-score order.
         const gatedListings = gateListings(

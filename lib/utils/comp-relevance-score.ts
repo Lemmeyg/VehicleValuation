@@ -37,8 +37,8 @@ const NEUTRAL = 0.5
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
-/** Lower-case, strip punctuation, split on whitespace, drop empties. Shared by
- * the trim matcher here and the token-overlap model gate in comp-gates.ts. */
+/** Lower-case, strip punctuation, split on whitespace, drop empties. Used by
+ * the trim matcher below. */
 export const norm = (s: string) =>
   s
     .toLowerCase()

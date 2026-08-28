@@ -413,7 +413,7 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
         )}
 
         {/* ── NO LOCAL LISTINGS (statistical-only valuation) ──── */}
-        {marketCheck && displayedComparables.length === 0 && (
+        {marketCheck && allListings.length === 0 && (
           <div className="bg-white border border-slate-200 rounded-lg p-5 mb-5 avoid-break">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-2">
               Comparable Vehicles

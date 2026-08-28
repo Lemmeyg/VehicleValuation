@@ -104,7 +104,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // URL Validation + Supplementation
       // ========================================
       // Run the hard gates BEFORE URL validation so a comp that fails a gate
-      // (wrong model, no/zero price, missing mileage, price outside the ±40%
+      // (no/zero price, missing mileage, price outside the ±40%
       // band) is never HTTP-checked. Then check the survivors in
       // weighted-relevance-score order (the same score the display selector
       // ranks by) rather than freshness order, so the "find 10 live links"
