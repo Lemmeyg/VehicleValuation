@@ -93,10 +93,11 @@ async function checkUrl(url: string): Promise<boolean> {
  *   of BATCH_SIZE (20). Each batch is validated in parallel.
  * - Stops as soon as TARGET_VALID (10) listings with passing URLs are found.
  *   Additional batches are only fetched if the previous batch did not supply enough.
- * - Adds url_validated: boolean to every listing.
- *   - Listings that passed URL validation → url_validated: true
- *   - Listings that failed or were never checked → url_validated: false
- *   - Listings with no vdp_url → url_validated: true (data is valid, just no link)
+ * - Annotates listings with url_validated (tri-state):
+ *   - Checked and passed → url_validated: true
+ *   - Checked and failed → url_validated: false
+ *   - Never checked (below early-stop) → url_validated key absent from object
+ *   - No vdp_url → url_validated: true (data is valid, just no link)
  *
  * @returns The annotated prediction plus ValidationStats tracking how many
  *          URLs were checked, how many failed, and which URLs failed.
@@ -126,6 +127,7 @@ export async function validateListingUrls(
     : [...allListings].sort((a, b) => (a.dos_active ?? Infinity) - (b.dos_active ?? Infinity))
 
   const validListingSet = new Set<MarketCheckComparable>()
+  const checkedSet = new Set<MarketCheckComparable>()
   const stats: ValidationStats = {
     checkedCount: 0,
     failedCount: 0,
@@ -159,11 +161,10 @@ export async function validateListingUrls(
       if (result.status === 'fulfilled') {
         const { listing, valid, url } = result.value
         if (url !== null) {
-          // Only count listings where we actually fetched a URL
+          checkedSet.add(listing)
           stats.checkedCount++
-          if (valid) {
-            stats.validatedUrls.push(url)
-          } else {
+          if (valid) stats.validatedUrls.push(url)
+          else {
             stats.failedCount++
             stats.failedUrls.push(url)
           }
@@ -175,11 +176,21 @@ export async function validateListingUrls(
     }
   }
 
-  // Annotate every listing with url_validated
-  const validatedListings = allListings.map(listing => ({
-    ...listing,
-    url_validated: validListingSet.has(listing),
-  }))
+  // Annotate every listing with url_validated (tri-state):
+  // - checked and passed → true
+  // - checked and failed → false
+  // - never checked → undefined (key absent from object)
+  // - no vdp_url → true (valid data, just no link)
+  const validatedListings = allListings.map(listing => {
+    if (validListingSet.has(listing)) return { ...listing, url_validated: true }
+    if (checkedSet.has(listing)) return { ...listing, url_validated: false }
+    if (!listing.vdp_url) return { ...listing, url_validated: true } // no link to check — data still valid
+    const { url_validated: _drop, ...rest } = listing as MarketCheckComparable & {
+      url_validated?: boolean
+    }
+    void _drop
+    return rest as MarketCheckComparable // never checked -> leave undefined
+  })
 
   return {
     prediction: {

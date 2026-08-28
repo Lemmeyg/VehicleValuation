@@ -346,9 +346,9 @@ describe('validateListingUrls', () => {
     for (let i = 0; i < 20; i++) {
       expect(resultListings[i].url_validated).toBe(true)
     }
-    // Listings 20-24 never checked → false
+    // Listings 20-24 never checked → url_validated key absent
     for (let i = 20; i < 25; i++) {
-      expect(resultListings[i].url_validated).toBe(false)
+      expect('url_validated' in resultListings[i]).toBe(false)
     }
   })
 
@@ -425,8 +425,8 @@ describe('validateListingUrls', () => {
     for (let i = 20; i < 25; i++) expect(resultListings[i].url_validated).toBe(true)
     // Failed in batch 2
     for (let i = 25; i < 40; i++) expect(resultListings[i].url_validated).toBe(false)
-    // Never checked
-    for (let i = 40; i < 50; i++) expect(resultListings[i].url_validated).toBe(false)
+    // Never checked → url_validated key absent
+    for (let i = 40; i < 50; i++) expect('url_validated' in resultListings[i]).toBe(false)
   })
 
   it('exhausts entire pool when TARGET_VALID is never reached', async () => {
@@ -539,5 +539,46 @@ describe('checkUrl — GET retry on HEAD failure', () => {
     expect(result.recentComparables!.listings[0].url_validated).toBe(false)
     expect(global.fetch).toHaveBeenCalledTimes(2)
     expect(stats.failedCount).toBe(1)
+  })
+
+  describe('url_validated tri-state', () => {
+    it('leaves comps below the early-stop point with url_validated undefined, not false', async () => {
+      // 25 listings; first 10 pass on the first batch of 20 -> listings 21..25 never checked
+      const listings = Array.from({ length: 25 }, (_, i) => ({
+        vdp_url: `https://dealer.com/inventory/${i}`,
+        dos_active: i,
+      }))
+      const prediction = makePrediction(listings)
+
+      // All 20 in batch 1 pass (but stop after 10 valid)
+      for (let i = 0; i < 20; i++) {
+        mockFetchOk(`https://dealer.com/inventory/${i}`)
+      }
+
+      const { prediction: result } = await validateListingUrls(prediction)
+      const out = result.recentComparables!.listings
+
+      expect(out.slice(0, 10).every(l => l.url_validated === true)).toBe(true)
+      // Listings 20-24 never checked → url_validated should be undefined
+      expect(
+        out.slice(20).every(l => !('url_validated' in l) || l.url_validated === undefined)
+      ).toBe(true)
+    })
+
+    it('marks a checked-and-failed listing false', async () => {
+      const prediction = makePrediction([{ vdp_url: 'https://dealer.com/inventory/x' }])
+
+      mockFetch404('https://dealer.com/inventory/x')
+
+      const { prediction: result } = await validateListingUrls(prediction)
+      expect(result.recentComparables!.listings[0].url_validated).toBe(false)
+    })
+
+    it('keeps no-vdp_url listings valid', async () => {
+      const prediction = makePrediction([{ vdp_url: undefined }])
+
+      const { prediction: result } = await validateListingUrls(prediction)
+      expect(result.recentComparables!.listings[0].url_validated).toBe(true)
+    })
   })
 })
