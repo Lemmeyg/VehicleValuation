@@ -541,6 +541,88 @@ describe('checkUrl — GET retry on HEAD failure', () => {
     expect(stats.failedCount).toBe(1)
   })
 
+  describe('url_check_result classification', () => {
+    const run = (listing: { vdp_url?: string; dos_active?: number }) =>
+      validateListingUrls(makePrediction([listing]))
+
+    it('200 same-host deep path -> valid', async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue({
+        status: 200,
+        url: 'https://dealer.com/inventory/123',
+      })
+      const { prediction } = await run({ vdp_url: 'https://dealer.com/inventory/123' })
+      ;(global.fetch as jest.Mock).mockImplementation(undefined)
+
+      expect(prediction.recentComparables!.listings[0].url_check_result).toBe('valid')
+      expect(prediction.recentComparables!.listings[0].url_validated).toBe(true)
+    })
+
+    it('404 -> dead', async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue({
+        status: 404,
+        url: 'https://dealer.com/inventory/x',
+      })
+      const { prediction } = await run({ vdp_url: 'https://dealer.com/inventory/x' })
+      ;(global.fetch as jest.Mock).mockImplementation(undefined)
+
+      expect(prediction.recentComparables!.listings[0].url_check_result).toBe('dead')
+      expect(prediction.recentComparables!.listings[0].url_validated).toBe(false)
+    })
+
+    it('403 -> blocked', async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue({
+        status: 403,
+        url: 'https://dealer.com/inventory/y',
+      })
+      const { prediction } = await run({ vdp_url: 'https://dealer.com/inventory/y' })
+      ;(global.fetch as jest.Mock).mockImplementation(undefined)
+
+      expect(prediction.recentComparables!.listings[0].url_check_result).toBe('blocked')
+      expect(prediction.recentComparables!.listings[0].url_validated).toBe(false)
+    })
+
+    it('timeout / network error -> transient', async () => {
+      ;(global.fetch as jest.Mock).mockRejectedValue(new Error('aborted'))
+      const { prediction } = await run({ vdp_url: 'https://dealer.com/inventory/z' })
+      ;(global.fetch as jest.Mock).mockImplementation(undefined)
+
+      expect(prediction.recentComparables!.listings[0].url_check_result).toBe('transient')
+      expect(prediction.recentComparables!.listings[0].url_validated).toBe(false)
+    })
+
+    it('redirect to a different host / homepage -> redirected', async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue({ status: 200, url: 'https://other.com/' })
+      const { prediction } = await run({ vdp_url: 'https://dealer.com/inventory/a' })
+      ;(global.fetch as jest.Mock).mockImplementation(undefined)
+
+      expect(prediction.recentComparables!.listings[0].url_check_result).toBe('redirected')
+      expect(prediction.recentComparables!.listings[0].url_validated).toBe(false)
+    })
+
+    it('no vdp_url -> url_check_result valid', async () => {
+      const { prediction } = await run({ dos_active: 5 })
+      expect(prediction.recentComparables!.listings[0].url_check_result).toBe('valid')
+      expect(prediction.recentComparables!.listings[0].url_validated).toBe(true)
+    })
+
+    it('never-checked listings carry neither url_validated nor url_check_result', async () => {
+      const listings = Array.from({ length: 25 }, (_, i) => ({
+        vdp_url: `https://dealer.com/inventory/${i}`,
+        dos_active: i,
+      }))
+      const prediction = makePrediction(listings)
+      for (let i = 0; i < 20; i++) {
+        mockFetchOk(`https://dealer.com/inventory/${i}`)
+      }
+
+      const { prediction: result } = await validateListingUrls(prediction)
+      result.recentComparables!.listings.slice(20).forEach(l => {
+        expect('url_validated' in l).toBe(false)
+        expect('url_check_result' in l).toBe(false)
+      })
+    })
+  })
+
   describe('url_validated tri-state', () => {
     it('leaves comps below the early-stop point with no url_validated key', async () => {
       // 25 listings; first 10 pass on the first batch of 20 -> indices 20-24 never checked

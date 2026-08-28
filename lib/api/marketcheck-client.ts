@@ -130,6 +130,12 @@ export interface MarketCheckComparable {
   photo_url?: string
   vdp_url?: string // Vehicle Details Page URL
   url_validated?: boolean // Set by validateListingUrls() during report creation
+  /**
+   * Why the link check resolved the way it did. Set alongside url_validated by
+   * validateListingUrls() for every checked listing (valid ⇔ url_validated === true);
+   * absent on never-checked listings. Task 5's display-time back-fill orders by this.
+   */
+  url_check_result?: 'valid' | 'dead' | 'blocked' | 'transient' | 'redirected'
   listing_date?: string
   mc_website_id?: number
   source: string
