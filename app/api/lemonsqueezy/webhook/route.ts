@@ -406,7 +406,6 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
             // check the survivors in weighted-relevance-score order.
             const gatedListings = gateListings(
               marketcheckData.recentComparables?.listings ?? [],
-              { model: subjectVehicle?.model },
               marketcheckData.predictedPrice
             )
             const urlResult = await validateListingUrls(

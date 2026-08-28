@@ -47,7 +47,7 @@ export function selectDisplayComparables(
   const score = (c: MarketCheckComparable) => scoreByComp.get(c) ?? 0
 
   // 1. hard gates
-  const gated = gateListings(all, subject, predictedPrice)
+  const gated = gateListings(all, predictedPrice)
   if (gated.length === 0) {
     console.warn('[selectDisplayComparables] all comps failed the hard gates', {
       total: all.length,

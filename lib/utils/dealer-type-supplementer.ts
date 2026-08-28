@@ -81,11 +81,7 @@ export async function supplementWithAlternateDealerType(
 
   // Hard gates (model / price / mileage / ±40% band) BEFORE URL validation so a
   // disqualified comp is never HTTP-checked; check survivors in weighted-score order.
-  const gatedNewListings = gateListings(
-    newListings,
-    { model: subjectVehicle?.model },
-    prediction.predictedPrice
-  )
+  const gatedNewListings = gateListings(newListings, prediction.predictedPrice)
   // A fully-gated alternate batch contributes nothing — return unchanged rather
   // than report supplemented:true with a totalComparablesFound bump and zero
   // merged listings (mirrors the newListings.length === 0 guard above).

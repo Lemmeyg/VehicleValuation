@@ -151,7 +151,6 @@ export async function POST(request: Request) {
         // in weighted-relevance-score order.
         const gatedListings = gateListings(
           mcResult.data!.recentComparables?.listings ?? [],
-          { model: subjectVehicle.model },
           mcResult.data!.predictedPrice
         )
         const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(

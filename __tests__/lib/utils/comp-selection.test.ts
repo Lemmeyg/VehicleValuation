@@ -30,16 +30,23 @@ describe('selectDisplayComparables', () => {
     expect(selectDisplayComparables(valuation([]), subject)).toEqual([])
   })
 
-  it('drops model-mismatch, zero/negative price, missing mileage, and >40%-off comps', () => {
+  it('drops zero/negative price, missing mileage, and >40%-off comps', () => {
     const listings = [
       makeListing({ vin: 'OK' }),
-      makeListing({ vin: 'MODEL', model: 'Camry' }),
       makeListing({ vin: 'PRICE0', price: 0 }),
       makeListing({ vin: 'NOMILES', miles: undefined as unknown as number }),
       makeListing({ vin: 'FARPRICE', price: 35000 }),
     ]
     const out = selectDisplayComparables(valuation(listings), subject).map(l => l.vin)
     expect(out).toEqual(['OK'])
+  })
+
+  it('no longer drops a different-model comp — the model gate is gone', () => {
+    const listings = [makeListing({ vin: 'OK' }), makeListing({ vin: 'CAMRY', model: 'Camry' })]
+    const out = selectDisplayComparables(valuation(listings), subject)
+      .map(l => l.vin)
+      .sort()
+    expect(out).toEqual(['CAMRY', 'OK'])
   })
 
   it('a full live slate (>= limit) admits no failed-check comp, even a high-scoring one', () => {
@@ -275,7 +282,7 @@ describe('selectDisplayComparables', () => {
     const listings = [
       makeListing({ vin: 'A', url_validated: true }),
       makeListing({ vin: 'B', url_validated: true, miles: 105000 }),
-      makeListing({ vin: 'BAD', url_validated: true, model: 'Camry' }),
+      makeListing({ vin: 'BAD', url_validated: true, price: 0 }),
     ]
     expect(
       selectDisplayComparables(valuation(listings), subject, 10)

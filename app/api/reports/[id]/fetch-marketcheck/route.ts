@@ -111,7 +111,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // search spends its budget on the best candidates to show.
       const gatedListings = gateListings(
         marketcheckResult.data.recentComparables?.listings ?? [],
-        { model: subjectVehicle?.model },
         marketcheckResult.data.predictedPrice
       )
       const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(

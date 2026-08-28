@@ -39,7 +39,7 @@ describe('gate-before-validate contract', () => {
       vdp_url: 'https://dealer.example.com/inventory/bad',
     })
 
-    const gated = gateListings([good, gateFailer], { model: 'Highlander' }, 20000)
+    const gated = gateListings([good, gateFailer], 20000)
     expect(gated.map(l => l.vin)).toEqual(['GOOD'])
 
     const prediction = {

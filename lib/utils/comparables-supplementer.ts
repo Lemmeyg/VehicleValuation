@@ -92,7 +92,7 @@ async function fetchAndValidatePage(
 
   // Hard gates (model / price / mileage / ±40% band) BEFORE URL validation so a
   // disqualified comp is never HTTP-checked.
-  const gated = gateListings(cleaned, { model: subjectVehicle.model }, predictedPrice)
+  const gated = gateListings(cleaned, predictedPrice)
 
   const predictionForValidation: MarketCheckPrediction = {
     ...fallbackResult.data,
