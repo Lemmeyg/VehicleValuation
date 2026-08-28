@@ -86,6 +86,10 @@ export async function supplementWithAlternateDealerType(
     { model: subjectVehicle?.model },
     prediction.predictedPrice
   )
+  // A fully-gated alternate batch contributes nothing — return unchanged rather
+  // than report supplemented:true with a totalComparablesFound bump and zero
+  // merged listings (mirrors the newListings.length === 0 guard above).
+  if (gatedNewListings.length === 0) return unchanged
 
   const { prediction: validatedAlt, stats: altStats } = await validateListingUrls(
     {

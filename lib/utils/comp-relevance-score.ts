@@ -27,7 +27,7 @@ const WEIGHTS = {
   year: 0.05,
 } as const
 
-const PRICE_GATE_FRACTION = 0.4 // also the gate in comp-gates.ts — keep in sync
+export const PRICE_GATE_FRACTION = 0.4 // the shared price-band fraction; comp-gates.ts imports this
 const DISTANCE_DENOMINATOR_MILES = 500
 const DISTANCE_UNKNOWN_SUBSCORE = 0.15
 const FRESHNESS_FRESH_DAYS = 45
@@ -39,7 +39,10 @@ export const DEAD_LINK_SCORE_FLOOR = 90
 export const MAX_DEAD_LINK_COMPS = 2
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
-const norm = (s: string) =>
+
+/** Lower-case, strip punctuation, split on whitespace, drop empties. Shared by
+ * the trim matcher here and the token-overlap model gate in comp-gates.ts. */
+export const norm = (s: string) =>
   s
     .toLowerCase()
     .replace(/[^a-z0-9 ]/g, ' ')

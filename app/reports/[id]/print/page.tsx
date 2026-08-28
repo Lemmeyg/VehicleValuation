@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { canViewReport } from '@/lib/utils/report-access'
 import { getListingsStats } from '@/lib/utils/listing-filters'
 import { selectDisplayComparables } from '@/lib/utils/comparables-ranker'
+import { isHttpUrl } from '@/lib/utils/is-http-url'
 import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintToolbar } from './PrintToolbar'
@@ -359,7 +360,7 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
                     </td>
                     <td className="py-2 pr-2 align-top">
                       <div className="font-semibold text-slate-900">
-                        {comp.vdp_url ? (
+                        {isHttpUrl(comp.vdp_url) ? (
                           <a
                             href={comp.vdp_url as string}
                             target="_blank"
@@ -389,7 +390,7 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
                       {comp.state ?? comp.location?.state ?? '—'}
                     </td>
                     <td className="py-2 align-top">
-                      {comp.vdp_url ? (
+                      {isHttpUrl(comp.vdp_url) ? (
                         <a
                           href={comp.vdp_url as string}
                           className="text-blue-600 underline break-all"

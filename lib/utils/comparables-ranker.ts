@@ -24,20 +24,6 @@ import {
 
 export type RankSubject = ScoreSubject
 
-/** Score-descending order. Non-mutating. Kept for callers that want a bare
- * comparator over an already-prepared list (e.g. url-validator). */
-export function rankByBestMatch(
-  listings: MarketCheckComparable[],
-  subject: RankSubject,
-  predictedPrice?: number
-): MarketCheckComparable[] {
-  return [...listings].sort(
-    (a, b) =>
-      weightedRelevanceScore(b, subject, predictedPrice) -
-      weightedRelevanceScore(a, subject, predictedPrice)
-  )
-}
-
 interface StoredValuation {
   predictedPrice?: number
   recentComparables?: { listings?: MarketCheckComparable[] }
@@ -53,12 +39,22 @@ export function selectDisplayComparables(
 
   const predictedPrice = valuation?.predictedPrice
   const scoreSubject: ScoreSubject = { ...subject }
-  const score = (c: MarketCheckComparable) =>
-    weightedRelevanceScore(c, scoreSubject, predictedPrice)
+  // Score every comp exactly once — weightedRelevanceScore does a zipcodes
+  // distance lookup, and it is read from inside several sort comparators below.
+  const scoreByComp = new Map<MarketCheckComparable, number>(
+    all.map(c => [c, weightedRelevanceScore(c, scoreSubject, predictedPrice)])
+  )
+  const score = (c: MarketCheckComparable) => scoreByComp.get(c) ?? 0
 
   // 1. hard gates
   const gated = gateListings(all, subject, predictedPrice)
-  if (gated.length === 0) return []
+  if (gated.length === 0) {
+    console.warn('[selectDisplayComparables] all comps failed the hard gates', {
+      total: all.length,
+      predictedPrice,
+    })
+    return []
+  }
 
   // 2. link split
   const anyHasFlag = gated.some(c => Object.prototype.hasOwnProperty.call(c, 'url_validated'))
@@ -85,10 +81,23 @@ export function selectDisplayComparables(
     deadBudget === 0
       ? []
       : [...failedCheck]
-          .sort((a, b) => score(b) - score(a))
           .filter(c => score(c) >= DEAD_LINK_SCORE_FLOOR)
+          .sort((a, b) => score(b) - score(a))
           .slice(0, deadBudget)
 
   // 5. assemble
-  return [...poolForScoring, ...deadAllowance].sort((a, b) => score(b) - score(a)).slice(0, limit)
+  const assembled = [...poolForScoring, ...deadAllowance]
+    .sort((a, b) => score(b) - score(a))
+    .slice(0, limit)
+
+  if (assembled.length === 0) {
+    console.warn('[selectDisplayComparables] no comp survived link/score selection', {
+      gated: gated.length,
+      live: live.length,
+      failedCheck: failedCheck.length,
+    })
+    return []
+  }
+
+  return assembled
 }

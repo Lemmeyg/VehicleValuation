@@ -149,16 +149,18 @@ export async function POST(request: Request) {
         // Gate comps (model / price / mileage / ±40% band) BEFORE URL validation
         // so a disqualified comp is never HTTP-checked, and check the survivors
         // in weighted-relevance-score order.
+        const gatedListings = gateListings(
+          mcResult.data!.recentComparables?.listings ?? [],
+          { model: subjectVehicle.model },
+          mcResult.data!.predictedPrice
+        )
         const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
           {
             ...mcResult.data!,
             recentComparables: {
               ...mcResult.data!.recentComparables!,
-              listings: gateListings(
-                mcResult.data!.recentComparables?.listings ?? [],
-                { model: subjectVehicle.model },
-                mcResult.data!.predictedPrice
-              ),
+              listings: gatedListings,
+              num_found: gatedListings.length,
             },
           },
           {

@@ -4,8 +4,8 @@
  * After URL validation, if fewer than MIN_VALID (10) listings are confirmed valid,
  * this utility fires the MarketCheck search fallback in up to two paginated passes
  * (rows 0–49, then 50–99 if still < 10 valid), validates those listings in
- * best-match order (year, then distance, then price proximity, then mileage —
- * see comparables-ranker.ts), and merges the results into the prediction.
+ * weighted relevance score order (see comp-relevance-score.ts), and merges the
+ * results into the prediction.
  * Original listing flags are preserved; fallback listings are appended.
  * The full array is never truncated.
  *

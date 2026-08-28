@@ -310,9 +310,11 @@ Read-only surfacing; no schema change.
   the print page, and the PDF. Use the existing Eastern-time date formatter (PR #135).
 - **Per-comp link:** each displayed comp shows its `vdp_url` as a link. The web view already
   does; confirm and add for the print page and the PDF (`@react-pdf/renderer` `<Link>`).
-  A comp with no `vdp_url` at all shows plain text (only reachable on the `linkDataUnavailable`
-  fallback path). A ≥90 failed-check comp keeps its link rendered normally — the check has
-  false negatives and the link may well work.
+  A comp with no `vdp_url` at all is treated as link-valid by the URL validator
+  (`url_validated: true` — there is no link to disprove), so it can enter the `live` pool and
+  appear in the displayed set on any path; on the render surfaces its name is simply shown as
+  plain text rather than a link. A ≥90 failed-check comp keeps its link rendered normally — the
+  check has false negatives and the link may well work.
 
 ---
 

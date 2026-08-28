@@ -21,6 +21,7 @@ import {
 } from '@react-pdf/renderer'
 import { getListingsStats } from '@/lib/utils/listing-filters'
 import { selectDisplayComparables } from '@/lib/utils/comparables-ranker'
+import { isHttpUrl } from '@/lib/utils/is-http-url'
 import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { SUPPORT_EMAIL } from '@/lib/constants'
 import {
@@ -1186,7 +1187,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
                     )}
                   </View>
                   <View style={styles.colVehicle}>
-                    {comp.vdp_url ? (
+                    {isHttpUrl(comp.vdp_url) ? (
                       <Link
                         src={comp.vdp_url as string}
                         style={[styles.vehicleNameText, styles.compLink]}
@@ -1216,7 +1217,7 @@ export const VehicleReportPDF: React.FC<{ data: ReportData }> = ({ data }) => {
                     </Text>
                   </View>
                   <View style={styles.colDealer}>
-                    {comp.vdp_url && comp.dealer_name ? (
+                    {isHttpUrl(comp.vdp_url) && comp.dealer_name ? (
                       <Link src={comp.vdp_url as string} style={styles.dealerLinkStyle}>
                         {comp.dealer_name as string}
                       </Link>

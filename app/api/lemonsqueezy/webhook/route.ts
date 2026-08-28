@@ -404,16 +404,18 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
             // Gate comps (model / price / mileage / ±40% band) BEFORE URL
             // validation so a disqualified comp is never HTTP-checked, and
             // check the survivors in weighted-relevance-score order.
+            const gatedListings = gateListings(
+              marketcheckData.recentComparables?.listings ?? [],
+              { model: subjectVehicle?.model },
+              marketcheckData.predictedPrice
+            )
             const urlResult = await validateListingUrls(
               {
                 ...marketcheckData,
                 recentComparables: {
                   ...marketcheckData.recentComparables,
-                  listings: gateListings(
-                    marketcheckData.recentComparables?.listings ?? [],
-                    { model: subjectVehicle?.model },
-                    marketcheckData.predictedPrice
-                  ),
+                  listings: gatedListings,
+                  num_found: gatedListings.length,
                 },
               },
               {

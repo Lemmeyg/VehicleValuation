@@ -61,3 +61,48 @@ describe('gateListings', () => {
     expect(gateListings(listings, subject, 20000).map(l => l.vin)).toEqual(['OK1', 'OK2'])
   })
 })
+
+describe('C1 — token-overlap model gate + safety valve', () => {
+  it("keeps every comp when subject 'c-max energi' and comp 'c-max' share a token", () => {
+    const cmax = { model: 'c-max energi' }
+    const comps = [
+      makeListing({ vin: 'A', model: 'c-max' }),
+      makeListing({ vin: 'B', model: 'C-Max' }),
+    ]
+    expect(passesHardGates(comps[0], cmax, 20000)).toBe(true)
+    expect(gateListings(comps, cmax, 20000).map(l => l.vin)).toEqual(['A', 'B'])
+  })
+
+  it("drops every comp when subject 'Highlander' and comp 'Camry' share no token", () => {
+    const hl = { model: 'Highlander' }
+    expect(passesHardGates(makeListing({ model: 'Camry' }), hl, 20000)).toBe(false)
+    expect(passesHardGates(makeListing({ model: 'Sienna' }), hl, 20000)).toBe(false)
+  })
+
+  it('safety valve: a pure model-gate wipeout returns the non-model-gated comps and warns', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const hl = { model: 'Highlander' }
+    const comps = [
+      makeListing({ vin: 'X', model: 'Camry', price: 20000, miles: 90000 }),
+      makeListing({ vin: 'Y', model: 'Sienna', price: 21000, miles: 95000 }),
+    ]
+    expect(gateListings(comps, hl, 20000).map(l => l.vin)).toEqual(['X', 'Y'])
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[gateListings] model gate emptied the pool; keeping non-model-gated comps',
+      expect.objectContaining({ subjectModel: 'Highlander' })
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('safety valve does NOT rescue a wipeout with a non-model failure (price band) as well', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const hl = { model: 'Highlander' }
+    const comps = [
+      makeListing({ vin: 'X', model: 'Camry', price: 100000 }),
+      makeListing({ vin: 'Y', model: 'Sienna', price: 120000 }),
+    ]
+    expect(gateListings(comps, hl, 20000)).toEqual([])
+    expect(warnSpy).not.toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+})

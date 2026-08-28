@@ -109,16 +109,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // weighted-relevance-score order (the same score the display selector
       // ranks by) rather than freshness order, so the "find 10 live links"
       // search spends its budget on the best candidates to show.
+      const gatedListings = gateListings(
+        marketcheckResult.data.recentComparables?.listings ?? [],
+        { model: subjectVehicle?.model },
+        marketcheckResult.data.predictedPrice
+      )
       const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
         {
           ...marketcheckResult.data,
           recentComparables: {
             ...marketcheckResult.data.recentComparables!,
-            listings: gateListings(
-              marketcheckResult.data.recentComparables?.listings ?? [],
-              { model: subjectVehicle?.model },
-              marketcheckResult.data.predictedPrice
-            ),
+            listings: gatedListings,
+            num_found: gatedListings.length,
           },
         },
         subjectVehicle
