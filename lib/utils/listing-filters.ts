@@ -5,33 +5,33 @@
  * All listings are stored in the database - filtering happens on display.
  */
 
-import { MarketCheckComparable } from '@/lib/api/marketcheck-client'
+import type { MarketCheckComparable } from '@/lib/api/marketcheck-client'
 
 export type FilterStrategy =
-  | 'top_price'           // Top 10 by price (highest first)
-  | 'closest_price'       // Closest to predicted price
-  | 'closest_mileage'     // Closest to target mileage
-  | 'lowest_mileage'      // Lowest mileage first
-  | 'closest_distance'    // Closest geographic distance
-  | 'newest_listings'     // Most recently listed
-  | 'fastest_selling'     // Lowest days on market
-  | 'lowest_dos_active'   // Lowest DOS_Active (days on site active)
-  | 'dealer_type'         // Filter by dealer type (franchise/independent)
-  | 'price_range'         // Within specific price range
-  | 'mileage_range'       // Within specific mileage range
+  | 'top_price' // Top 10 by price (highest first)
+  | 'closest_price' // Closest to predicted price
+  | 'closest_mileage' // Closest to target mileage
+  | 'lowest_mileage' // Lowest mileage first
+  | 'closest_distance' // Closest geographic distance
+  | 'newest_listings' // Most recently listed
+  | 'fastest_selling' // Lowest days on market
+  | 'lowest_dos_active' // Lowest DOS_Active (days on site active)
+  | 'dealer_type' // Filter by dealer type (franchise/independent)
+  | 'price_range' // Within specific price range
+  | 'mileage_range' // Within specific mileage range
 
 export interface FilterOptions {
   strategy: FilterStrategy
   limit?: number // Default: 10
 
   // Strategy-specific options
-  targetPrice?: number     // For 'closest_price'
-  targetMileage?: number   // For 'closest_mileage'
+  targetPrice?: number // For 'closest_price'
+  targetMileage?: number // For 'closest_mileage'
   dealerType?: 'franchise' | 'independent' // For 'dealer_type'
-  minPrice?: number        // For 'price_range'
-  maxPrice?: number        // For 'price_range'
-  minMiles?: number        // For 'mileage_range'
-  maxMiles?: number        // For 'mileage_range'
+  minPrice?: number // For 'price_range'
+  maxPrice?: number // For 'price_range'
+  minMiles?: number // For 'mileage_range'
+  maxMiles?: number // For 'mileage_range'
 }
 
 /**
@@ -180,7 +180,7 @@ export function getClosestPriceListings(
   return filterListings(listings, {
     strategy: 'closest_price',
     targetPrice,
-    limit
+    limit,
   })
 }
 
@@ -195,7 +195,7 @@ export function getClosestMileageListings(
   return filterListings(listings, {
     strategy: 'closest_mileage',
     targetMileage,
-    limit
+    limit,
   })
 }
 
@@ -219,7 +219,7 @@ export function getFranchiseListings(
   return filterListings(listings, {
     strategy: 'dealer_type',
     dealerType: 'franchise',
-    limit
+    limit,
   })
 }
 
@@ -233,7 +233,7 @@ export function getIndependentListings(
   return filterListings(listings, {
     strategy: 'dealer_type',
     dealerType: 'independent',
-    limit
+    limit,
   })
 }
 
@@ -250,7 +250,7 @@ export function getListingsInPriceRange(
     strategy: 'price_range',
     minPrice,
     maxPrice,
-    limit
+    limit,
   })
 }
 

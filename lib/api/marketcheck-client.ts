@@ -341,15 +341,18 @@ export async function fetchMarketCheckSearchFallback(
     // The widening ladder (attempts 2–4) only runs when a body-style token was split off.
     if (bodyType) {
       // ── Attempt 2: drop body_type, keep year — only if attempt 1 came back thin ──
+      // A widening attempt that errors out (429/500/etc.) must NOT discard what
+      // attempt 1 already recovered — it falls through, leaving `best` untouched.
+      // Only attempt 1 surfaces its own error (nothing recovered yet at that point).
       if (best.numFound < MIN_VALID) {
         const a2 = await runSearch('2 (model + year, no body_type)', {
           useBodyType: false,
           useYear: true,
         })
-        if (!a2.ok) return a2.response
         // Keep the wider set — downstream ranking sorts by best match, so a
-        // relevant-where-possible table beats an empty one. Never regress to fewer.
-        if (a2.listings.length >= best.listings.length) best = a2
+        // relevant-where-possible table beats an empty one. On an exact tie in
+        // count, keep the body-typed set (more relevant): swap only on strictly more.
+        if (a2.ok && a2.listings.length > best.listings.length) best = a2
       }
 
       // ── Attempt 3: keep body_type, drop year — only if still nothing at all ─────
@@ -358,15 +361,13 @@ export async function fetchMarketCheckSearchFallback(
           useBodyType: true,
           useYear: false,
         })
-        if (!a3.ok) return a3.response
-        if (a3.listings.length > 0) best = a3
+        if (a3.ok && a3.listings.length > 0) best = a3
       }
 
       // ── Attempt 4: bare model, no body_type, no year — last resort ─────────────
       if (best.numFound === 0) {
         const a4 = await runSearch('4 (model only)', { useBodyType: false, useYear: false })
-        if (!a4.ok) return a4.response
-        if (a4.listings.length > 0) best = a4
+        if (a4.ok && a4.listings.length > 0) best = a4
       }
     }
 

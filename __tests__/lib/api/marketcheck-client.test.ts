@@ -393,6 +393,33 @@ describe('fetchMarketCheckSearchFallback — model + body_type split ladder', ()
     expect(result.success).toBe(true)
   })
 
+  it('keeps attempt 1 comps when a widening attempt (2) fails with a transient error', async () => {
+    mockFetch
+      .mockResolvedValueOnce(searchResp(6)) // attempt 1: model=Civic&body_type=Coupe -> 6 (thin, <10)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        text: async () => 'rate limited',
+      }) // attempt 2: transient 429 while widening
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2017,
+      'Honda',
+      'Civic Coupe',
+      VIN,
+      78000,
+      '14450'
+    )
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    // the transient error on the widening attempt must NOT discard attempt 1's comps
+    expect(result.success).toBe(true)
+    expect(result.data!.totalComparablesFound).toBe(6)
+    expect(result.data!.recentComparables!.listings.length).toBeGreaterThan(0)
+  })
+
   it('canonical multi-word model (Grand Highlander) sends NO body_type and makes exactly ONE attempt at >= 10', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,

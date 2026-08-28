@@ -571,118 +571,121 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
             </div>
 
             {/* Market Comparables */}
-            <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center">
-                  <div className="h-10 w-10 bg-blue-50 rounded-full flex items-center justify-center mr-3">
-                    <FileText className="h-5 w-5 text-blue-600" />
+            {displayedComparables.length > 0 && (
+              <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center">
+                    <div className="h-10 w-10 bg-blue-50 rounded-full flex items-center justify-center mr-3">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900">Market Comparables</h2>
                   </div>
-                  <h2 className="text-2xl font-bold text-slate-900">Market Comparables</h2>
+                  <div className="text-right">
+                    <div className="text-xs text-slate-500">
+                      Showing {displayedComparables.length} of {allListings.length} listings
+                    </div>
+                    <div className="text-xs text-slate-600 mt-1">
+                      Avg: {formatCurrency(listingsStats.avgPrice)} • Range:{' '}
+                      {formatCurrency(listingsStats.minPrice)} -{' '}
+                      {formatCurrency(listingsStats.maxPrice)}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-slate-500">
-                    Showing 10 most recent of {allListings.length} listings
-                  </div>
-                  <div className="text-xs text-slate-600 mt-1">
-                    Avg: {formatCurrency(listingsStats.avgPrice)} • Range:{' '}
-                    {formatCurrency(listingsStats.minPrice)} -{' '}
-                    {formatCurrency(listingsStats.maxPrice)}
-                  </div>
-                </div>
-              </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b-2 border-slate-200">
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                        Photo
-                      </th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                        Vehicle Details
-                      </th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                        Mileage
-                      </th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                        Market Price
-                      </th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                        Days on Market
-                      </th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                        Dealer
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                    {displayedComparables.map((comp: any, idx: number) => {
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="py-4 px-4">
-                            {comp.photo_url ? (
-                              <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-100">
-                                <Image
-                                  src={comp.photo_url as string}
-                                  alt={`${comp.year} ${comp.make} ${comp.model}`}
-                                  fill
-                                  className="object-cover"
-                                  sizes="96px"
-                                  unoptimized
-                                />
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b-2 border-slate-200">
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                          Photo
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                          Vehicle Details
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                          Mileage
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                          Market Price
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                          Days on Market
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                          Dealer
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      {displayedComparables.map((comp: any, idx: number) => {
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="py-4 px-4">
+                              {comp.photo_url ? (
+                                <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-100">
+                                  <Image
+                                    src={comp.photo_url as string}
+                                    alt={`${comp.year} ${comp.make} ${comp.model}`}
+                                    fill
+                                    className="object-cover"
+                                    sizes="96px"
+                                    unoptimized
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-24 h-16 rounded-lg bg-slate-100 flex items-center justify-center">
+                                  <Car className="h-8 w-8 text-slate-400" />
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="font-semibold text-slate-900">
+                                {comp.year} {comp.make} {comp.model}
                               </div>
-                            ) : (
-                              <div className="w-24 h-16 rounded-lg bg-slate-100 flex items-center justify-center">
-                                <Car className="h-8 w-8 text-slate-400" />
+                              <div className="text-sm text-slate-500">{comp.trim}</div>
+                            </td>
+                            <td className="py-4 px-4 text-sm text-slate-700">
+                              {((comp.miles || comp.mileage) as number)?.toLocaleString() || 'N/A'}{' '}
+                              mi
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="text-base font-bold text-emerald-600">
+                                {formatCurrency(comp.price as number)}
                               </div>
-                            )}
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="font-semibold text-slate-900">
-                              {comp.year} {comp.make} {comp.model}
-                            </div>
-                            <div className="text-sm text-slate-500">{comp.trim}</div>
-                          </td>
-                          <td className="py-4 px-4 text-sm text-slate-700">
-                            {((comp.miles || comp.mileage) as number)?.toLocaleString() || 'N/A'} mi
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="text-base font-bold text-emerald-600">
-                              {formatCurrency(comp.price as number)}
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 text-sm text-slate-700">
-                            {
-                              (comp.dos_active ||
-                                comp.dom_180 ||
-                                comp.dom ||
-                                'N/A') as React.ReactNode
-                            }
-                          </td>
-                          <td className="py-4 px-4">
-                            {comp.vdp_url && comp.dealer_name ? (
-                              <a
-                                href={comp.vdp_url as string}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                              >
-                                {comp.dealer_name as React.ReactNode}
-                              </a>
-                            ) : (
-                              <span className="text-slate-700">
-                                {(comp.dealer_name || 'N/A') as React.ReactNode}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                            </td>
+                            <td className="py-4 px-4 text-sm text-slate-700">
+                              {
+                                (comp.dos_active ||
+                                  comp.dom_180 ||
+                                  comp.dom ||
+                                  'N/A') as React.ReactNode
+                              }
+                            </td>
+                            <td className="py-4 px-4">
+                              {comp.vdp_url && comp.dealer_name ? (
+                                <a
+                                  href={comp.vdp_url as string}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                >
+                                  {comp.dealer_name as React.ReactNode}
+                                </a>
+                              ) : (
+                                <span className="text-slate-700">
+                                  {(comp.dealer_name || 'N/A') as React.ReactNode}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Additional Valuation Considerations */}
             <div className="bg-slate-50 rounded-lg border border-slate-200 p-8">
