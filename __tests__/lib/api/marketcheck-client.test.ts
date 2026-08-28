@@ -239,6 +239,207 @@ describe('fetchMarketCheckData - search fallback', () => {
   })
 })
 
+describe('fetchMarketCheckSearchFallback — model + body_type split ladder', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  const VIN = '2HGFC4B03HH000000'
+
+  // helper: a search response with `n` synthetic priced listings
+  const searchResp = (numFound: number, n: number = numFound) => ({
+    ok: true,
+    json: async () => ({
+      num_found: numFound,
+      listings: Array.from({ length: n }, (_, i) => ({
+        id: `L${i}`,
+        vin: `LADDERVIN${String(i).padStart(7, '0')}`,
+        price: 15000 + i * 10,
+        miles: 60000,
+        seller_type: 'franchise',
+        build: { year: 2017, make: 'Honda', model: 'Civic' },
+        dealer_address: { city: 'Rochester', state: 'NY', zip: '14450' },
+        vdp_url: `https://dealer.com/inventory/L${i}`,
+        first_seen_at_date: '2025-01-01',
+      })),
+    }),
+  })
+
+  const paramsOf = (callIdx: number) =>
+    new URL(mockFetch.mock.calls[callIdx][0] as string).searchParams
+
+  it('attempt 1 sends model=Civic & body_type=Coupe & year, and STOPS when it returns >= 10', async () => {
+    mockFetch.mockResolvedValueOnce(searchResp(12))
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2017,
+      'Honda',
+      'Civic Coupe',
+      VIN,
+      78000,
+      '14450'
+    )
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const p = paramsOf(0)
+    expect(p.get('model')).toBe('Civic')
+    expect(p.get('body_type')).toBe('Coupe')
+    expect(p.get('year')).toBe('2017')
+    expect(result.success).toBe(true)
+  })
+
+  it('widens to attempt 2 (bare model, keep year) when attempt 1 is thin (<10) and returns the wider set', async () => {
+    mockFetch
+      .mockResolvedValueOnce(searchResp(4)) // attempt 1: model=Civic&body_type=Coupe -> 4
+      .mockResolvedValueOnce(searchResp(90)) // attempt 2: model=Civic (no body_type) -> 90
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2017,
+      'Honda',
+      'Civic Coupe',
+      VIN,
+      78000,
+      '14450'
+    )
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+
+    const p1 = paramsOf(0)
+    expect(p1.get('model')).toBe('Civic')
+    expect(p1.get('body_type')).toBe('Coupe')
+    expect(p1.get('year')).toBe('2017')
+
+    const p2 = paramsOf(1)
+    expect(p2.get('model')).toBe('Civic')
+    expect(p2.has('body_type')).toBe(false)
+    expect(p2.get('year')).toBe('2017')
+
+    // returned the wider (attempt 2) set
+    expect(result.success).toBe(true)
+    expect(result.data!.totalComparablesFound).toBe(90)
+  })
+
+  it('drops year at attempt 3, then body_type+year at attempt 4, when every attempt returns 0', async () => {
+    mockFetch
+      .mockResolvedValueOnce(searchResp(0, 0)) // attempt 1
+      .mockResolvedValueOnce(searchResp(0, 0)) // attempt 2
+      .mockResolvedValueOnce(searchResp(0, 0)) // attempt 3
+      .mockResolvedValueOnce(searchResp(0, 0)) // attempt 4
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2017,
+      'Honda',
+      'Civic Coupe',
+      VIN,
+      78000,
+      '14450'
+    )
+
+    expect(mockFetch).toHaveBeenCalledTimes(4)
+
+    // attempt 1: model + body_type + year
+    expect(paramsOf(0).get('model')).toBe('Civic')
+    expect(paramsOf(0).get('body_type')).toBe('Coupe')
+    expect(paramsOf(0).get('year')).toBe('2017')
+
+    // attempt 2: model + year, no body_type
+    expect(paramsOf(1).get('model')).toBe('Civic')
+    expect(paramsOf(1).has('body_type')).toBe(false)
+    expect(paramsOf(1).get('year')).toBe('2017')
+
+    // attempt 3: model + body_type, no year
+    expect(paramsOf(2).get('model')).toBe('Civic')
+    expect(paramsOf(2).get('body_type')).toBe('Coupe')
+    expect(paramsOf(2).has('year')).toBe(false)
+
+    // attempt 4: bare model, no body_type, no year
+    expect(paramsOf(3).get('model')).toBe('Civic')
+    expect(paramsOf(3).has('body_type')).toBe(false)
+    expect(paramsOf(3).has('year')).toBe(false)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('stops at attempt 3 when it recovers listings (no attempt 4)', async () => {
+    mockFetch
+      .mockResolvedValueOnce(searchResp(0, 0)) // attempt 1
+      .mockResolvedValueOnce(searchResp(0, 0)) // attempt 2
+      .mockResolvedValueOnce(searchResp(6)) // attempt 3 recovers 6
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2017,
+      'Honda',
+      'Civic Coupe',
+      VIN,
+      78000,
+      '14450'
+    )
+
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+    expect(paramsOf(2).get('body_type')).toBe('Coupe')
+    expect(paramsOf(2).has('year')).toBe(false)
+    expect(result.success).toBe(true)
+  })
+
+  it('canonical multi-word model (Grand Highlander) sends NO body_type and makes exactly ONE attempt at >= 10', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: 15,
+        listings: Array.from({ length: 15 }, (_, i) => ({
+          id: `G${i}`,
+          vin: `GHVIN${String(i).padStart(11, '0')}`,
+          price: 40000,
+          miles: 20000,
+          seller_type: 'franchise',
+          build: { year: 2020, make: 'Toyota', model: 'Grand Highlander' },
+          dealer_address: { city: 'Reno', state: 'NV', zip: '89503' },
+          vdp_url: `https://dealer.com/inventory/G${i}`,
+          first_seen_at_date: '2025-01-01',
+        })),
+      }),
+    })
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Toyota',
+      'Grand Highlander',
+      VIN,
+      20000,
+      '89503'
+    )
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const p = paramsOf(0)
+    expect(p.get('model')).toBe('Grand Highlander')
+    expect(p.has('body_type')).toBe(false)
+    expect(p.get('year')).toBe('2020')
+    expect(result.success).toBe(true)
+  })
+
+  it('canonical model that returns 0 still makes exactly ONE attempt (no widening without a body_type split)', async () => {
+    mockFetch.mockResolvedValueOnce(searchResp(0, 0))
+
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Toyota',
+      'Grand Highlander',
+      VIN,
+      20000,
+      '89503'
+    )
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(result.success).toBe(false)
+  })
+})
+
 describe('fetchMarketCheckSearchFallback — API params', () => {
   beforeEach(() => {
     mockFetch.mockReset()

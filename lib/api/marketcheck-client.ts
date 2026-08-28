@@ -17,6 +17,7 @@
 
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
 import { computeDistanceMiles, DISTANCE_TIER_MILES } from '@/lib/utils/geo-distance'
+import { splitModelAndBodyType } from '@/lib/utils/vehicle-model'
 
 // Retry configuration interface
 interface RetryConfig {
@@ -186,19 +187,47 @@ export async function fetchMarketCheckSearchFallback(
   // zip is omitted — passing zip without radius returns 0 results (API treats it as 0-mile
   // radius). The search endpoint also never returns a distance field, so geo-sorting is
   // not possible here; year-closeness sort is applied post-fetch instead.
-  // NOTE: year IS passed — without it the API returns new-inventory (2026+) exclusively,
-  // which is all 0-mile stock that the year-filter and usedOnly-filter then drop entirely.
-  const url = new URL('https://api.marketcheck.com/v2/search/car/active')
-  url.searchParams.append('api_key', apiKey)
-  url.searchParams.append('make', make)
-  url.searchParams.append('model', model)
-  url.searchParams.append('year', year.toString())
-  url.searchParams.append('rows', '50')
-  url.searchParams.append('start', start.toString())
+  // NOTE: year IS passed on attempt 1 — without it the API returns new-inventory (2026+)
+  // exclusively, which is all 0-mile stock that the year-filter and usedOnly-filter then
+  // drop entirely. year is only dropped as a last-resort widening step (attempts 3–4).
+  //
+  // The auto.dev VIN decoder glues the body style onto the model string ("Civic Coupe"),
+  // but MarketCheck's for-sale index keys on the canonical model ("Civic") with the body
+  // style in a separate `body_type` filter — a literal `model=Civic Coupe` search returns
+  // zero. Split the trailing body-style token off and re-send it as `body_type` so the
+  // recovered comps are the right body style (a coupe valued against coupes, not sedans).
+  // If that body-typed search is too thin we progressively widen. When the model is already
+  // canonical (Grand Highlander, F-150, XC90…) nothing is split and attempt 1 is the only
+  // call, with its original empty-result behaviour unchanged.
+  const MIN_VALID = 10
+  const { model: baseModel, bodyType } = splitModelAndBodyType(model)
 
-  console.log('[MarketCheck Fallback] Trying search endpoint', { make, model, year, start })
+  type SearchOutcome =
+    | { ok: true; numFound: number; listings: unknown[] }
+    | { ok: false; response: MarketCheckResponse }
 
-  try {
+  const runSearch = async (
+    label: string,
+    opts: { useBodyType: boolean; useYear: boolean }
+  ): Promise<SearchOutcome> => {
+    const url = new URL('https://api.marketcheck.com/v2/search/car/active')
+    url.searchParams.append('api_key', apiKey)
+    url.searchParams.append('make', make)
+    url.searchParams.append('model', baseModel)
+    if (opts.useBodyType && bodyType) url.searchParams.append('body_type', bodyType)
+    if (opts.useYear) url.searchParams.append('year', year.toString())
+    url.searchParams.append('rows', '50')
+    url.searchParams.append('start', start.toString())
+
+    console.log('[MarketCheck Fallback] Trying search endpoint', {
+      attempt: label,
+      make,
+      model: baseModel,
+      body_type: opts.useBodyType && bodyType ? bodyType : undefined,
+      year: opts.useYear ? year : undefined,
+      start,
+    })
+
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json', 'User-Agent': 'VehicleValuationSaaS/1.0' },
@@ -208,24 +237,76 @@ export async function fetchMarketCheckSearchFallback(
     if (!response.ok) {
       const errorText = await response.text()
       console.error('[MarketCheck Fallback] Search failed', {
+        attempt: label,
         status: response.status,
         body: errorText,
       })
       return {
-        success: false,
-        error: `MarketCheck search fallback failed: ${response.status} ${response.statusText}`,
-        statusCode: response.status,
+        ok: false,
+        response: {
+          success: false,
+          error: `MarketCheck search fallback failed: ${response.status} ${response.statusText}`,
+          statusCode: response.status,
+        },
       }
     }
 
     const data = (await response.json()) as { num_found: number; listings: unknown[] }
-    const listings = data.listings || []
-    const numFound = data.num_found
+    const listingsOut = data.listings || []
+    const numFoundOut = typeof data.num_found === 'number' ? data.num_found : listingsOut.length
 
     console.log('[MarketCheck Fallback] Search succeeded', {
-      num_found: numFound,
-      returned: listings.length,
+      attempt: label,
+      num_found: numFoundOut,
+      returned: listingsOut.length,
     })
+
+    return { ok: true, numFound: numFoundOut, listings: listingsOut }
+  }
+
+  try {
+    // ── Attempt 1: canonical model + body_type (if split) + year ──────────────────
+    const a1 = await runSearch('1 (model + body_type + year)', {
+      useBodyType: true,
+      useYear: true,
+    })
+    if (!a1.ok) return a1.response
+    let best: { numFound: number; listings: unknown[] } = a1
+
+    // The widening ladder (attempts 2–4) only runs when a body-style token was split off.
+    if (bodyType) {
+      // ── Attempt 2: drop body_type, keep year — only if attempt 1 came back thin ──
+      if (best.numFound < MIN_VALID) {
+        const a2 = await runSearch('2 (model + year, no body_type)', {
+          useBodyType: false,
+          useYear: true,
+        })
+        if (!a2.ok) return a2.response
+        // Keep the wider set — downstream ranking sorts by best match, so a
+        // relevant-where-possible table beats an empty one. Never regress to fewer.
+        if (a2.listings.length >= best.listings.length) best = a2
+      }
+
+      // ── Attempt 3: keep body_type, drop year — only if still nothing at all ─────
+      if (best.numFound === 0) {
+        const a3 = await runSearch('3 (model + body_type, no year)', {
+          useBodyType: true,
+          useYear: false,
+        })
+        if (!a3.ok) return a3.response
+        if (a3.listings.length > 0) best = a3
+      }
+
+      // ── Attempt 4: bare model, no body_type, no year — last resort ─────────────
+      if (best.numFound === 0) {
+        const a4 = await runSearch('4 (model only)', { useBodyType: false, useYear: false })
+        if (!a4.ok) return a4.response
+        if (a4.listings.length > 0) best = a4
+      }
+    }
+
+    const listings = best.listings
+    const numFound = best.numFound
 
     if (listings.length === 0) {
       return {
