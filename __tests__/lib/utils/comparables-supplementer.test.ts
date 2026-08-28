@@ -439,12 +439,14 @@ describe('supplementComparables — merge logic', () => {
 // ─── Sort order and pagination ─────────────────────────────────────────────────
 
 describe('supplementComparables — sort order and pagination', () => {
-  it('processes listings by best match first: year, then location, then mileage', async () => {
+  it('processes listings by weighted best match first (mileage-dominant), not old tier order', async () => {
     // Subject: 2020 Honda Civic, 30000 miles, ZIP 90210 (CA).
-    // L_X: year=2020 (diff=0), CA (same state, tier 0), miles=30000 (diff=0)     — best match
-    // L_Y: year=2020 (diff=0), TX (non-bordering, tier 2), miles=35000 (diff=5000)
-    // L_Z: year=2018 (diff=2), NY (non-bordering, tier 2), miles=30500 (diff=500) — year differs, ranks last
-    // Expected sort: L_X → L_Y → L_Z
+    // Weighted score (mileage 0.35 >> year 0.05): closeness of odometer beats a
+    // small model-year gap.
+    // L_X: year=2020, ZIP 90210 (0 mi), miles=30000 (exact)      — best match, clearly first
+    // L_Z: year=2018, far ZIP, miles=30500 (near-exact odometer) — mileage edge wins 2nd
+    // L_Y: year=2020, far ZIP, miles=35000 (+5000)               — worst odometer match, last
+    // Expected sort: L_X → L_Z → L_Y
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -486,10 +488,10 @@ describe('supplementComparables — sort order and pagination', () => {
         ],
       }),
     })
-    // HEAD requests consumed in best-match order: L_X, L_Y, L_Z
+    // HEAD requests consumed in best-match order: L_X, L_Z, L_Y
     mockHeadOk('https://dealer.com/listing/L_X')
-    mockHeadOk('https://dealer.com/listing/L_Y')
     mockHeadOk('https://dealer.com/listing/L_Z')
+    mockHeadOk('https://dealer.com/listing/L_Y')
     // Pass 2: validCount(0) + 3 = 3 < 10, so pass 2 fires → return empty
     ;(global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
@@ -508,13 +510,13 @@ describe('supplementComparables — sort order and pagination', () => {
 
     const calls = (global.fetch as jest.Mock).mock.calls
     // calls[0]: search API (page 1)
-    // calls[1]: HEAD for L_X (year=2020, same state as subject, exact mileage match) — best match
-    // calls[2]: HEAD for L_Y (year=2020, non-bordering state)
-    // calls[3]: HEAD for L_Z (year=2018 — year differs from subject, ranks last regardless of location/mileage)
+    // calls[1]: HEAD for L_X (exact year, ZIP and mileage) — best match
+    // calls[2]: HEAD for L_Z (near-exact odometer; mileage weight beats the 2-year gap)
+    // calls[3]: HEAD for L_Y (worst odometer match)
     // calls[4]: search API (page 2)
     expect(calls[1][0]).toBe('https://dealer.com/listing/L_X')
-    expect(calls[2][0]).toBe('https://dealer.com/listing/L_Y')
-    expect(calls[3][0]).toBe('https://dealer.com/listing/L_Z')
+    expect(calls[2][0]).toBe('https://dealer.com/listing/L_Z')
+    expect(calls[3][0]).toBe('https://dealer.com/listing/L_Y')
   })
 
   it('does NOT make a second API call when pass 1 finds >= 10 valid listings', async () => {

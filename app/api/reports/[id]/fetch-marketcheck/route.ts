@@ -112,12 +112,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         subjectVehicle
           ? {
               sortFn: l =>
-                rankByBestMatch(l, {
-                  year: subjectVehicle.year,
-                  mileage,
-                  zip: zip_code,
-                  predictedPrice: marketcheckResult.data!.predictedPrice,
-                }),
+                rankByBestMatch(
+                  l,
+                  { year: subjectVehicle.year, mileage, zip: zip_code },
+                  marketcheckResult.data!.predictedPrice
+                ),
             }
           : undefined
       )

@@ -98,7 +98,7 @@ async function fetchAndValidatePage(
   }
 
   const { prediction: validated } = await validateListingUrls(predictionForValidation, {
-    sortFn: l => rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip, predictedPrice }),
+    sortFn: l => rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip }, predictedPrice),
   })
 
   return validated.recentComparables?.listings ?? null
