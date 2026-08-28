@@ -20,6 +20,7 @@ import {
 import { validateListingUrls } from './url-validator'
 import { gateListings } from './comp-gates'
 import { makeScoreSortFn } from './comp-relevance-score'
+import { logSupplementOutcome } from '@/lib/api/api-call-logger'
 
 const MIN_VALID = 10
 
@@ -46,7 +47,8 @@ export async function supplementWithAlternateDealerType(
   zip: string,
   primaryDealerType: 'franchise' | 'independent',
   subjectVehicle?: { year?: number; make?: string; model?: string; trim?: string },
-  isCertified: boolean = false
+  isCertified: boolean = false,
+  reportId?: string
 ): Promise<DealerTypeSupplementResult> {
   const unchanged: DealerTypeSupplementResult = {
     prediction,
@@ -55,8 +57,32 @@ export async function supplementWithAlternateDealerType(
     additionalFailedUrls: [],
     additionalFailedCount: 0,
   }
+  const originalCount = prediction.recentComparables?.listings?.length ?? 0
 
-  if (validatedCount >= MIN_VALID) return unchanged
+  // Durable exit-reason breadcrumb — one row per invocation, whichever path is taken.
+  // Fire-and-forget: an observability write must never break report creation, so
+  // swallow every outcome (sync throw, rejected promise, or a mocked non-promise).
+  const logOutcome = (exitReason: string, listingsOut: number, supplemented: boolean) => {
+    try {
+      void Promise.resolve(
+        logSupplementOutcome({
+          fn: 'supplementWithAlternateDealerType',
+          reportId,
+          exitReason,
+          validCountIn: validatedCount,
+          listingsOut,
+          supplemented,
+        })
+      ).catch(() => {})
+    } catch {
+      /* observability only — never rethrow */
+    }
+  }
+
+  if (validatedCount >= MIN_VALID) {
+    logOutcome('validatedCount_ge_min', originalCount, false)
+    return unchanged
+  }
 
   const alternateDealerType = primaryDealerType === 'franchise' ? 'independent' : 'franchise'
 
@@ -69,7 +95,10 @@ export async function supplementWithAlternateDealerType(
     subjectVehicle,
     alternateDealerType
   )
-  if (!altResult.success || !altResult.data) return unchanged
+  if (!altResult.success || !altResult.data) {
+    logOutcome('altSearch_failed', originalCount, false)
+    return unchanged
+  }
 
   const existingVins = new Set(
     (prediction.recentComparables?.listings ?? []).map(l => l.vin).filter((v): v is string => !!v)
@@ -77,15 +106,21 @@ export async function supplementWithAlternateDealerType(
   const newListings = (altResult.data.recentComparables?.listings ?? []).filter(
     (l): l is MarketCheckComparable => !!l.vin && !existingVins.has(l.vin)
   )
-  if (newListings.length === 0) return unchanged
+  if (newListings.length === 0) {
+    logOutcome('no_new_vins', originalCount, false)
+    return unchanged
+  }
 
-  // Hard gates (model / price / mileage / ±40% band) BEFORE URL validation so a
+  // Hard gates (price / mileage / ±40% band) BEFORE URL validation so a
   // disqualified comp is never HTTP-checked; check survivors in weighted-score order.
   const gatedNewListings = gateListings(newListings, prediction.predictedPrice)
   // A fully-gated alternate batch contributes nothing — return unchanged rather
   // than report supplemented:true with a totalComparablesFound bump and zero
   // merged listings (mirrors the newListings.length === 0 guard above).
-  if (gatedNewListings.length === 0) return unchanged
+  if (gatedNewListings.length === 0) {
+    logOutcome('post_gate_empty', originalCount, false)
+    return unchanged
+  }
 
   const { prediction: validatedAlt, stats: altStats } = await validateListingUrls(
     {
@@ -114,6 +149,8 @@ export async function supplementWithAlternateDealerType(
     ...(prediction.recentComparables?.listings ?? []),
     ...(validatedAlt.recentComparables?.listings ?? newListings),
   ]
+
+  logOutcome('supplemented', mergedListings.length, true)
 
   return {
     prediction: {

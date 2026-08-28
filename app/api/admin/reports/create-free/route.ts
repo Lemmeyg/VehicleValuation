@@ -184,7 +184,9 @@ export async function POST(request: Request) {
           mileage,
           zipCode,
           MARKETCHECK_PRIMARY_DEALER_TYPE,
-          subjectVehicle
+          subjectVehicle,
+          false,
+          report.id
         )
         urlValidationFailedCount = urlStats.failedCount + dealerTypeResult.additionalFailedCount
         urlValidationFailedUrls = [...urlStats.failedUrls, ...dealerTypeResult.additionalFailedUrls]
@@ -201,7 +203,8 @@ export async function POST(request: Request) {
           vin,
           mileage,
           zipCode,
-          mcResult.data!.predictedPrice
+          mcResult.data!.predictedPrice,
+          report.id
         )
         marketcheckValuation = supplementResult.prediction
         comparablesSupplemented = supplementResult.supplemented

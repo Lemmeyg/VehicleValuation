@@ -18,6 +18,7 @@
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
 import { computeDistanceMiles, DISTANCE_TIER_MILES } from '@/lib/utils/geo-distance'
 import { splitModelAndBodyType } from '@/lib/utils/vehicle-model'
+import { logApiCall } from '@/lib/api/api-call-logger'
 
 // Retry configuration interface
 interface RetryConfig {
@@ -47,6 +48,20 @@ function sleep(ms: number): Promise<void> {
 function calculateBackoffDelay(attempt: number, config: RetryConfig): number {
   const delay = config.initialDelayMs * Math.pow(config.backoffMultiplier, attempt - 1)
   return Math.min(delay, config.maxDelayMs)
+}
+
+/**
+ * Fire-and-forget observability write for one fallback-search attempt.
+ * An `api_call_logs` write must never break report creation, so this swallows
+ * every outcome — a synchronous throw, a rejected promise, or a mocked
+ * `logApiCall` that returns a non-promise.
+ */
+function logSearchAttempt(params: Parameters<typeof logApiCall>[0]): void {
+  try {
+    void Promise.resolve(logApiCall(params)).catch(() => {})
+  } catch {
+    /* observability only — never rethrow */
+  }
 }
 
 // Premium API Statistical Data Interfaces
@@ -182,7 +197,8 @@ export async function fetchMarketCheckSearchFallback(
   vin: string,
   miles: number,
   zip: string,
-  start: number = 0
+  start: number = 0,
+  reportId?: string
 ): Promise<MarketCheckResponse> {
   // zip is omitted — passing zip without radius returns 0 results (API treats it as 0-mile
   // radius). The search endpoint also never returns a distance field, so geo-sorting is
@@ -210,6 +226,20 @@ export async function fetchMarketCheckSearchFallback(
     label: string,
     opts: { useBodyType: boolean; useYear: boolean }
   ): Promise<SearchOutcome> => {
+    const startedAt = Date.now()
+    // Every attempt (1–4) is logged here, once, so api_call_logs records the exact
+    // params + outcome of each rung of the widening ladder. Fire-and-forget — an
+    // observability write must never break report creation.
+    const attemptRequestData = {
+      attempt: label,
+      make,
+      model: baseModel,
+      body_type: opts.useBodyType && bodyType ? bodyType : undefined,
+      year: opts.useYear ? year : undefined,
+      start,
+      rows: 50,
+    }
+
     const url = new URL('https://api.marketcheck.com/v2/search/car/active')
     url.searchParams.append('api_key', apiKey)
     url.searchParams.append('make', make)
@@ -241,11 +271,23 @@ export async function fetchMarketCheckSearchFallback(
         status: response.status,
         body: errorText,
       })
+      const errorMessage = `MarketCheck search fallback failed: ${response.status} ${response.statusText}`
+      logSearchAttempt({
+        reportId,
+        provider: 'marketcheck',
+        endpoint: '/v2/search/car/active',
+        success: false,
+        responseTimeMs: Date.now() - startedAt,
+        cost: 0,
+        requestData: attemptRequestData,
+        responseData: { num_found: 0, returned: 0, status: response.status },
+        errorMessage,
+      })
       return {
         ok: false,
         response: {
           success: false,
-          error: `MarketCheck search fallback failed: ${response.status} ${response.statusText}`,
+          error: errorMessage,
           statusCode: response.status,
         },
       }
@@ -259,6 +301,17 @@ export async function fetchMarketCheckSearchFallback(
       attempt: label,
       num_found: numFoundOut,
       returned: listingsOut.length,
+    })
+
+    logSearchAttempt({
+      reportId,
+      provider: 'marketcheck',
+      endpoint: '/v2/search/car/active',
+      success: numFoundOut > 0,
+      responseTimeMs: Date.now() - startedAt,
+      cost: 0,
+      requestData: attemptRequestData,
+      responseData: { num_found: numFoundOut, returned: listingsOut.length },
     })
 
     return { ok: true, numFound: numFoundOut, listings: listingsOut }

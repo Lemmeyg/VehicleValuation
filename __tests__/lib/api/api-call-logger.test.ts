@@ -1,4 +1,4 @@
-import { logApiCall } from '@/lib/api/api-call-logger'
+import { logApiCall, logSupplementOutcome } from '@/lib/api/api-call-logger'
 import { supabaseAdmin } from '@/lib/db/supabase'
 
 // Mock supabaseAdmin — factory must not reference outer variables (hoisting)
@@ -98,6 +98,60 @@ describe('logApiCall', () => {
         success: true,
         responseTimeMs: 100,
         cost: 0.0,
+      })
+    ).resolves.toBeUndefined()
+
+    consoleSpy.mockRestore()
+  })
+})
+
+describe('logSupplementOutcome', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockFrom.mockReturnValue({ insert: mockInsert })
+    mockInsert.mockResolvedValue({ data: null, error: null })
+  })
+
+  it('writes an api_call_logs row with provider "internal", endpoint "supplement:outcome" and the outcome object', async () => {
+    await logSupplementOutcome({
+      fn: 'supplementComparables',
+      reportId: 'report-777',
+      exitReason: 'post_filter_empty',
+      validCountIn: 3,
+      listingsOut: 0,
+      supplemented: false,
+    })
+
+    expect(mockFrom).toHaveBeenCalledWith('api_call_logs')
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        report_id: 'report-777',
+        api_provider: 'internal',
+        endpoint: 'supplement:outcome',
+        success: false,
+        cost: 0,
+        response_data: {
+          fn: 'supplementComparables',
+          exitReason: 'post_filter_empty',
+          validCountIn: 3,
+          listingsOut: 0,
+          supplemented: false,
+        },
+      })
+    )
+  })
+
+  it('defaults report_id to "unset" when reportId is omitted and never throws', async () => {
+    mockInsert.mockRejectedValue(new Error('db down'))
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(
+      logSupplementOutcome({
+        fn: 'supplementWithAlternateDealerType',
+        exitReason: 'supplemented',
+        validCountIn: 2,
+        listingsOut: 12,
+        supplemented: true,
       })
     ).resolves.toBeUndefined()
 

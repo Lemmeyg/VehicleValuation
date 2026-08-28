@@ -3,8 +3,15 @@
  */
 
 jest.mock('@/lib/utils/comparables-cleaner', () => ({
-  cleanAndFilterComparables: jest.fn((listings) => listings),
+  cleanAndFilterComparables: jest.fn(listings => listings),
   MAX_DEALER_LISTINGS: 3,
+}))
+
+// marketcheck-client now imports the api-call-logger (for fallback-search observability),
+// which pulls in the Supabase client at module load. Stub it so this suite stays isolated.
+jest.mock('@/lib/api/api-call-logger', () => ({
+  logApiCall: jest.fn().mockResolvedValue(undefined),
+  logSupplementOutcome: jest.fn().mockResolvedValue(undefined),
 }))
 
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
@@ -70,14 +77,11 @@ afterEach(() => {
 })
 
 it('calls cleanAndFilterComparables with the mapped listings and subject year', async () => {
-  await fetchMarketCheckData(
-    VALID_VIN,
-    88650,
-    VALID_ZIP,
-    false,
-    undefined,
-    { year: 2020, make: 'Mazda', model: 'CX-5' }
-  )
+  await fetchMarketCheckData(VALID_VIN, 88650, VALID_ZIP, false, undefined, {
+    year: 2020,
+    make: 'Mazda',
+    model: 'CX-5',
+  })
 
   expect(mockClean).toHaveBeenCalledTimes(1)
   const [passedListings, passedYear] = mockClean.mock.calls[0]

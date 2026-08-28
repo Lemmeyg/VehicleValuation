@@ -148,7 +148,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         mileage,
         zip_code,
         PRIMARY_DEALER_TYPE,
-        subjectVehicle
+        subjectVehicle,
+        false,
+        reportId
       )
       const mergedUrlStats = {
         validatedUrls: [...urlStats.validatedUrls, ...dealerTypeResult.additionalValidatedUrls],
@@ -163,7 +165,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         vin,
         mileage,
         zip_code,
-        marketcheckResult.data!.predictedPrice
+        marketcheckResult.data!.predictedPrice,
+        reportId
       )
       const finalPrediction = supplementResult.prediction
 

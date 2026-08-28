@@ -7,8 +7,16 @@
 
 process.env.MARKETCHECK_API_KEY = 'test-key'
 
+jest.mock('@/lib/api/api-call-logger', () => ({
+  logApiCall: jest.fn().mockResolvedValue(undefined),
+  logSupplementOutcome: jest.fn().mockResolvedValue(undefined),
+}))
+
 import { supplementWithAlternateDealerType } from '@/lib/utils/dealer-type-supplementer'
+import { logSupplementOutcome } from '@/lib/api/api-call-logger'
 import type { MarketCheckPrediction } from '@/lib/api/marketcheck-client'
+
+const mockLogSupplementOutcome = logSupplementOutcome as jest.Mock
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -208,6 +216,59 @@ describe('supplementWithAlternateDealerType — firing the second call', () => {
     )
 
     expect(result.supplemented).toBe(false)
+  })
+
+  it('logs exitReason "validatedCount_ge_min" on the early return', async () => {
+    mockLogSupplementOutcome.mockClear()
+    const prediction = makePrediction([])
+    await supplementWithAlternateDealerType(
+      prediction,
+      10,
+      'TESTVIN0000000001',
+      30000,
+      '90210',
+      'franchise',
+      subjectVehicle,
+      false,
+      'report-dt'
+    )
+    expect(mockLogSupplementOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fn: 'supplementWithAlternateDealerType',
+        exitReason: 'validatedCount_ge_min',
+        reportId: 'report-dt',
+        supplemented: false,
+      })
+    )
+  })
+
+  it('logs exitReason "supplemented" when the alternate call merges new listings', async () => {
+    mockLogSupplementOutcome.mockClear()
+    const prediction = makePrediction([makeListing({ vin: 'ORIGINAL1', price: 15000 })])
+    mockMarketCheckPrimarySuccess([{ vin: 'NEWVIN1', price: 22000 }])
+    mockHeadOk('https://dealer.com/listing/NEWVIN1')
+
+    const result = await supplementWithAlternateDealerType(
+      prediction,
+      1,
+      'TESTVIN0000000001',
+      30000,
+      '90210',
+      'franchise',
+      subjectVehicle,
+      false,
+      'report-dt'
+    )
+
+    expect(result.supplemented).toBe(true)
+    expect(mockLogSupplementOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fn: 'supplementWithAlternateDealerType',
+        exitReason: 'supplemented',
+        reportId: 'report-dt',
+        supplemented: true,
+      })
+    )
   })
 
   it('passes subjectVehicle through so the year band still applies to the second call', async () => {

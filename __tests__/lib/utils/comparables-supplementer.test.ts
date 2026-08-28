@@ -7,8 +7,16 @@
 
 process.env.MARKETCHECK_API_KEY = 'test-key'
 
+jest.mock('@/lib/api/api-call-logger', () => ({
+  logApiCall: jest.fn().mockResolvedValue(undefined),
+  logSupplementOutcome: jest.fn().mockResolvedValue(undefined),
+}))
+
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
+import { logSupplementOutcome } from '@/lib/api/api-call-logger'
 import type { MarketCheckPrediction } from '@/lib/api/marketcheck-client'
+
+const mockLogSupplementOutcome = logSupplementOutcome as jest.Mock
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -712,6 +720,88 @@ describe('supplementComparables — sort order and pagination', () => {
     expect(fallbackInResult.some(l => l.vin === 'P1_A')).toBe(true)
     expect(fallbackInResult.some(l => l.vin === 'P2_A')).toBe(true)
     expect(fallbackInResult.length).toBe(5) // 3 pass1 + 2 pass2
+  })
+})
+
+describe('supplementComparables — exit-reason logging', () => {
+  beforeEach(() => {
+    ;(global.fetch as jest.Mock).mockReset()
+    mockLogSupplementOutcome.mockClear()
+    mockLogSupplementOutcome.mockResolvedValue(undefined)
+  })
+
+  function mockSearchResp(vins: string[]) {
+    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        num_found: vins.length,
+        listings: vins.map((vin, i) => ({
+          id: vin,
+          vin,
+          price: 18000,
+          miles: 40000,
+          seller_type: 'franchise',
+          build: { year: 2020, make: 'Honda', model: 'Civic', trim: 'EX' },
+          dos_active: i + 1,
+          vdp_url: `https://dealer.com/listing/${vin}`,
+          first_seen_at_date: '2025-01-01',
+        })),
+      }),
+    })
+  }
+
+  it('logs exitReason "validCount_ge_min" on the early return', async () => {
+    const prediction = makePrediction([])
+    await supplementComparables(
+      prediction,
+      10,
+      subjectVehicle,
+      'VIN0',
+      30000,
+      '90210',
+      20000,
+      'report-abc'
+    )
+    expect(mockLogSupplementOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fn: 'supplementComparables',
+        exitReason: 'validCount_ge_min',
+        reportId: 'report-abc',
+        supplemented: false,
+      })
+    )
+  })
+
+  it('logs exitReason "supplemented" on a successful supplement', async () => {
+    const existingValid = Array.from({ length: 5 }, (_, i) =>
+      makeListing({ vin: `ORIG${i}`, url_validated: true, dos_active: i + 10 })
+    )
+    const prediction = makePrediction(existingValid)
+
+    const fallbackVins = ['FB0', 'FB1', 'FB2', 'FB3', 'FB4']
+    mockSearchResp(fallbackVins)
+    fallbackVins.forEach(vin => mockHeadOk(`https://dealer.com/listing/${vin}`))
+
+    const result = await supplementComparables(
+      prediction,
+      5,
+      subjectVehicle,
+      'VIN0',
+      30000,
+      '90210',
+      20000,
+      'report-abc'
+    )
+
+    expect(result.supplemented).toBe(true)
+    expect(mockLogSupplementOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fn: 'supplementComparables',
+        exitReason: 'supplemented',
+        reportId: 'report-abc',
+        supplemented: true,
+      })
+    )
   })
 })
 

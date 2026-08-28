@@ -449,7 +449,9 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
                 report.mileage,
                 report.zip_code,
                 PRIMARY_DEALER_TYPE,
-                subjectVehicle
+                subjectVehicle,
+                false,
+                reportId
               )
               if (dealerTypeResult.supplemented) {
                 await logApiCall({
@@ -490,7 +492,8 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
                 report.vin,
                 report.mileage ?? null,
                 report.zip_code ?? null,
-                marketcheckData.predictedPrice
+                marketcheckData.predictedPrice,
+                reportId
               )
               validatedPrediction = supplementResult.prediction
               webhookSupplemented = supplementResult.supplemented

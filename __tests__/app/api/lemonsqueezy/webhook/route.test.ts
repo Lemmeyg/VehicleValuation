@@ -29,6 +29,7 @@ async function drainAfterCallbacks(): Promise<void> {
 
 jest.mock('@/lib/api/api-call-logger', () => ({
   logApiCall: jest.fn().mockResolvedValue(undefined),
+  logSupplementOutcome: jest.fn().mockResolvedValue(undefined),
 }))
 const mockLogApiCall = logApiCall as jest.MockedFunction<typeof logApiCall>
 

@@ -9,7 +9,15 @@ global.fetch = mockFetch
 
 process.env.MARKETCHECK_API_KEY = 'test-api-key'
 
+jest.mock('@/lib/api/api-call-logger', () => ({
+  logApiCall: jest.fn().mockResolvedValue(undefined),
+  logSupplementOutcome: jest.fn().mockResolvedValue(undefined),
+}))
+
 import { fetchMarketCheckData, fetchMarketCheckSearchFallback } from '@/lib/api/marketcheck-client'
+import { logApiCall } from '@/lib/api/api-call-logger'
+
+const mockLogApiCall = logApiCall as jest.Mock
 
 describe('fetchMarketCheckData - search fallback', () => {
   beforeEach(() => {
@@ -437,6 +445,122 @@ describe('fetchMarketCheckSearchFallback — model + body_type split ladder', ()
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
     expect(result.success).toBe(false)
+  })
+})
+
+describe('fetchMarketCheckSearchFallback — api_call_logs observability', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+    mockLogApiCall.mockClear()
+    mockLogApiCall.mockResolvedValue(undefined)
+  })
+
+  const VIN = '2HGFC4B03HH000000'
+
+  const searchResp = (numFound: number, n: number = numFound) => ({
+    ok: true,
+    json: async () => ({
+      num_found: numFound,
+      listings: Array.from({ length: n }, (_, i) => ({
+        id: `L${i}`,
+        vin: `LOGVIN${String(i).padStart(10, '0')}`,
+        price: 15000 + i * 10,
+        miles: 60000,
+        seller_type: 'franchise',
+        build: { year: 2017, make: 'Honda', model: 'Civic' },
+        dealer_address: { city: 'Rochester', state: 'NY', zip: '14450' },
+        vdp_url: `https://dealer.com/inventory/L${i}`,
+        first_seen_at_date: '2025-01-01',
+      })),
+    }),
+  })
+
+  it('logs every ladder attempt with the exact model/body_type/year sent and success reflecting num_found > 0', async () => {
+    mockFetch
+      .mockResolvedValueOnce(searchResp(4)) // attempt 1: model + body_type + year -> thin
+      .mockResolvedValueOnce(searchResp(90)) // attempt 2: drop body_type, keep year -> wide
+
+    await fetchMarketCheckSearchFallback(
+      'key',
+      2017,
+      'Honda',
+      'Civic Coupe',
+      VIN,
+      78000,
+      '14450',
+      0,
+      'report-xyz'
+    )
+
+    expect(mockLogApiCall).toHaveBeenCalledTimes(2)
+
+    const first = mockLogApiCall.mock.calls[0][0]
+    expect(first.provider).toBe('marketcheck')
+    expect(first.endpoint).toBe('/v2/search/car/active')
+    expect(first.success).toBe(true) // num_found 4 > 0
+    expect(first.reportId).toBe('report-xyz')
+    expect(first.requestData).toMatchObject({ model: 'Civic', body_type: 'Coupe', year: 2017 })
+    expect(first.responseData).toMatchObject({ num_found: 4 })
+
+    const second = mockLogApiCall.mock.calls[1][0]
+    expect(second.endpoint).toBe('/v2/search/car/active')
+    expect(second.requestData.model).toBe('Civic')
+    expect(second.requestData.body_type).toBeUndefined()
+    expect(second.requestData.year).toBe(2017)
+    expect(second.responseData).toMatchObject({ num_found: 90 })
+  })
+
+  it('logs success:false on a zero-result attempt', async () => {
+    mockFetch.mockResolvedValueOnce(searchResp(0, 0))
+    await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Toyota',
+      'Grand Highlander',
+      VIN,
+      20000,
+      '89503'
+    )
+    expect(mockLogApiCall).toHaveBeenCalledTimes(1)
+    expect(mockLogApiCall.mock.calls[0][0].success).toBe(false)
+    expect(mockLogApiCall.mock.calls[0][0].responseData).toMatchObject({ num_found: 0 })
+  })
+
+  it('logs success:false with an error string on an HTTP failure', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      text: async () => 'boom',
+    })
+    await fetchMarketCheckSearchFallback(
+      'key',
+      2020,
+      'Toyota',
+      'Grand Highlander',
+      VIN,
+      20000,
+      '89503'
+    )
+    expect(mockLogApiCall).toHaveBeenCalledTimes(1)
+    const call = mockLogApiCall.mock.calls[0][0]
+    expect(call.success).toBe(false)
+    expect(String(call.errorMessage)).toContain('500')
+  })
+
+  it('a rejected logApiCall never breaks the fallback result', async () => {
+    mockLogApiCall.mockRejectedValue(new Error('db down'))
+    mockFetch.mockResolvedValueOnce(searchResp(12))
+    const result = await fetchMarketCheckSearchFallback(
+      'key',
+      2017,
+      'Honda',
+      'Civic',
+      VIN,
+      78000,
+      '14450'
+    )
+    expect(result.success).toBe(true)
   })
 })
 
