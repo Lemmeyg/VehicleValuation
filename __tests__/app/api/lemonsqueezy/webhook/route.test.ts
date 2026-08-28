@@ -570,7 +570,13 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
     // URL validation must run even on pre-existing data — the fetch-marketcheck route
     // stores raw unvalidated listings, so the webhook must validate + supplement them
     expect(mockValidateListingUrls).toHaveBeenCalledTimes(1)
-    expect(mockValidateListingUrls).toHaveBeenCalledWith(existingData)
+    // Comps are now hard-gated before validation (listings empty here, so the
+    // gated prediction is structurally unchanged) and a weighted-score sortFn
+    // is passed as the second arg.
+    expect(mockValidateListingUrls).toHaveBeenCalledWith(
+      existingData,
+      expect.objectContaining({ sortFn: expect.any(Function) })
+    )
   })
 
   it('writes comparables_supplemented: true to updateData when supplement fires', async () => {

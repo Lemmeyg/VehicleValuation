@@ -18,6 +18,8 @@ import {
   type MarketCheckComparable,
 } from '@/lib/api/marketcheck-client'
 import { validateListingUrls } from './url-validator'
+import { gateListings } from './comp-gates'
+import { makeScoreSortFn } from './comp-relevance-score'
 
 const MIN_VALID = 10
 
@@ -77,14 +79,36 @@ export async function supplementWithAlternateDealerType(
   )
   if (newListings.length === 0) return unchanged
 
-  const { prediction: validatedAlt, stats: altStats } = await validateListingUrls({
-    ...altResult.data,
-    recentComparables: {
-      num_found: newListings.length,
-      listings: newListings,
-      stats: altResult.data.recentComparables?.stats,
+  // Hard gates (model / price / mileage / ±40% band) BEFORE URL validation so a
+  // disqualified comp is never HTTP-checked; check survivors in weighted-score order.
+  const gatedNewListings = gateListings(
+    newListings,
+    { model: subjectVehicle?.model },
+    prediction.predictedPrice
+  )
+
+  const { prediction: validatedAlt, stats: altStats } = await validateListingUrls(
+    {
+      ...altResult.data,
+      recentComparables: {
+        num_found: gatedNewListings.length,
+        listings: gatedNewListings,
+        stats: altResult.data.recentComparables?.stats,
+      },
     },
-  })
+    {
+      sortFn: makeScoreSortFn(
+        {
+          year: subjectVehicle?.year ?? 0,
+          mileage,
+          zip,
+          model: subjectVehicle?.model,
+          trim: subjectVehicle?.trim,
+        },
+        prediction.predictedPrice
+      ),
+    }
+  )
 
   const mergedListings = [
     ...(prediction.recentComparables?.listings ?? []),

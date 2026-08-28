@@ -15,7 +15,8 @@ import { logApiCall } from '@/lib/api/api-call-logger'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import { supplementWithAlternateDealerType } from '@/lib/utils/dealer-type-supplementer'
-import { rankByBestMatch } from '@/lib/utils/comparables-ranker'
+import { gateListings } from '@/lib/utils/comp-gates'
+import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
 
 const PRIMARY_DEALER_TYPE = 'franchise' as const
 
@@ -102,20 +103,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // ========================================
       // URL Validation + Supplementation
       // ========================================
-      // Check links in weighted-relevance-score order (the same score the display
-      // selector ranks by) rather than freshness order, so the "find 10 live links"
-      // search spends its budget on the listings that are actually the best
-      // candidates to show — not just whichever happened to be freshest.
+      // Run the hard gates BEFORE URL validation so a comp that fails a gate
+      // (wrong model, no/zero price, missing mileage, price outside the ±40%
+      // band) is never HTTP-checked. Then check the survivors in
+      // weighted-relevance-score order (the same score the display selector
+      // ranks by) rather than freshness order, so the "find 10 live links"
+      // search spends its budget on the best candidates to show.
       const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
-        marketcheckResult.data,
+        {
+          ...marketcheckResult.data,
+          recentComparables: {
+            ...marketcheckResult.data.recentComparables!,
+            listings: gateListings(
+              marketcheckResult.data.recentComparables?.listings ?? [],
+              { model: subjectVehicle?.model },
+              marketcheckResult.data.predictedPrice
+            ),
+          },
+        },
         subjectVehicle
           ? {
-              sortFn: l =>
-                rankByBestMatch(
-                  l,
-                  { year: subjectVehicle.year, mileage, zip: zip_code },
-                  marketcheckResult.data!.predictedPrice
-                ),
+              sortFn: makeScoreSortFn(
+                {
+                  year: subjectVehicle.year,
+                  mileage,
+                  zip: zip_code,
+                  model: subjectVehicle.model,
+                  trim: subjectVehicle.trim,
+                },
+                marketcheckResult.data.predictedPrice
+              ),
             }
           : undefined
       )

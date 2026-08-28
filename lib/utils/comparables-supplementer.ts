@@ -19,7 +19,8 @@ import {
 } from '@/lib/api/marketcheck-client'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
-import { rankByBestMatch } from '@/lib/utils/comparables-ranker'
+import { gateListings } from '@/lib/utils/comp-gates'
+import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
 
 const MIN_VALID = 10
 
@@ -89,16 +90,29 @@ async function fetchAndValidatePage(
   const cleaned = cleanAndFilterComparables(yearFiltered, subjectVehicle.year)
   if (cleaned.length === 0) return null
 
+  // Hard gates (model / price / mileage / ±40% band) BEFORE URL validation so a
+  // disqualified comp is never HTTP-checked.
+  const gated = gateListings(cleaned, { model: subjectVehicle.model }, predictedPrice)
+
   const predictionForValidation: MarketCheckPrediction = {
     ...fallbackResult.data,
     recentComparables: {
       ...fallbackResult.data.recentComparables!,
-      listings: cleaned,
+      listings: gated,
     },
   }
 
   const { prediction: validated } = await validateListingUrls(predictionForValidation, {
-    sortFn: l => rankByBestMatch(l, { year: subjectVehicle.year, mileage, zip }, predictedPrice),
+    sortFn: makeScoreSortFn(
+      {
+        year: subjectVehicle.year,
+        mileage,
+        zip,
+        model: subjectVehicle.model,
+        trim: subjectVehicle.trim,
+      },
+      predictedPrice
+    ),
   })
 
   return validated.recentComparables?.listings ?? null

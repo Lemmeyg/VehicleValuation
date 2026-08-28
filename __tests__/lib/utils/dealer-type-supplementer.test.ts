@@ -130,7 +130,9 @@ describe('supplementWithAlternateDealerType — firing the second call', () => {
 
   it('merges new listings in, keeps the original predictedPrice unchanged', async () => {
     const prediction = makePrediction([makeListing({ vin: 'ORIGINAL1', price: 15000 })])
-    mockMarketCheckPrimarySuccess([{ vin: 'NEWVIN1', price: 30000 }])
+    // Price stays inside the ±40% hard-gate band around predictedPrice (20000);
+    // a comp outside that band is now gated out before URL validation.
+    mockMarketCheckPrimarySuccess([{ vin: 'NEWVIN1', price: 22000 }])
     mockHeadOk('https://dealer.com/listing/NEWVIN1')
 
     const result = await supplementWithAlternateDealerType(

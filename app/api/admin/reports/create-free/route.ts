@@ -15,6 +15,8 @@ import { fetchMarketCheckData, type MarketCheckPrediction } from '@/lib/api/mark
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import { supplementWithAlternateDealerType } from '@/lib/utils/dealer-type-supplementer'
+import { gateListings } from '@/lib/utils/comp-gates'
+import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
 import { classifyDealerType } from '@/lib/utils/dealer-type-classifier'
 
 const MARKETCHECK_PRIMARY_DEALER_TYPE = 'franchise' as const
@@ -144,8 +146,33 @@ export async function POST(request: Request) {
       )
 
       if (mcResult.success) {
+        // Gate comps (model / price / mileage / ±40% band) BEFORE URL validation
+        // so a disqualified comp is never HTTP-checked, and check the survivors
+        // in weighted-relevance-score order.
         const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
-          mcResult.data!
+          {
+            ...mcResult.data!,
+            recentComparables: {
+              ...mcResult.data!.recentComparables!,
+              listings: gateListings(
+                mcResult.data!.recentComparables?.listings ?? [],
+                { model: subjectVehicle.model },
+                mcResult.data!.predictedPrice
+              ),
+            },
+          },
+          {
+            sortFn: makeScoreSortFn(
+              {
+                year: subjectVehicle.year,
+                mileage,
+                zip: zipCode,
+                model: subjectVehicle.model,
+                trim: subjectVehicle.trim,
+              },
+              mcResult.data!.predictedPrice
+            ),
+          }
         )
         marketcheckFallbackUsed = mcResult.fallbackUsed === true
 

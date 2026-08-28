@@ -9,6 +9,8 @@ import type { LemonSqueezyWebhookEvent } from '@/lib/lemonsqueezy/types'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
 import { supplementWithAlternateDealerType } from '@/lib/utils/dealer-type-supplementer'
+import { gateListings } from '@/lib/utils/comp-gates'
+import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
 import type { ValidationStats } from '@/lib/utils/url-validator'
 import { upsertLead } from '@/lib/leads'
 
@@ -399,7 +401,34 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
           let urlValidationSucceeded = false
 
           try {
-            const urlResult = await validateListingUrls(marketcheckData)
+            // Gate comps (model / price / mileage / ±40% band) BEFORE URL
+            // validation so a disqualified comp is never HTTP-checked, and
+            // check the survivors in weighted-relevance-score order.
+            const urlResult = await validateListingUrls(
+              {
+                ...marketcheckData,
+                recentComparables: {
+                  ...marketcheckData.recentComparables,
+                  listings: gateListings(
+                    marketcheckData.recentComparables?.listings ?? [],
+                    { model: subjectVehicle?.model },
+                    marketcheckData.predictedPrice
+                  ),
+                },
+              },
+              {
+                sortFn: makeScoreSortFn(
+                  {
+                    year: subjectVehicle?.year ?? 0,
+                    mileage: report.mileage ?? 0,
+                    zip: report.zip_code ?? null,
+                    model: subjectVehicle?.model,
+                    trim: subjectVehicle?.trim,
+                  },
+                  marketcheckData.predictedPrice
+                ),
+              }
+            )
             validatedPrediction = urlResult.prediction
             urlStats = urlResult.stats
             urlValidationSucceeded = true
