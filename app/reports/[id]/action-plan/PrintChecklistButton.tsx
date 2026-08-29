@@ -1,7 +1,7 @@
 'use client'
 
 import { Download } from 'lucide-react'
-import { trackReportDownload } from '@/lib/analytics/events'
+import { trackReportDownload, trackReportWorkflow } from '@/lib/analytics/events'
 
 interface PrintChecklistButtonProps {
   reportId: string
@@ -13,6 +13,9 @@ interface PrintChecklistButtonProps {
 // a DOM event handler.
 export function PrintChecklistButton({ reportId }: PrintChecklistButtonProps) {
   const handlePrint = () => {
+    // BL-184: mark the "print flow started" funnel step for the action-plan
+    // entry point too (see PrintToolbar for the /view -> /print double-fire note).
+    trackReportWorkflow({ step: 'print_flow_started', reportId })
     trackReportDownload('pdf', reportId, 'print')
     window.print()
   }
