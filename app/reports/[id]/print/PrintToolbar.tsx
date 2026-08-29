@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { ArrowLeft, Printer } from 'lucide-react'
-import { trackReportDownload } from '@/lib/analytics/events'
+import { trackReportDownload, trackReportWorkflow } from '@/lib/analytics/events'
 
 interface PrintToolbarProps {
   backHref: string
@@ -14,6 +14,13 @@ export function PrintToolbar({ backHref, vehicleLabel, reportId }: PrintToolbarP
   // BL-125: the closest thing to a download the in-app path can observe. The
   // browser will not tell us whether the user then clicked Save or Cancel.
   const handlePrint = () => {
+    // BL-184: mark the "print flow started" funnel step here too. It already
+    // fires from /view's "Save as PDF" button, but buyers who open /print
+    // directly from the email link (the dominant path) never routed through
+    // that button, so the step was uninstrumented for them. The /view -> /print
+    // path now fires it twice per attempt; funnels count unique persons, so
+    // that is harmless.
+    trackReportWorkflow({ step: 'print_flow_started', reportId })
     trackReportDownload('pdf', reportId, 'print')
     window.print()
   }

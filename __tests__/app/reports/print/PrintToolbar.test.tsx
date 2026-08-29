@@ -1,10 +1,11 @@
 jest.mock('@/lib/analytics/events', () => ({
   trackReportDownload: jest.fn(),
+  trackReportWorkflow: jest.fn(),
 }))
 
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PrintToolbar } from '@/app/reports/[id]/print/PrintToolbar'
-import { trackReportDownload } from '@/lib/analytics/events'
+import { trackReportDownload, trackReportWorkflow } from '@/lib/analytics/events'
 
 describe('PrintToolbar', () => {
   const props = {
@@ -15,6 +16,7 @@ describe('PrintToolbar', () => {
 
   beforeEach(() => {
     ;(trackReportDownload as jest.Mock).mockClear()
+    ;(trackReportWorkflow as jest.Mock).mockClear()
   })
 
   it('renders back link with correct href', () => {
@@ -57,9 +59,22 @@ describe('PrintToolbar', () => {
       expect(trackReportDownload).toHaveBeenCalledWith('pdf', 'abc123', 'print')
     })
 
+    // BL-184: the print-flow funnel step must fire from this entry point too —
+    // buyers who open /print straight from the email link never routed through
+    // /view's "Save as PDF" button, which is the only other place it fires.
+    it('marks the print_flow_started funnel step when the print button is clicked', () => {
+      render(<PrintToolbar {...props} />)
+      fireEvent.click(screen.getByRole('button', { name: /print/i }))
+      expect(trackReportWorkflow).toHaveBeenCalledWith({
+        step: 'print_flow_started',
+        reportId: 'abc123',
+      })
+    })
+
     it('does not track anything before the print button is clicked', () => {
       render(<PrintToolbar {...props} />)
       expect(trackReportDownload).not.toHaveBeenCalled()
+      expect(trackReportWorkflow).not.toHaveBeenCalled()
     })
   })
 })
