@@ -26,6 +26,23 @@ describe('kb-attribution', () => {
       expect(result?.slug).toBe('second-article')
       expect(result?.title).toBe('Second Article')
     })
+
+    it('does not throw when the browser denies storage access', () => {
+      // Production DOMException seen on a KB article: "SecurityError: Failed to read
+      // the 'sessionStorage' property from 'Window': Access is denied for this
+      // document." The property getter itself throws, so the guard must wrap access.
+      const original = Object.getOwnPropertyDescriptor(window, 'sessionStorage')
+      Object.defineProperty(window, 'sessionStorage', {
+        configurable: true,
+        get() {
+          throw new DOMException('Access is denied for this document.', 'SecurityError')
+        },
+      })
+
+      expect(() => setKBAttribution('blocked-storage', 'Blocked Storage')).not.toThrow()
+
+      if (original) Object.defineProperty(window, 'sessionStorage', original)
+    })
   })
 
   describe('getKBAttribution', () => {
