@@ -211,7 +211,9 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
         // Fetch the report to get VIN, mileage, ZIP for API calls
         const { data: report, error: fetchError } = await supabase
           .from('reports')
-          .select('vin, mileage, zip_code, vehicle_data, marketcheck_valuation, autodev_vin_data')
+          .select(
+            'vin, mileage, zip_code, vehicle_data, marketcheck_valuation, autodev_vin_data, "GL Notes"'
+          )
           .eq('id', reportId)
           .single()
 
@@ -401,12 +403,11 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
           let urlValidationSucceeded = false
 
           try {
-            // Gate comps (model / price / mileage / ±40% band) BEFORE URL
-            // validation so a disqualified comp is never HTTP-checked, and
-            // check the survivors in weighted-relevance-score order.
+            // Gate comps (price / mileage / ±40% band) BEFORE URL validation
+            // so a disqualified comp is never HTTP-checked, and check the
+            // survivors in weighted-relevance-score order.
             const gatedListings = gateListings(
               marketcheckData.recentComparables?.listings ?? [],
-              { model: subjectVehicle?.model },
               marketcheckData.predictedPrice
             )
             const urlResult = await validateListingUrls(
@@ -450,7 +451,9 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
                 report.mileage,
                 report.zip_code,
                 PRIMARY_DEALER_TYPE,
-                subjectVehicle
+                subjectVehicle,
+                false,
+                reportId
               )
               if (dealerTypeResult.supplemented) {
                 await logApiCall({
@@ -491,7 +494,8 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
                 report.vin,
                 report.mileage ?? null,
                 report.zip_code ?? null,
-                marketcheckData.predictedPrice
+                marketcheckData.predictedPrice,
+                reportId
               )
               validatedPrediction = supplementResult.prediction
               webhookSupplemented = supplementResult.supplemented
@@ -519,6 +523,24 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
         }
 
         if (marketcheckData) {
+          // Genuinely-empty comparables table after every supplement: persist a
+          // flag on the stored blob (no migration — marketcheck_valuation stores
+          // marketcheckData whole) and stamp a manual-review marker on 'GL Notes'.
+          // There is NO delivery gate — the report still ships.
+          if ((marketcheckData.recentComparables?.listings?.length ?? 0) === 0) {
+            // Reassign rather than mutate in place — the same prediction object
+            // is still referenced by the URL-validation call site.
+            marketcheckData = { ...marketcheckData, compsEmpty: true }
+            const statisticalN =
+              marketcheckData.totalComparablesFound ??
+              marketcheckData.recentComparables?.num_found ??
+              0
+            const existingNote = report['GL Notes'] ? `${report['GL Notes']}\n` : ''
+            updateData['GL Notes'] =
+              `${existingNote}[auto] Empty comparables table — manual review; valuation from ` +
+              `N=${statisticalN} statistical comps, ${new Date().toISOString().slice(0, 10)}`
+          }
+
           updateData.marketcheck_valuation = marketcheckData
           updateData.marketcheck_predicted_price = marketcheckData.predictedPrice
           updateData.marketcheck_msrp = marketcheckData.msrp || null

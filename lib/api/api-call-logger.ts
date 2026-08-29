@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/lib/db/supabase'
 
 interface LogApiCallParams {
   reportId?: string
-  provider: 'autodev' | 'marketcheck' | 'webhook'
+  provider: 'autodev' | 'marketcheck' | 'webhook' | 'internal'
   endpoint: string
   success: boolean
   responseTimeMs?: number
@@ -31,4 +31,43 @@ export async function logApiCall(params: LogApiCallParams): Promise<void> {
   } catch (err) {
     console.error('[logApiCall] Unexpected error:', err)
   }
+}
+
+export interface LogSupplementOutcomeParams {
+  /** Which supplementer produced this record. */
+  fn: 'supplementComparables' | 'supplementWithAlternateDealerType'
+  reportId?: string
+  /** Machine-readable reason the supplement pass exited the way it did. */
+  exitReason: string
+  /** validCount / validatedCount as passed into the supplementer. */
+  validCountIn: number
+  /** Listing count in the prediction handed back to the caller. */
+  listingsOut: number
+  supplemented: boolean
+}
+
+/**
+ * Durable, structured record of why a comparables-supplement pass exited the way it did.
+ * Written as an `api_call_logs` row (`api_provider: 'internal'`, `endpoint: 'supplement:outcome'`)
+ * so "why were there no comps for this report" is answerable from the database after the fact
+ * instead of only from long-gone runtime logs.
+ *
+ * Fire-and-forget: delegates to `logApiCall`, which swallows every DB error and never throws.
+ */
+export async function logSupplementOutcome(params: LogSupplementOutcomeParams): Promise<void> {
+  await logApiCall({
+    reportId: params.reportId,
+    provider: 'internal',
+    endpoint: 'supplement:outcome',
+    success: params.supplemented,
+    responseTimeMs: 0,
+    cost: 0,
+    responseData: {
+      fn: params.fn,
+      exitReason: params.exitReason,
+      validCountIn: params.validCountIn,
+      listingsOut: params.listingsOut,
+      supplemented: params.supplemented,
+    },
+  })
 }

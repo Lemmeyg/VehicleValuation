@@ -146,12 +146,11 @@ export async function POST(request: Request) {
       )
 
       if (mcResult.success) {
-        // Gate comps (model / price / mileage / ±40% band) BEFORE URL validation
+        // Gate comps (price / mileage / ±40% band) BEFORE URL validation
         // so a disqualified comp is never HTTP-checked, and check the survivors
         // in weighted-relevance-score order.
         const gatedListings = gateListings(
           mcResult.data!.recentComparables?.listings ?? [],
-          { model: subjectVehicle.model },
           mcResult.data!.predictedPrice
         )
         const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
@@ -185,7 +184,9 @@ export async function POST(request: Request) {
           mileage,
           zipCode,
           MARKETCHECK_PRIMARY_DEALER_TYPE,
-          subjectVehicle
+          subjectVehicle,
+          false,
+          report.id
         )
         urlValidationFailedCount = urlStats.failedCount + dealerTypeResult.additionalFailedCount
         urlValidationFailedUrls = [...urlStats.failedUrls, ...dealerTypeResult.additionalFailedUrls]
@@ -202,7 +203,8 @@ export async function POST(request: Request) {
           vin,
           mileage,
           zipCode,
-          mcResult.data!.predictedPrice
+          mcResult.data!.predictedPrice,
+          report.id
         )
         marketcheckValuation = supplementResult.prediction
         comparablesSupplemented = supplementResult.supplemented

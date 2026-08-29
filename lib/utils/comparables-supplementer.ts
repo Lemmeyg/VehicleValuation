@@ -21,6 +21,7 @@ import { validateListingUrls } from '@/lib/utils/url-validator'
 import { cleanAndFilterComparables } from '@/lib/utils/comparables-cleaner'
 import { gateListings } from '@/lib/utils/comp-gates'
 import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
+import { logSupplementOutcome } from '@/lib/api/api-call-logger'
 
 const MIN_VALID = 10
 
@@ -64,7 +65,8 @@ async function fetchAndValidatePage(
   mileage: number,
   zip: string,
   start: number,
-  predictedPrice?: number
+  predictedPrice?: number,
+  reportId?: string
 ): Promise<MarketCheckComparable[] | null> {
   const fallbackResult = await fetchMarketCheckSearchFallback(
     apiKey,
@@ -74,7 +76,8 @@ async function fetchAndValidatePage(
     vin,
     mileage,
     zip,
-    start
+    start,
+    reportId
   )
 
   if (!fallbackResult.success || !fallbackResult.data) return null
@@ -90,9 +93,9 @@ async function fetchAndValidatePage(
   const cleaned = cleanAndFilterComparables(yearFiltered, subjectVehicle.year)
   if (cleaned.length === 0) return null
 
-  // Hard gates (model / price / mileage / ±40% band) BEFORE URL validation so a
+  // Hard gates (price / mileage / ±40% band) BEFORE URL validation so a
   // disqualified comp is never HTTP-checked.
-  const gated = gateListings(cleaned, { model: subjectVehicle.model }, predictedPrice)
+  const gated = gateListings(cleaned, predictedPrice)
 
   const predictionForValidation: MarketCheckPrediction = {
     ...fallbackResult.data,
@@ -125,21 +128,56 @@ export async function supplementComparables(
   vin: string,
   mileage: number | null,
   zip: string | null,
-  predictedPrice?: number
+  predictedPrice?: number,
+  reportId?: string
 ): Promise<{ prediction: MarketCheckPrediction; supplemented: boolean }> {
   const unchanged = { prediction, supplemented: false }
+  const originalCount = prediction.recentComparables?.listings?.length ?? 0
+
+  // Durable exit-reason breadcrumb — one row per invocation, whichever path is taken.
+  // Fire-and-forget: an observability write must never break report creation, so
+  // swallow every outcome (sync throw, rejected promise, or a mocked non-promise).
+  const logOutcome = (exitReason: string, listingsOut: number, supplemented: boolean) => {
+    try {
+      void Promise.resolve(
+        logSupplementOutcome({
+          fn: 'supplementComparables',
+          reportId,
+          exitReason,
+          validCountIn: validCount,
+          listingsOut,
+          supplemented,
+        })
+      ).catch(() => {})
+    } catch {
+      /* observability only — never rethrow */
+    }
+  }
 
   // Early-return guards
-  if (validCount >= MIN_VALID) return unchanged
+  if (validCount >= MIN_VALID) {
+    logOutcome('validCount_ge_min', originalCount, false)
+    return unchanged
+  }
   if (!subjectVehicle || !subjectVehicle.year || !subjectVehicle.make || !subjectVehicle.model) {
+    logOutcome('subjectVehicle_missing', originalCount, false)
     return unchanged
   }
   // mileage of 0 is valid (new vehicle) — only null/undefined triggers the guard
-  if (mileage === null || mileage === undefined) return unchanged
-  if (!zip) return unchanged
+  if (mileage === null || mileage === undefined) {
+    logOutcome('mileage_or_zip_null', originalCount, false)
+    return unchanged
+  }
+  if (!zip) {
+    logOutcome('mileage_or_zip_null', originalCount, false)
+    return unchanged
+  }
 
   const apiKey = process.env.MARKETCHECK_API_KEY
-  if (!apiKey) return unchanged
+  if (!apiKey) {
+    logOutcome('apiKey_missing', originalCount, false)
+    return unchanged
+  }
 
   const originalListings = prediction.recentComparables?.listings ?? []
   const originalVinSet = new Set(originalListings.map(l => l.vin).filter(Boolean))
@@ -160,12 +198,17 @@ export async function supplementComparables(
       mileage,
       zip,
       0,
-      predictedPrice
+      predictedPrice,
+      reportId
     )
-    if (validated === null) return unchanged
+    if (validated === null) {
+      logOutcome('pass1_null', originalCount, false)
+      return unchanged
+    }
     pass1Listings = validated.filter(l => !originalVinSet.has(l.vin))
   } catch (err) {
     console.error('[supplementComparables] Pass 1 threw:', err)
+    logOutcome('pass1_null', originalCount, false)
     return unchanged
   }
 
@@ -187,7 +230,8 @@ export async function supplementComparables(
         mileage,
         zip,
         50,
-        predictedPrice
+        predictedPrice,
+        reportId
       )
       if (validated !== null) {
         pass2Listings = validated.filter(l => !pass1VinSet.has(l.vin))
@@ -199,10 +243,15 @@ export async function supplementComparables(
   }
 
   const newFallbackListings = [...pass1Listings, ...pass2Listings]
-  if (newFallbackListings.length === 0) return unchanged
+  if (newFallbackListings.length === 0) {
+    logOutcome('post_filter_empty', originalCount, false)
+    return unchanged
+  }
 
   // Original listings keep their flags entirely; fallback listings appended after.
   const combinedListings = [...originalListings, ...newFallbackListings]
+
+  logOutcome('supplemented', combinedListings.length, true)
 
   return {
     prediction: {

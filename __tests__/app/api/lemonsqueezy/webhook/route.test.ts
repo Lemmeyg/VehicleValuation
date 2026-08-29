@@ -29,6 +29,7 @@ async function drainAfterCallbacks(): Promise<void> {
 
 jest.mock('@/lib/api/api-call-logger', () => ({
   logApiCall: jest.fn().mockResolvedValue(undefined),
+  logSupplementOutcome: jest.fn().mockResolvedValue(undefined),
 }))
 const mockLogApiCall = logApiCall as jest.MockedFunction<typeof logApiCall>
 
@@ -670,6 +671,101 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
 
     expect(capturedUpdateArg).not.toBeNull()
     expect(capturedUpdateArg).toMatchObject({ marketcheck_fallback_used: true })
+  })
+
+  it('sets marketcheck_valuation.compsEmpty and appends an [auto] GL Note when the supplemented comps table is empty', async () => {
+    // Default block mocks already produce an empty recentComparables.listings
+    // after url-validation + supplement (both pass-throughs).
+    let capturedUpdateArg: Record<string, unknown> | null = null
+    const mockEq = jest.fn().mockResolvedValue({ error: null })
+    const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
+      if (data.marketcheck_valuation !== undefined) capturedUpdateArg = data
+      return { eq: mockEq }
+    })
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+          'GL Notes': null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const request = makeRequest()
+    await POST(request)
+    await drainAfterCallbacks()
+
+    expect(capturedUpdateArg).not.toBeNull()
+    const arg = capturedUpdateArg as Record<string, unknown>
+    expect((arg.marketcheck_valuation as { compsEmpty?: boolean }).compsEmpty).toBe(true)
+    expect(arg['GL Notes']).toEqual(expect.stringContaining('[auto] Empty comparables table'))
+  })
+
+  it('does NOT set compsEmpty or append an [auto] GL Note when the comps table is non-empty', async () => {
+    ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
+      success: true,
+      fallbackUsed: false,
+      data: {
+        predictedPrice: 25000,
+        confidence: 'high',
+        totalComparablesFound: 12,
+        recentComparables: {
+          num_found: 2,
+          listings: [
+            { vin: 'COMPA', price: 24000, miles: 30000 },
+            { vin: 'COMPB', price: 26000, miles: 40000 },
+          ],
+        },
+      },
+    })
+
+    let capturedUpdateArg: Record<string, unknown> | null = null
+    const mockEq = jest.fn().mockResolvedValue({ error: null })
+    const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
+      if (data.marketcheck_valuation !== undefined) capturedUpdateArg = data
+      return { eq: mockEq }
+    })
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+          'GL Notes': null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const request = makeRequest()
+    await POST(request)
+    await drainAfterCallbacks()
+
+    expect(capturedUpdateArg).not.toBeNull()
+    const arg = capturedUpdateArg as Record<string, unknown>
+    expect((arg.marketcheck_valuation as { compsEmpty?: boolean }).compsEmpty).toBeUndefined()
+    expect(arg['GL Notes']).toBeUndefined()
   })
 
   it('proceeds without supplement when validateListingUrls throws — no retry triggered', async () => {

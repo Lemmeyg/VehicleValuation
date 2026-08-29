@@ -104,14 +104,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // URL Validation + Supplementation
       // ========================================
       // Run the hard gates BEFORE URL validation so a comp that fails a gate
-      // (wrong model, no/zero price, missing mileage, price outside the ±40%
+      // (no/zero price, missing mileage, price outside the ±40%
       // band) is never HTTP-checked. Then check the survivors in
       // weighted-relevance-score order (the same score the display selector
       // ranks by) rather than freshness order, so the "find 10 live links"
       // search spends its budget on the best candidates to show.
       const gatedListings = gateListings(
         marketcheckResult.data.recentComparables?.listings ?? [],
-        { model: subjectVehicle?.model },
         marketcheckResult.data.predictedPrice
       )
       const { prediction: validatedPrediction, stats: urlStats } = await validateListingUrls(
@@ -149,7 +148,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         mileage,
         zip_code,
         PRIMARY_DEALER_TYPE,
-        subjectVehicle
+        subjectVehicle,
+        false,
+        reportId
       )
       const mergedUrlStats = {
         validatedUrls: [...urlStats.validatedUrls, ...dealerTypeResult.additionalValidatedUrls],
@@ -164,7 +165,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         vin,
         mileage,
         zip_code,
-        marketcheckResult.data!.predictedPrice
+        marketcheckResult.data!.predictedPrice,
+        reportId
       )
       const finalPrediction = supplementResult.prediction
 
