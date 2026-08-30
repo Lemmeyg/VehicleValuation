@@ -602,6 +602,29 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
           return
         }
 
+        // MarketCheck returned no valuation at all, even after every fallback
+        // search. Do not ship a hollow report with a $0 valuation — halt here
+        // exactly like the VIN-decode failure above. The row is left as
+        // 'valuation_failed' for manual handling (refund + hand-built report);
+        // no PDF is generated and no delivery email is sent.
+        if (!marketcheckData) {
+          console.warn(
+            `[Webhook] No MarketCheck valuation for report ${reportId} after all fallbacks — flagging for manual review`
+          )
+          const { error: flagError } = await supabase
+            .from('reports')
+            .update({ status: 'valuation_failed' })
+            .eq('id', reportId)
+          if (flagError) {
+            console.error(
+              `[Webhook] Failed to flag report ${reportId} as valuation_failed:`,
+              flagError
+            )
+          }
+          console.log(`[Webhook] Report ${reportId} set to valuation_failed, skipping PDF`)
+          return
+        }
+
         // Generate PDF
         try {
           console.log(`[Webhook] PDF generation starting for report ${reportId}`)

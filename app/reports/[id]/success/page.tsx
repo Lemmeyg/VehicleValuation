@@ -71,6 +71,13 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
   const paidReportType = await getPaidReportType(supabase, reportId)
   const planType = paidReportType === 'PREMIUM' ? 'premium' : 'basic'
 
+  // Terminal states where the report is NOT auto-delivered and Skip finishes it
+  // by hand: VIN could not be decoded, or the vehicle-data provider returned no
+  // valuation at all (BL-62). Both show the amber "in progress, expect it by
+  // email" notice instead of a "View Full Report" button to an empty report.
+  const isManualReviewPending =
+    report.status === 'vin_decode_failed' || report.status === 'valuation_failed'
+
   return (
     <div className="min-h-screen bg-gray-50">
       <RedditPurchaseTracker
@@ -169,7 +176,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
             </div>
 
             {/* What's Next */}
-            {report.status !== 'vin_decode_failed' && (
+            {!isManualReviewPending && (
               <div className="bg-blue-50 rounded-lg p-6 mb-6">
                 <h2 className="text-lg font-semibold text-blue-900 mb-3">What Happens Next?</h2>
                 <ul className="space-y-2 text-blue-800">
@@ -273,8 +280,8 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
               </div>
             )}
 
-            {/* VIN Decode Failed — amber 48-hour notice */}
-            {report.status === 'vin_decode_failed' ? (
+            {/* Manual-review pending (VIN decode failed / no valuation) — amber 48-hour notice */}
+            {isManualReviewPending ? (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6">
                 <h2 className="text-lg font-semibold text-amber-900 mb-2">Report In Progress</h2>
                 <p className="text-amber-900 text-sm">
