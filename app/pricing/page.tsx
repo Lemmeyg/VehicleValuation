@@ -761,7 +761,7 @@ function PricingContent() {
                       key={tier.id}
                       className={`relative rounded-2xl shadow-lg border-2 transition-all ${
                         tier.recommended
-                          ? 'bg-gradient-to-br from-primary-50 to-emerald-50 border-primary-500 shadow-primary-100 hover:animate-pulse'
+                          ? 'bg-gradient-to-br from-primary-50 to-emerald-50 border-primary-500 shadow-primary-100 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary-200/60'
                           : 'bg-white border-slate-200 hover:border-primary-300'
                       }`}
                     >
