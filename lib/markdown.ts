@@ -1,16 +1,41 @@
-import { unified } from 'unified'
-import remarkParse from 'remark-parse'
-import remarkGfm from 'remark-gfm'
-import remarkRehype from 'remark-rehype'
-import rehypeHighlight from 'rehype-highlight'
-import rehypeSlug from 'rehype-slug'
-import rehypeAutolinkHeadings from 'rehype-autolink-headings'
-import rehypeStringify from 'rehype-stringify'
 import { preprocessMarkdown } from './markdown-preprocess'
 import { transformHeroFormLinks } from './markdown-transform'
 
 // Re-export so consumers can import from 'lib/markdown' directly
 export { transformHeroFormLinks }
+
+/**
+ * The `unified` / remark / rehype ecosystem is ESM-only. Importing it at the top
+ * of this file means any module that so much as imports `lib/markdown` (e.g.
+ * `lib/suppliers-db`) drags the ESM graph in — which Jest, via `next/jest`,
+ * cannot transform, so those test files fail to parse. Loading the pipeline
+ * lazily on first use keeps `import`-only consumers (and their tests) clear of
+ * the ESM graph entirely. `import()` caches the module, and the Promise below is
+ * memoised, so the ecosystem loads at most once per process.
+ */
+let pipelineModules: ReturnType<typeof loadPipelineModules> | null = null
+
+function loadPipelineModules() {
+  return Promise.all([
+    import('unified'),
+    import('remark-parse'),
+    import('remark-gfm'),
+    import('remark-rehype'),
+    import('rehype-highlight'),
+    import('rehype-slug'),
+    import('rehype-autolink-headings'),
+    import('rehype-stringify'),
+  ]).then(([u, rParse, rGfm, rRehype, rHighlight, rSlug, rAutolink, rStringify]) => ({
+    unified: u.unified,
+    remarkParse: rParse.default,
+    remarkGfm: rGfm.default,
+    remarkRehype: rRehype.default,
+    rehypeHighlight: rHighlight.default,
+    rehypeSlug: rSlug.default,
+    rehypeAutolinkHeadings: rAutolink.default,
+    rehypeStringify: rStringify.default,
+  }))
+}
 
 /**
  * Process special link formats in markdown:
@@ -34,6 +59,18 @@ function processSpecialLinks(markdown: string): string {
 export async function markdownToHtml(markdown: string): Promise<string> {
   // Strip frontmatter and KB creator artifacts, then process special links
   const processedMarkdown = processSpecialLinks(preprocessMarkdown(markdown))
+
+  pipelineModules ??= loadPipelineModules()
+  const {
+    unified,
+    remarkParse,
+    remarkGfm,
+    remarkRehype,
+    rehypeHighlight,
+    rehypeSlug,
+    rehypeAutolinkHeadings,
+    rehypeStringify,
+  } = await pipelineModules
 
   const result = await unified()
     .use(remarkParse) // Parse markdown

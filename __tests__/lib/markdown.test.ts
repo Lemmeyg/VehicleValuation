@@ -24,7 +24,9 @@ Some article content here.`
     expect(result).not.toContain('title:')
     expect(result).not.toContain('description:')
     expect(result).not.toContain('category:')
-    expect(result).toContain('# Test Heading')
+    // The leading # H1 is intentionally stripped — the page template renders
+    // the title in its own <h1> (avoids a duplicate-h1 SEO penalty).
+    expect(result).not.toContain('# Test Heading')
     expect(result).toContain('Some article content here.')
   })
 
@@ -36,7 +38,7 @@ Some article content here.`
 
     expect(result).not.toContain('title:')
     expect(result).not.toContain('author:')
-    expect(result).toContain('# Article Title')
+    expect(result).not.toContain('# Article Title') // leading H1 stripped by design
     expect(result).toContain('Content paragraph.')
   })
 
@@ -51,7 +53,7 @@ Article content here.`
 
     expect(result).not.toContain('<hyperlink>')
     expect(result).not.toContain('some-article-slug')
-    expect(result).toContain('# Article Title')
+    expect(result).not.toContain('# Article Title') // leading H1 stripped by design
     expect(result).toContain('Article content here.')
   })
 
@@ -63,18 +65,18 @@ Article content here.`
     expect(result).not.toContain('seoScore')
     expect(result).not.toContain('<hyperlink>')
     expect(result).not.toContain('should-you-buy-back-your-totaled-car')
-    expect(result).toContain('# Buy Back Your Totaled Car')
+    expect(result).not.toContain('# Buy Back Your Totaled Car') // leading H1 stripped by design
     expect(result).toContain('Article content.')
   })
 
-  it('leaves content without frontmatter unchanged', () => {
+  it('strips the leading H1 even when there is no frontmatter', () => {
     const input = `# Normal Article
 
 No frontmatter here, just regular markdown.`
 
     const result = preprocessMarkdown(input)
 
-    expect(result).toContain('# Normal Article')
+    expect(result).not.toContain('# Normal Article') // leading H1 stripped by design
     expect(result).toContain('No frontmatter here')
   })
 })

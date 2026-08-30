@@ -99,6 +99,20 @@ if (typeof global.Response === 'undefined') {
   } as any
 }
 
+// Some test environments provide a `Response` (jsdom / next/jest) that lacks the
+// static `Response.json()` factory. Next.js's `NextResponse.json()` calls it
+// internally, so route-handler tests fail with "Response.json is not a function".
+// Add it if missing, whichever `Response` is in scope.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ResponseCtor = global.Response as any
+if (ResponseCtor && typeof ResponseCtor.json !== 'function') {
+  ResponseCtor.json = (data: unknown, init?: ResponseInit) =>
+    new ResponseCtor(JSON.stringify(data), {
+      ...init,
+      headers: { 'content-type': 'application/json', ...(init?.headers || {}) },
+    })
+}
+
 // Mock fetch globally to catch any unmocked API calls
 const originalFetch = global.fetch
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,8 +1,10 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals'
-
-// @/lib/db/supabase → __tests__/__mocks__/lib/db/supabase.ts (via moduleNameMapper)
-// @/lib/markdown    → __tests__/__mocks__/lib/markdown.ts     (via moduleNameMapper)
-// No jest.mock() calls needed — moduleNameMapper handles both at resolution time.
+import { describe, it, expect, beforeEach } from '@jest/globals'
+// `jest` is the global (not the @jest/globals export) so `jest.mock` below is
+// hoisted above the imports. Bare `jest.mock('@/lib/db/supabase')` picks up the
+// manual mock at lib/db/__mocks__/supabase.ts, where `supabase.from` is a jest
+// mock fn. (`lib/markdown` no longer needs mocking — it loads its ESM pipeline
+// lazily now, so importing `suppliers-db` doesn't drag `unified` in.)
+jest.mock('@/lib/db/supabase')
 
 import { supabase } from '@/lib/db/supabase'
 import { getStateDirectorySuppliers } from '@/lib/suppliers-db'

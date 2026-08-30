@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# One run per ref; a new push cancels an in-progress run for the same PR/branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  type-check-and-test:
+    name: type-check + jest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      # Full jest suite with coverage. Coverage thresholds in jest.config.ts are
+      # "don't regress" floors, not aspirations — see BL-140.
+      - name: Tests
+        run: npm run test:ci

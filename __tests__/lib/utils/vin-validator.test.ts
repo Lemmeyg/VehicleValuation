@@ -14,11 +14,13 @@ import {
 } from '@/lib/utils/vin-validator'
 
 describe('VIN Validator', () => {
-  // Real valid VINs for testing
+  // VINs with valid ISO 3779 check digits (position 9). The Tesla example
+  // previously carried an invalid check digit ('6'); corrected to '9' per the
+  // same transliteration/weight table the validator uses.
   const validVins = [
     '1HGBH41JXMN109186', // Honda Accord
     '1FTFW1ET5EKE51227', // Ford F-150
-    '5YJSA1E26FF123456', // Tesla Model S
+    '5YJSA1E29FF123456', // Tesla Model S
   ]
 
   const invalidVins = [
@@ -132,12 +134,18 @@ describe('VIN Validator', () => {
     })
 
     it('should return error for invalid characters', () => {
-      expect(getVinValidationError('1HGBH41IXMN109186')).toBe('VIN contains invalid characters (I, O, Q not allowed)')
-      expect(getVinValidationError('1HGBH41OXMN109186')).toBe('VIN contains invalid characters (I, O, Q not allowed)')
+      expect(getVinValidationError('1HGBH41IXMN109186')).toBe(
+        'VIN contains invalid characters (I, O, Q not allowed)'
+      )
+      expect(getVinValidationError('1HGBH41OXMN109186')).toBe(
+        'VIN contains invalid characters (I, O, Q not allowed)'
+      )
     })
 
     it('should return error for invalid checksum', () => {
-      expect(getVinValidationError('1HGBH41JXMN109187')).toBe('Invalid VIN checksum - please verify the VIN')
+      expect(getVinValidationError('1HGBH41JXMN109187')).toBe(
+        'Invalid VIN checksum - please verify the VIN'
+      )
     })
 
     it('should sanitize before validation', () => {

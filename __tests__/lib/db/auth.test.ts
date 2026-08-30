@@ -4,7 +4,11 @@
  * Tests for auth helper functions in lib/db/auth.ts
  */
 
-import { describe, it, expect, jest, beforeEach } from '@jest/globals'
+import { describe, it, expect, beforeEach } from '@jest/globals'
+// NOTE: `jest` must be the global, not the `@jest/globals` export — only the
+// global `jest.mock` is hoisted above the (hoisted) `import` statements below,
+// which is what lets the `@/lib/db/supabase` mock take effect before `auth.ts`
+// pulls in the real module.
 import type { User } from '@supabase/supabase-js'
 
 // Mock the Supabase client
@@ -23,7 +27,15 @@ jest.mock('@/lib/db/supabase', () => ({
 }))
 
 // Import after mocking
-import { getUser, getSession, requireAuth, isAuthenticated, getUserProfile, signOut, isAuthError } from '@/lib/db/auth'
+import {
+  getUser,
+  getSession,
+  requireAuth,
+  isAuthenticated,
+  getUserProfile,
+  signOut,
+  isAuthError,
+} from '@/lib/db/auth'
 
 describe('Authentication Utilities', () => {
   beforeEach(() => {
@@ -169,7 +181,9 @@ describe('Authentication Utilities', () => {
       const mockFrom = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
+        // lib/db/auth.ts uses .maybeSingle() (returns null rather than erroring
+        // when no row), not .single().
+        maybeSingle: jest.fn().mockResolvedValue({
           data: mockProfile,
           error: null,
         }),
@@ -183,7 +197,7 @@ describe('Authentication Utilities', () => {
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('user_profiles')
       expect(mockFrom.select).toHaveBeenCalledWith('*')
       expect(mockFrom.eq).toHaveBeenCalledWith('id', '123')
-      expect(mockFrom.single).toHaveBeenCalled()
+      expect(mockFrom.maybeSingle).toHaveBeenCalled()
     })
 
     it('should return null when user is not authenticated', async () => {
@@ -198,10 +212,14 @@ describe('Authentication Utilities', () => {
       expect(mockSupabaseClient.from).not.toHaveBeenCalled()
     })
 
-    it('should return null when profile fetch fails', async () => {
+    it('falls back to auth.user data when the profile fetch errors', async () => {
+      // getUserProfile no longer returns null on a fetch error — it builds a
+      // fallback profile from the authenticated user (handles a missing
+      // user_profiles row / table).
       const mockUser: Partial<User> = {
         id: '123',
         email: 'test@example.com',
+        user_metadata: { full_name: 'Test User' },
       }
 
       mockSupabaseClient.auth.getUser.mockResolvedValue({
@@ -212,7 +230,7 @@ describe('Authentication Utilities', () => {
       const mockFrom = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
+        maybeSingle: jest.fn().mockResolvedValue({
           data: null,
           error: { message: 'Profile not found' },
         }),
@@ -222,7 +240,11 @@ describe('Authentication Utilities', () => {
 
       const profile = await getUserProfile()
 
-      expect(profile).toBeNull()
+      expect(profile).toMatchObject({
+        id: '123',
+        email: 'test@example.com',
+        full_name: 'Test User',
+      })
     })
   })
 

@@ -45,7 +45,10 @@ describe('ReportReadyPoller', () => {
     expect(screen.getByText(/Processing|Fetching|valuation/i)).toBeInTheDocument()
   })
 
-  it('redirects to /view when ready and no checkoutEmail (authenticated user)', async () => {
+  it('shows the account setup form when ready, even with no checkoutEmail', async () => {
+    // The poller is only rendered for unauthenticated buyers now — when the
+    // report is ready it always shows the account-setup form so the buyer can
+    // claim it; it no longer auto-redirects to /view.
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ ready: true }),
@@ -58,8 +61,9 @@ describe('ReportReadyPoller', () => {
     })
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/reports/report-abc/view')
+      expect(screen.getByText(/Your report is ready/i)).toBeInTheDocument()
     })
+    expect(mockPush).not.toHaveBeenCalled()
   })
 
   it('shows account setup form when ready and checkoutEmail is provided', async () => {
@@ -105,9 +109,12 @@ describe('ReportReadyPoller', () => {
       jest.advanceTimersByTime(2000)
     })
 
+    // Polled repeatedly until ready, then showed the setup form (no redirect).
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/reports/report-abc/view')
+      expect(screen.getByText(/Your report is ready/i)).toBeInTheDocument()
     })
+    expect(callCount).toBeGreaterThanOrEqual(3)
+    expect(mockPush).not.toHaveBeenCalled()
   })
 
   it('shows timeout message after 30 failed polls', async () => {
