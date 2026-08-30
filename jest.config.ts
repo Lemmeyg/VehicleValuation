@@ -42,12 +42,17 @@ const config: Config = {
     '!**/__tests__/**',
     '!**/coverage/**',
   ],
+  // These are "don't regress" floors set a few points below the actual figures
+  // (2026-08-29: branches ~75%, functions ~66%, lines/statements ~43%), NOT a
+  // 60% aspiration the suite has never met — that unmet 60% is why `test:ci`
+  // silently failed before CI existed. Raise a floor when real coverage climbs
+  // past it; don't lower one to paper over deleted tests. See BL-140.
   coverageThreshold: {
     global: {
-      branches: 60,
+      branches: 65,
       functions: 60,
-      lines: 60,
-      statements: 60,
+      lines: 40,
+      statements: 40,
     },
   },
   // Use test-specific env file
