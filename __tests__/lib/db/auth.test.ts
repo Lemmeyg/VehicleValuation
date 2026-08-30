@@ -212,10 +212,14 @@ describe('Authentication Utilities', () => {
       expect(mockSupabaseClient.from).not.toHaveBeenCalled()
     })
 
-    it('should return null when profile fetch fails', async () => {
+    it('falls back to auth.user data when the profile fetch errors', async () => {
+      // getUserProfile no longer returns null on a fetch error — it builds a
+      // fallback profile from the authenticated user (handles a missing
+      // user_profiles row / table).
       const mockUser: Partial<User> = {
         id: '123',
         email: 'test@example.com',
+        user_metadata: { full_name: 'Test User' },
       }
 
       mockSupabaseClient.auth.getUser.mockResolvedValue({
@@ -236,7 +240,11 @@ describe('Authentication Utilities', () => {
 
       const profile = await getUserProfile()
 
-      expect(profile).toBeNull()
+      expect(profile).toMatchObject({
+        id: '123',
+        email: 'test@example.com',
+        full_name: 'Test User',
+      })
     })
   })
 

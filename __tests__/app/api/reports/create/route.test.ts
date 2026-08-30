@@ -73,6 +73,11 @@ describe('POST /api/reports/create', () => {
 
     mockLogApiCall.mockResolvedValue(undefined)
 
+    // Default: VIN decode "fails" so the route stores user-entered data and
+    // still creates the report. Tests that need a successful decode override
+    // this. Without a default, `autoDevVinResult.success` throws (route:171).
+    mockFetchAutoDevVinDecode.mockResolvedValue({ success: false, error: 'not mocked' })
+
     // Default: pass-through (no supplementation)
     mockSupplementComparables.mockImplementation(async prediction => ({
       prediction,
@@ -107,7 +112,7 @@ describe('POST /api/reports/create', () => {
       const data = await response.json()
 
       expect(response.status).toBe(401)
-      expect(data.error).toContain('authenticated')
+      expect(data.error).toMatch(/unauthorized|authenticated/i)
     })
 
     it('should accept authenticated requests', async () => {
@@ -126,11 +131,11 @@ describe('POST /api/reports/create', () => {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({ data: null, error: null }),
-        insert: jest.fn().mockResolvedValue({
-          data: { id: 'new-report-123' },
-          error: null,
-        }),
+        // route does .from('reports').insert({...}).select().single(), then later
+        // .from('reports').update({...}).eq('id', ...)
+        insert: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: { id: 'new-report-123' }, error: null }),
       })
 
       const request = new Request('http://localhost:3000/api/reports/create', {
@@ -146,7 +151,7 @@ describe('POST /api/reports/create', () => {
 
       const response = await POST(request)
 
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(201) // route returns 201 Created on success
     })
   })
 
@@ -203,11 +208,11 @@ describe('POST /api/reports/create', () => {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({ data: null, error: null }),
-        insert: jest.fn().mockResolvedValue({
-          data: { id: 'new-report-123' },
-          error: null,
-        }),
+        // route does .from('reports').insert({...}).select().single(), then later
+        // .from('reports').update({...}).eq('id', ...)
+        insert: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: { id: 'new-report-123' }, error: null }),
       })
 
       const request = new Request('http://localhost:3000/api/reports/create', {
@@ -223,7 +228,7 @@ describe('POST /api/reports/create', () => {
 
       const response = await POST(request)
 
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(201) // route returns 201 Created on success
     })
   })
 
@@ -310,11 +315,11 @@ describe('POST /api/reports/create', () => {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({ data: null, error: null }),
-        insert: jest.fn().mockResolvedValue({
-          data: { id: 'new-report-123' },
-          error: null,
-        }),
+        // route does .from('reports').insert({...}).select().single(), then later
+        // .from('reports').update({...}).eq('id', ...)
+        insert: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: { id: 'new-report-123' }, error: null }),
       })
 
       const request = new Request('http://localhost:3000/api/reports/create', {
@@ -330,7 +335,7 @@ describe('POST /api/reports/create', () => {
 
       const response = await POST(request)
 
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(201) // route returns 201 Created on success
     })
   })
 
@@ -366,7 +371,7 @@ describe('POST /api/reports/create', () => {
       const data = await response.json()
 
       expect(response.status).toBe(429)
-      expect(data.error).toContain('limit')
+      expect(data.error).toMatch(/too many|limit/i)
     })
   })
 
@@ -383,11 +388,11 @@ describe('POST /api/reports/create', () => {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({ data: null, error: null }),
-        insert: jest.fn().mockResolvedValue({
-          data: { id: 'new-report-123' },
-          error: null,
-        }),
+        // route does .from('reports').insert({...}).select().single(), then later
+        // .from('reports').update({...}).eq('id', ...)
+        insert: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({ data: { id: 'new-report-123' }, error: null }),
       })
     })
 
@@ -405,7 +410,7 @@ describe('POST /api/reports/create', () => {
 
       const response = await POST(request)
 
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(201) // route returns 201 Created on success
     })
 
     it('should accept premium report type', async () => {
@@ -422,7 +427,7 @@ describe('POST /api/reports/create', () => {
 
       const response = await POST(request)
 
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(201) // route returns 201 Created on success
     })
   })
 

@@ -4,7 +4,11 @@
  * Tests for /api/auth/signup endpoint
  */
 
-import { describe, it, expect, jest, beforeEach } from '@jest/globals'
+import { describe, it, expect, beforeEach } from '@jest/globals'
+// `jest` is the global, not the @jest/globals export — only the global
+// `jest.mock` is hoisted above the (hoisted) import below, so the
+// `@/lib/db/supabase` mock applies before the route pulls in the real client
+// (which calls `cookies()` outside a request scope and throws).
 import { POST } from '@/app/api/auth/signup/route'
 
 // Mock the Supabase client
@@ -16,6 +20,15 @@ const mockSupabaseClient = {
 
 jest.mock('@/lib/db/supabase', () => ({
   createRouteHandlerSupabaseClient: jest.fn(() => Promise.resolve(mockSupabaseClient)),
+}))
+
+// The signup route rate-limits to 3 attempts/min/IP and every test request
+// shares the same (absent) IP, so the 4th test onward hit a real 429. Stub the
+// limiter — rate-limit behaviour is covered separately in the reports/create
+// route tests.
+jest.mock('@/lib/rate-limit', () => ({
+  signupLimiter: { check: jest.fn().mockResolvedValue(undefined) },
+  loginLimiter: { check: jest.fn().mockResolvedValue(undefined) },
 }))
 
 describe('POST /api/auth/signup', () => {

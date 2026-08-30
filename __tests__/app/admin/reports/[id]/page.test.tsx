@@ -1,5 +1,8 @@
 const supabaseFromMock = jest.fn()
 jest.mock('@/lib/db/supabase', () => ({
+  // The page uses the service-role client (`supabaseAdmin`) so it can read any
+  // user's report past RLS — not `createServerSupabaseClient()`.
+  supabaseAdmin: { from: supabaseFromMock },
   createServerSupabaseClient: jest.fn().mockResolvedValue({ from: supabaseFromMock }),
 }))
 
