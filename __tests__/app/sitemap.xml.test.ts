@@ -11,15 +11,15 @@
  */
 
 jest.mock('@/lib/knowledge-base-db', () => ({
-  getAllArticles: jest.fn(),
+  getArticleListMetadata: jest.fn(),
 }))
 
 jest.mock('@/lib/suppliers-db', () => ({
-  getAllSuppliers: jest.fn(),
+  getSupplierListMetadata: jest.fn(),
 }))
 
-import { getAllArticles } from '@/lib/knowledge-base-db'
-import { getAllSuppliers } from '@/lib/suppliers-db'
+import { getArticleListMetadata } from '@/lib/knowledge-base-db'
+import { getSupplierListMetadata } from '@/lib/suppliers-db'
 import { GET } from '@/app/sitemap.xml/route'
 
 const mockArticles = [
@@ -50,8 +50,8 @@ const mockSuppliers = [
 ]
 
 beforeEach(() => {
-  ;(getAllArticles as jest.Mock).mockResolvedValue(mockArticles)
-  ;(getAllSuppliers as jest.Mock).mockResolvedValue(mockSuppliers)
+  ;(getArticleListMetadata as jest.Mock).mockResolvedValue(mockArticles)
+  ;(getSupplierListMetadata as jest.Mock).mockResolvedValue(mockSuppliers)
 })
 
 describe('GET /sitemap.xml', () => {
@@ -126,7 +126,7 @@ describe('GET /sitemap.xml', () => {
   })
 
   it('gracefully handles supplier fetch failure', async () => {
-    ;(getAllSuppliers as jest.Mock).mockRejectedValue(new Error('DB error'))
+    ;(getSupplierListMetadata as jest.Mock).mockRejectedValue(new Error('DB error'))
     const response = await GET()
     expect(response.status).toBe(200)
     const text = await response.text()
