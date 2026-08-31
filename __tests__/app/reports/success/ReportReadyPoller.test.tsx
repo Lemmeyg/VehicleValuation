@@ -134,6 +134,38 @@ describe('ReportReadyPoller', () => {
     })
   })
 
+  it('shows the "we need more time" message when the report needs manual review', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ready: false,
+        manualReview: true,
+        pricePaid: 4900,
+        email: 'buyer@example.com',
+        vin: '1HGCM82633A123456',
+      }),
+    })
+
+    render(
+      <ReportReadyPoller reportId="report-abc" checkoutEmail="buyer@example.com" pricePaid={4900} />
+    )
+
+    await act(async () => {
+      jest.advanceTimersByTime(100)
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/We require more time to compile the data relevant to your vehicle/i)
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByText('support@totallosstoolkit.com')).toBeInTheDocument()
+    // Account setup form is not shown for a failed report.
+    expect(screen.queryByText(/Your report is ready/i)).not.toBeInTheDocument()
+    // Payment still recorded so the buyer stays in the funnel.
+    expect(mockEvents.trackPaymentSuccess).toHaveBeenCalled()
+  })
+
   it('shows magic-link-sent state after clicking email link button', async () => {
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: async () => ({ ready: true }) }) // poll
