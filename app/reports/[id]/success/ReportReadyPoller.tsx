@@ -165,7 +165,7 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Report In Progress</h1>
           <p className="text-slate-600">
             We require more time to compile the data relevant to your vehicle. You will receive your
-            report via email within 24 hours. Please email{' '}
+            report via email within 48 hours. Please email{' '}
             <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-emerald-600 underline">
               {SUPPORT_EMAIL}
             </a>{' '}

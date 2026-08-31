@@ -280,13 +280,13 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
               </div>
             )}
 
-            {/* Manual-review pending (VIN decode failed / no valuation) — amber 24-hour notice */}
+            {/* Manual-review pending (VIN decode failed / no valuation) — amber 48-hour notice */}
             {isManualReviewPending ? (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6">
                 <h2 className="text-lg font-semibold text-amber-900 mb-2">Report In Progress</h2>
                 <p className="text-amber-900 text-sm">
                   We require more time to compile the data relevant to your vehicle. You will
-                  receive your report via email within 24 hours. Please email{' '}
+                  receive your report via email within 48 hours. Please email{' '}
                   <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium underline">
                     {SUPPORT_EMAIL}
                   </a>{' '}
