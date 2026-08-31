@@ -405,6 +405,92 @@ describe('POST /api/lemonsqueezy/webhook — order processing', () => {
     )
   })
 
+  it('should set status valuation_failed and skip PDF when MarketCheck returns no valuation at all', async () => {
+    const reportId = 'report-valuation-fail'
+    const userId = 'user-789'
+
+    jest.spyOn(client, 'verifyWebhookSignature').mockReturnValue(true)
+    // VIN decodes fine — this is NOT a vin_decode_failed case.
+    jest.spyOn(autodev, 'fetchAutoDevVinDecode').mockResolvedValue({
+      success: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: { make: 'Toyota', model: 'Camry', vehicle: { year: 2020 }, vinValid: true } as any,
+    })
+    // MarketCheck returns nothing, even after the fallback search.
+    jest.spyOn(marketcheck, 'fetchMarketCheckData').mockResolvedValue({
+      success: false,
+      error: 'no data',
+    })
+
+    const mockGeneratePDF = jest
+      .spyOn(pdfGenerator, 'generateAndUploadPDF')
+      .mockResolvedValue({ success: true, pdfUrl: 'https://example.com/report.pdf' })
+
+    const mockSingle = jest.fn().mockResolvedValue({
+      data: {
+        vin: '1HGBH41JXMN109186',
+        mileage: 50000,
+        zip_code: '90210',
+        marketcheck_valuation: null,
+        vehicle_data: { year: 2020 },
+      },
+      error: null,
+    })
+
+    const mockUpdate = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({ error: null }),
+    })
+
+    mockAdmin.from = jest.fn((_table: string) => ({
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({ single: mockSingle }),
+      }),
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    })) as any
+
+    const body = JSON.stringify({
+      meta: {
+        event_name: 'order_created',
+        custom_data: { reportId, userId, reportType: 'BASIC' },
+        webhook_id: 'wh-3',
+        test_mode: false,
+      },
+      data: {
+        type: 'orders',
+        id: 'order-3',
+        attributes: {
+          user_name: 'Test User',
+          user_email: 'test@example.com',
+          status: 'paid',
+          total: 2500,
+          order_number: 1003,
+        },
+      },
+    })
+
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      body,
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'app.example.com',
+        'x-forwarded-proto': 'https',
+      },
+    })
+
+    await POST(request)
+    await drainAfterCallbacks()
+
+    // PDF should NOT have been generated — no hollow $0 report ships.
+    expect(mockGeneratePDF).not.toHaveBeenCalled()
+
+    // Report status should have been set to valuation_failed.
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'valuation_failed' }))
+  })
+
   it('returns 200 silently when orderId already has a payment (idempotent retry)', async () => {
     const mockFrom = jest.fn().mockReturnValue({
       select: jest.fn().mockReturnThis(),

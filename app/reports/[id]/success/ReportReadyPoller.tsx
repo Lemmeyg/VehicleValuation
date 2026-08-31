@@ -11,7 +11,7 @@ interface Props {
   pricePaid: number | null
 }
 
-type PollerState = 'polling' | 'setup' | 'magic-link-sent' | 'timedOut'
+type PollerState = 'polling' | 'setup' | 'magic-link-sent' | 'timedOut' | 'manualReview'
 
 const MAX_POLLS = 30
 const POLL_INTERVAL_MS = 2000
@@ -40,9 +40,13 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
         const res = await fetch(`/api/reports/${reportId}/status`)
         if (!res.ok) return
         const data = await res.json()
-        if (data.ready) {
-          // ReportReadyPoller is only rendered for unauthenticated users — always
-          // show the account setup form so the buyer can claim their report.
+        if (data.ready || data.manualReview) {
+          // ReportReadyPoller is only rendered for unauthenticated users. When
+          // the report is ready we show the account setup form so the buyer can
+          // claim it; when it needs manual review (BL-62) we show the "we need
+          // more time" message. Either way the payment succeeded, so record it
+          // once — otherwise an anonymous buyer whose report failed vanishes
+          // from the funnel.
           // Use data.pricePaid from the API (fresh) — the pricePaid prop may be
           // stale (0) if the webhook processed after the server rendered this page.
           if (!purchaseTracked.current && data.pricePaid) {
@@ -68,7 +72,7 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
               })
             }
           }
-          setPollerState('setup')
+          setPollerState(data.manualReview ? 'manualReview' : 'setup')
           return
         }
       } catch {
@@ -149,6 +153,27 @@ export function ReportReadyPoller({ reportId, checkoutEmail, pricePaid }: Props)
     } catch {
       setFormError('Failed to send sign-in link. Please try again.')
     }
+  }
+
+  if (pollerState === 'manualReview') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Mail className="w-8 h-8 text-amber-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Report In Progress</h1>
+          <p className="text-slate-600">
+            We require more time to compile the data relevant to your vehicle. You will receive your
+            report via email within 48 hours. Please email{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-emerald-600 underline">
+              {SUPPORT_EMAIL}
+            </a>{' '}
+            using the email you used to purchase your report.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (pollerState === 'timedOut') {
