@@ -159,7 +159,9 @@ export interface MarketCheckPrediction {
 
   // Confidence and metadata
   confidence: 'low' | 'medium' | 'high'
-  dataSource: 'marketcheck'
+  // 'manual_research' is set only by POST /api/admin/reports/[id]/manual-valuation,
+  // the hand-built valuation path for vehicles MarketCheck cannot price.
+  dataSource: 'marketcheck' | 'manual_research'
   requestParams: {
     vin: string
     miles: number
