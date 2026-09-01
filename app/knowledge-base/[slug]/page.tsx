@@ -39,13 +39,15 @@ export async function generateMetadata({ params }: Props) {
 
   return {
     title: (() => {
-      const suffix = ' | TotalLossToolKit.com' // 23 chars
-      const maxTitle = 60 - suffix.length // 37 chars
-      const t =
-        article.title.length > maxTitle
-          ? article.title.slice(0, maxTitle - 1).trimEnd() + '\u2026'
-          : article.title
-      return `${t}${suffix}`
+      const suffix = ' | TotalLossToolKit.com'
+      // Google displays roughly the first 60 characters of a <title>. Append
+      // the brand suffix only when the whole string still fits; otherwise use
+      // the full article title on its own. The previous logic hard-truncated
+      // the title to 36 chars + an ellipsis so the suffix always fit, which
+      // chopped ~40% of KB titles mid-word in the SERP.
+      return article.title.length + suffix.length <= 60
+        ? `${article.title}${suffix}`
+        : article.title
     })(),
     description: article.description,
     alternates: {
