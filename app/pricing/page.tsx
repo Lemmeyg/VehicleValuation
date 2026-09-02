@@ -64,6 +64,24 @@ interface Report {
 const PENDING_REPORT_RETRY_DELAY_MS = 400
 const MAX_PENDING_REPORT_RETRIES = 3
 
+/** A report ID only ever contains URL-safe identifier characters. */
+const REPORT_ID_RE = /^[A-Za-z0-9_-]+$/
+
+/**
+ * Whether a ?reportId= value could possibly identify a real report.
+ *
+ * Deliberately permissive — it only rejects values that could never be an ID
+ * at all, rather than asserting a specific format. Recovery-email links have
+ * been observed arriving with an unsubstituted merge field in place of the ID
+ * (`?reportId=%%ReportId%%`, and `?reportId=$[UD:REPORTID||]$`). Treating one
+ * of those as a real ID sends the visitor straight into the "no vehicle data"
+ * dead end AND clears their good `current_report_id`, so neither of the later
+ * resume paths can recover either. Rejecting it up front lets Options B/C run.
+ */
+function isPossibleReportId(value: string): boolean {
+  return REPORT_ID_RE.test(value)
+}
+
 function wait(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
 }
@@ -118,10 +136,16 @@ function PricingContent() {
       setDripAttribution(utmSource, utmMedium, utmContent)
     }
 
-    // Option A: Existing reportId flow (authenticated users with existing report)
-    if (reportId) {
+    // Option A: Existing reportId flow (authenticated users with existing report).
+    // A malformed value (e.g. an unsubstituted `%%ReportId%%` email merge field)
+    // is ignored rather than fetched, so the visitor falls through to Options
+    // B/C instead of dead-ending. See isPossibleReportId above.
+    if (reportId && isPossibleReportId(reportId)) {
       await fetchExistingReport(reportId)
       return
+    }
+    if (reportId) {
+      trackEvent('pricing_data_missing', { reason: 'malformed_report_id' })
     }
 
     // Option B: report was already created server-side at form-submit time
