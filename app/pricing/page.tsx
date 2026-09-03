@@ -64,6 +64,24 @@ interface Report {
 const PENDING_REPORT_RETRY_DELAY_MS = 400
 const MAX_PENDING_REPORT_RETRIES = 3
 
+/** A report ID only ever contains URL-safe identifier characters. */
+const REPORT_ID_RE = /^[A-Za-z0-9_-]+$/
+
+/**
+ * Whether a ?reportId= value could possibly identify a real report.
+ *
+ * Deliberately permissive — it only rejects values that could never be an ID
+ * at all, rather than asserting a specific format. Recovery-email links have
+ * been observed arriving with an unsubstituted merge field in place of the ID
+ * (`?reportId=%%ReportId%%`, and `?reportId=$[UD:REPORTID||]$`). Treating one
+ * of those as a real ID sends the visitor straight into the "no vehicle data"
+ * dead end AND clears their good `current_report_id`, so neither of the later
+ * resume paths can recover either. Rejecting it up front lets Options B/C run.
+ */
+function isPossibleReportId(value: string): boolean {
+  return REPORT_ID_RE.test(value)
+}
+
 function wait(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
 }
@@ -110,6 +128,20 @@ function PricingContent() {
     setLoading(false)
   }
 
+  // Terminal fallback: Options A/B/C have all come up empty, so there is no
+  // report to show and no context to recover from — the visitor most likely
+  // arrived on a broken recovery-email link. Send them straight to the report
+  // form (the first section of the homepage) rather than a dead-end screen.
+  // The diagnostic still fires first so the frequency stays visible in PostHog.
+  // This only runs after the pending_report retry window AND current_report_id
+  // have both failed, so it is a genuine dead end, not the mid-workflow
+  // storage-race bounce that docs/superpowers/specs/2026-08-08-pricing-no-data-
+  // failure-state-design.md removed.
+  const redirectToReportForm = (reason: string) => {
+    trackEvent('pricing_data_missing', { reason })
+    router.push('/')
+  }
+
   const initializePricingPage = async () => {
     const utmSource = searchParams?.get('utm_source')
     const utmMedium = searchParams?.get('utm_medium')
@@ -118,10 +150,16 @@ function PricingContent() {
       setDripAttribution(utmSource, utmMedium, utmContent)
     }
 
-    // Option A: Existing reportId flow (authenticated users with existing report)
-    if (reportId) {
+    // Option A: Existing reportId flow (authenticated users with existing report).
+    // A malformed value (e.g. an unsubstituted `%%ReportId%%` email merge field)
+    // is ignored rather than fetched, so the visitor falls through to Options
+    // B/C instead of dead-ending. See isPossibleReportId above.
+    if (reportId && isPossibleReportId(reportId)) {
       await fetchExistingReport(reportId)
       return
+    }
+    if (reportId) {
+      trackEvent('pricing_data_missing', { reason: 'malformed_report_id' })
     }
 
     // Option B: report was already created server-side at form-submit time
@@ -170,11 +208,12 @@ function PricingContent() {
       return
     }
 
-    // No data found — show a message instead of auto-redirecting. The user
-    // can return home via the button in the error state (see the render
-    // branch below); do NOT re-add a redirect() or setTimeout() here — see
-    // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
-    showNoVehicleDataError('no_data_after_retry')
+    // No data found via any of Options A/B/C — the visitor has no report and no
+    // recoverable context (typically a broken recovery-email link). Send them to
+    // the homepage report form rather than a dead-end screen. See
+    // redirectToReportForm above for why an auto-navigate is acceptable here
+    // specifically, unlike the mid-workflow bounce the 2026-08-08 spec removed.
+    redirectToReportForm('no_data_after_retry')
   }
 
   const hydrateReportFromCreateResponse = (rawReport: {
