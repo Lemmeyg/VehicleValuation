@@ -128,6 +128,20 @@ function PricingContent() {
     setLoading(false)
   }
 
+  // Terminal fallback: Options A/B/C have all come up empty, so there is no
+  // report to show and no context to recover from — the visitor most likely
+  // arrived on a broken recovery-email link. Send them straight to the report
+  // form (the first section of the homepage) rather than a dead-end screen.
+  // The diagnostic still fires first so the frequency stays visible in PostHog.
+  // This only runs after the pending_report retry window AND current_report_id
+  // have both failed, so it is a genuine dead end, not the mid-workflow
+  // storage-race bounce that docs/superpowers/specs/2026-08-08-pricing-no-data-
+  // failure-state-design.md removed.
+  const redirectToReportForm = (reason: string) => {
+    trackEvent('pricing_data_missing', { reason })
+    router.push('/')
+  }
+
   const initializePricingPage = async () => {
     const utmSource = searchParams?.get('utm_source')
     const utmMedium = searchParams?.get('utm_medium')
@@ -194,11 +208,12 @@ function PricingContent() {
       return
     }
 
-    // No data found — show a message instead of auto-redirecting. The user
-    // can return home via the button in the error state (see the render
-    // branch below); do NOT re-add a redirect() or setTimeout() here — see
-    // docs/superpowers/specs/2026-08-08-pricing-no-data-failure-state-design.md
-    showNoVehicleDataError('no_data_after_retry')
+    // No data found via any of Options A/B/C — the visitor has no report and no
+    // recoverable context (typically a broken recovery-email link). Send them to
+    // the homepage report form rather than a dead-end screen. See
+    // redirectToReportForm above for why an auto-navigate is acceptable here
+    // specifically, unlike the mid-workflow bounce the 2026-08-08 spec removed.
+    redirectToReportForm('no_data_after_retry')
   }
 
   const hydrateReportFromCreateResponse = (rawReport: {

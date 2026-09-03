@@ -281,27 +281,20 @@ describe('PricingPage — no vehicle data found', () => {
     jest.restoreAllMocks()
   })
 
-  it('does not automatically navigate home after showing the no-data message', async () => {
+  it('redirects to the homepage report form when no data is found after retries', async () => {
     render(<PricingPage />)
 
     // The pending_report retry window (Task 2) can take up to 1.2s
     // (MAX_PENDING_REPORT_RETRIES * PENDING_REPORT_RETRY_DELAY_MS) before the
-    // no-data message appears. With jest.useFakeTimers() active, RTL's
-    // waitFor schedules its own default 1000ms timeout on the same faked
-    // clock and advances it in lockstep with its polling — so the default
-    // findByText timeout is a *fake-time* budget, not a real-time one, and
-    // 1000ms is no longer enough headroom for the up-to-1.2s retry path.
-    // Widen it so this assertion reflects the new legitimate delay rather
-    // than racing it.
-    expect(
-      await screen.findByText(/no vehicle data found/i, {}, { timeout: 2000 })
-    ).toBeInTheDocument()
-
+    // fallback runs. Advance past it, then let the redirect resolve.
     await act(async () => {
-      jest.advanceTimersByTime(4000)
+      jest.advanceTimersByTime(2000)
     })
 
-    expect(mockPush).not.toHaveBeenCalled()
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/'))
+    // The dead-end message is no longer shown — the visitor is sent straight
+    // to the form on the homepage (the report form is the first section there).
+    expect(screen.queryByText(/no vehicle data found/i)).not.toBeInTheDocument()
   })
 })
 
@@ -349,17 +342,22 @@ describe('PricingPage — pricing_data_missing diagnostics', () => {
     jest.restoreAllMocks()
   })
 
-  it('tracks reason: no_data_after_retry when nothing is found after retries', async () => {
+  it('tracks reason: no_data_after_retry before redirecting to the report form', async () => {
     render(<PricingPage />)
 
     await act(async () => {
       jest.advanceTimersByTime(1200)
     })
 
-    expect(await screen.findByText(/no vehicle data found/i)).toBeInTheDocument()
-    expect(trackEvent).toHaveBeenCalledWith('pricing_data_missing', {
-      reason: 'no_data_after_retry',
-    })
+    // The diagnostic still fires — it is the only production signal for how
+    // often visitors reach this dead end — but the visitor is now sent to the
+    // homepage form rather than shown a dead-end message.
+    await waitFor(() =>
+      expect(trackEvent).toHaveBeenCalledWith('pricing_data_missing', {
+        reason: 'no_data_after_retry',
+      })
+    )
+    expect(mockPush).toHaveBeenCalledWith('/')
   })
 
   it('tracks reason: parse_error and clears the corrupted key when pending_report is malformed', async () => {
@@ -450,6 +448,76 @@ describe('PricingPage — resuming a return visit via current_report_id', () => 
 
     expect(await screen.findAllByText(/2019 Honda Civic/i)).toHaveLength(2)
     expect(global.fetch).not.toHaveBeenCalledWith('/api/reports/some-other-id/preview')
+  })
+})
+
+describe('PricingPage — malformed reportId in the URL (broken recovery-email links)', () => {
+  const originalFetch = global.fetch
+
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+    sessionStorage.clear()
+    jest.clearAllMocks()
+    jest.restoreAllMocks()
+    global.fetch = originalFetch
+  })
+
+  it('ignores an unsubstituted %%ReportId%% merge field and redirects to the form when nothing else can recover the visitor', async () => {
+    jest
+      .spyOn(jest.requireMock('next/navigation'), 'useSearchParams')
+      .mockReturnValue(new URLSearchParams('reportId=%%ReportId%%'))
+
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000)
+    })
+
+    // The malformed value is never fetched as a real ID...
+    expect(global.fetch).not.toHaveBeenCalledWith(expect.stringContaining('ReportId'))
+    // ...it is logged as a broken link...
+    expect(trackEvent).toHaveBeenCalledWith('pricing_data_missing', {
+      reason: 'malformed_report_id',
+    })
+    // ...and once the resume paths also come up empty, the visitor is sent to
+    // the homepage form.
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/'))
+  })
+
+  it('recovers the real in-progress report via current_report_id when the URL carries a malformed reportId', async () => {
+    jest
+      .spyOn(jest.requireMock('next/navigation'), 'useSearchParams')
+      .mockReturnValue(new URLSearchParams('reportId=%%ReportId%%'))
+    sessionStorage.setItem('current_report_id', 'r1')
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        report: {
+          id: 'r1',
+          vin: '1HGCM82633A004352',
+          mileage: 50000,
+          zip_code: '90210',
+          dealer_type: 'private',
+          vehicle_data: { year: 2019, make: 'Honda', model: 'Civic' },
+          marketcheck_valuation: null,
+        },
+      }),
+    }) as unknown as typeof fetch
+
+    render(<PricingPage />)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200)
+    })
+
+    // Option C rescues the visitor — no redirect, real report shown.
+    expect(await screen.findAllByText(/2019 Honda Civic/i)).toHaveLength(2)
+    expect(global.fetch).toHaveBeenCalledWith('/api/reports/r1/preview')
+    expect(mockPush).not.toHaveBeenCalledWith('/')
   })
 })
 
