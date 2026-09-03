@@ -338,6 +338,14 @@ export default function TermsPage() {
                     We make no guarantees about data availability or consistency across different
                     API providers
                   </li>
+                  <li>
+                    Reports include a maximum of ten comparable vehicle listings. Ten listings are
+                    guaranteed only for vehicles under fifteen years old with average or
+                    below-average mileage (approximately 12,000 miles per year); for older or
+                    higher-mileage vehicles, fewer comparable listings may be available, and the
+                    report will include all valid comparables identified together with statistical
+                    market analysis
+                  </li>
                 </ul>
               </section>
 

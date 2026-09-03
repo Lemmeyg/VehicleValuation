@@ -306,6 +306,22 @@ export default function FAQPage() {
 
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                      How many comparable vehicles does my report include?
+                    </h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      Each report includes 10 comparable listings &mdash; we cap it at 10 &mdash;
+                      and we guarantee all 10 for vehicles under 15 years old with average or
+                      below-average mileage (roughly 12,000 miles per year). For vehicles older than
+                      15 years, or driven well above average mileage, there may not be 10 genuinely
+                      comparable vehicles for sale. Those reports include every valid comparable we
+                      can find, plus the full statistical market analysis &mdash; price
+                      distribution, adjustments, and valuation range &mdash; which doesn&apos;t
+                      depend on hitting a specific count.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">
                       How do I access my report?
                     </h3>
                     <p className="text-slate-600 leading-relaxed">
