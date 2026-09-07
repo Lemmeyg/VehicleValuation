@@ -7,11 +7,13 @@ const BASE_URL = 'https://www.totallosstoolkit.com'
 
 const STATIC_PAGES = [
   { url: BASE_URL, changefreq: 'daily', priority: '1.0' },
-  { url: `${BASE_URL}/pricing`, changefreq: 'weekly', priority: '0.9' },
   { url: `${BASE_URL}/knowledge-base`, changefreq: 'weekly', priority: '0.9' },
   { url: `${BASE_URL}/directory`, changefreq: 'weekly', priority: '0.8' },
+  { url: `${BASE_URL}/dispute-letter`, changefreq: 'monthly', priority: '0.7' },
   { url: `${BASE_URL}/guarantee`, changefreq: 'monthly', priority: '0.7' },
   { url: `${BASE_URL}/faq`, changefreq: 'monthly', priority: '0.7' },
+  { url: `${BASE_URL}/pricing`, changefreq: 'weekly', priority: '0.5' },
+  { url: `${BASE_URL}/contact`, changefreq: 'monthly', priority: '0.4' },
   { url: `${BASE_URL}/privacy`, changefreq: 'monthly', priority: '0.4' },
   { url: `${BASE_URL}/terms`, changefreq: 'monthly', priority: '0.4' },
 ]

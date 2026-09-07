@@ -7,8 +7,8 @@ const footerLinks = {
   ],
   resources: [
     { name: 'Get Report', href: '#hero-form' },
-    { name: 'Articles', href: '#knowledge-base' },
-    { name: 'Professional Services Directory', href: '#services-directory' },
+    { name: 'Articles', href: '/knowledge-base' },
+    { name: 'Professional Services Directory', href: '/directory' },
   ],
   legal: [
     { name: 'Terms of Service', href: '/terms' },
