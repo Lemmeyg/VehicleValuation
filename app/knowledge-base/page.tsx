@@ -16,26 +16,32 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolki
 
 export const revalidate = 43200
 
+// Title/description describe this page as a library index, not an answer page.
+// Before this change it was titled the generic "Knowledge Base" and was the only
+// URL ranking for article-shaped queries like "car value for insurance claims"
+// (5,329 impressions / 0.06% CTR) — queries a dedicated article should own, not
+// the index. See SEO audit 2026-09-06 (SEO-CAND-5) + BL-215.
+const KB_TITLE = 'Total Loss Guides by State & Insurer | TotalLossToolKit.com'
+const KB_DESCRIPTION =
+  'Browse our library of total loss and insurance claim guides: state-by-state total loss laws, insurer-specific playbooks, and how to read your CCC or Mitchell valuation report.'
+
 export const metadata = {
-  title: 'Knowledge Base | TotalLossToolKit.com',
-  description:
-    'Expert guides and resources to help you understand vehicle valuation, insurance claims, and your rights',
+  title: KB_TITLE,
+  description: KB_DESCRIPTION,
   alternates: {
     canonical: `${siteUrl}/knowledge-base`,
   },
   openGraph: {
-    title: 'Knowledge Base | TotalLossToolKit.com',
-    description:
-      'Expert guides and resources to help you understand vehicle valuation, insurance claims, and your rights',
+    title: KB_TITLE,
+    description: KB_DESCRIPTION,
     type: 'website',
     url: `${siteUrl}/knowledge-base`,
     siteName: 'TotalLossToolKit.com',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Knowledge Base | TotalLossToolKit.com',
-    description:
-      'Expert guides and resources to help you understand vehicle valuation, insurance claims, and your rights',
+    title: KB_TITLE,
+    description: KB_DESCRIPTION,
   },
 }
 

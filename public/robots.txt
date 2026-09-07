@@ -13,7 +13,7 @@ Disallow: /dashboard/
 
 # Block authentication flow pages that shouldn't be indexed
 Disallow: /reset-password
-Disallow: /auth/
+Disallow: /auth
 
 # Block redirect shim pages (they redirect to /auth, not real content)
 Disallow: /login

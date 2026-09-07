@@ -40,6 +40,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${supplier.businessName} - ${supplier.city}, ${supplier.state} | Provider Directory`,
     description: supplier.valueProposition.substring(0, 160),
+    alternates: {
+      canonical: `${siteUrl}/directory/${slug}`,
+    },
     openGraph: {
       title: supplier.businessName,
       description: supplier.valueProposition,
