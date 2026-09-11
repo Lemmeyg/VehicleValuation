@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from './ui/Button'
 import { ArrowRight, BookOpen, CheckCircle2 } from 'lucide-react'
-import { trackArticleClick, trackArticleView, trackButtonClick } from '@/lib/analytics/events'
+import { trackArticleClick, trackButtonClick } from '@/lib/analytics/events'
 
 interface Article {
   slug: string
@@ -46,19 +46,6 @@ export default function KnowledgeBase() {
     }, 6000) // Rotate every 6 seconds
     return () => clearInterval(interval)
   }, [articles.length])
-
-  // Track article view when carousel rotates
-  useEffect(() => {
-    if (articles.length > 0 && articles[currentArticleIndex]) {
-      const article = articles[currentArticleIndex]
-      trackArticleView({
-        articleSlug: article.slug,
-        articleTitle: article.title,
-        articleCategory: article.category,
-        source: 'homepage_carousel',
-      })
-    }
-  }, [currentArticleIndex, articles])
 
   // Track article click from featured carousel
   const handleFeaturedArticleClick = () => {
@@ -107,7 +94,9 @@ export default function KnowledgeBase() {
       <section id="knowledge-base" className="py-24 bg-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Access Expert Guides with Your Report</h2>
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">
+              Access Expert Guides with Your Report
+            </h2>
             <p className="text-slate-600 text-lg mb-8">
               Learn to Challenge Comps and Navigate Claims Effectively.
             </p>
@@ -131,7 +120,9 @@ export default function KnowledgeBase() {
             <p className="text-lg font-semibold text-primary-700 mb-3">
               With Total Loss Claims Rising, Act Now to Strengthen Your Position.
             </p>
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Access Expert Guides with Your Report</h2>
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">
+              Access Expert Guides with Your Report
+            </h2>
             <p className="text-slate-600 text-lg mb-6">
               Learn to Challenge Comps and Navigate Claims Effectively.
             </p>
@@ -141,7 +132,8 @@ export default function KnowledgeBase() {
               <div className="flex items-start">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 mr-2 mt-0.5 flex-shrink-0" />
                 <p className="text-slate-700">
-                  <span className="font-semibold">Owners recover 34% more on average</span> with independent appraisal
+                  <span className="font-semibold">Owners recover 34% more on average</span> with
+                  independent appraisal
                 </p>
               </div>
               <div className="flex items-start">
@@ -154,7 +146,9 @@ export default function KnowledgeBase() {
               </div>
               <div className="flex items-start">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 mr-2 mt-0.5 flex-shrink-0" />
-                <p className="text-slate-700">Learn appraisal basics that result in better offers</p>
+                <p className="text-slate-700">
+                  Learn appraisal basics that result in better offers
+                </p>
               </div>
               <div className="flex items-start">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 mr-2 mt-0.5 flex-shrink-0" />
@@ -188,9 +182,7 @@ export default function KnowledgeBase() {
             </div>
 
             <div className="absolute bottom-0 left-0 p-8 relative z-10 transition-all duration-500">
-              <span
-                className="inline-block px-3 py-1 text-white text-xs font-bold uppercase tracking-wider rounded-full mb-4 bg-primary-600"
-              >
+              <span className="inline-block px-3 py-1 text-white text-xs font-bold uppercase tracking-wider rounded-full mb-4 bg-primary-600">
                 {currentArticle.category}
               </span>
               <h3 className="text-2xl font-bold text-white mb-3">{currentArticle.title}</h3>
