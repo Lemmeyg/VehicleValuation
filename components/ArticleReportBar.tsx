@@ -19,16 +19,6 @@ interface ArticleReportBarProps {
   placement: 'post_toc' | 'post_faq_2' | 'fallback_mid'
 }
 
-const VALUE_PROPS = [
-  '10 Real Comps — Verified, Local, Same Year / Make / Model',
-  'Save hours searching sites for "close enough" listings',
-  '100% Money Back Guarantee',
-  "Professional Report to counter your carrier's lowball offer",
-  'Hundreds of thousands of comparable vehicles in our database',
-]
-
-const TICKER_INTERVAL = 3500
-
 export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarProps) {
   const router = useRouter()
 
@@ -38,7 +28,6 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [tickerIndex, setTickerIndex] = useState(0)
 
   const hasTrackedFormStart = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -53,14 +42,6 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
       })
     }
   }
-
-  // Ticker animation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTickerIndex(i => (i + 1) % VALUE_PROPS.length)
-    }, TICKER_INTERVAL)
-    return () => clearInterval(interval)
-  }, [])
 
   // Fire once when the bar first enters the viewport. Without this we can count
   // how many people typed in the form but not how many ever saw it, which makes
@@ -210,31 +191,16 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
 
   return (
     <div ref={containerRef} className="my-8 rounded-2xl bg-primary-600 px-6 py-5">
-      {/* Value prop ticker */}
-      <div className="mb-3 overflow-hidden" style={{ height: '28px' }}>
-        <div
-          className="flex flex-col transition-transform duration-500 ease-in-out"
-          style={{ transform: `translateY(-${tickerIndex * 28}px)` }}
-        >
-          {VALUE_PROPS.map((prop, i) => (
-            <div key={i} className="flex items-center gap-2.5" style={{ height: '28px' }}>
-              <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-white/50" />
-              <span className="text-[17px] font-bold leading-none text-white">{prop}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Dot indicators */}
-      <div className="mb-3 flex gap-1.5">
-        {VALUE_PROPS.map((_, i) => (
-          <div
-            key={i}
-            className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${
-              i === tickerIndex ? 'scale-125 bg-white/90' : 'bg-white/30'
-            }`}
-          />
-        ))}
+      {/* Headline + subhead */}
+      <div className="mb-3.5">
+        <p className="text-[19px] font-bold leading-tight text-white">
+          Now get your car&apos;s independent, evidence-backed valuation.
+        </p>
+        <p className="mt-1.5 text-[13px] leading-snug text-white/80">
+          Enter your VIN to get your car&apos;s value based on a database of over 450M+ real
+          listings, with 10 VIN-matched, geographically comparable listings to back up your
+          valuation — in a report built to hand your adjuster.
+        </p>
       </div>
 
       {/* Form */}
@@ -308,7 +274,7 @@ export function ArticleReportBar({ articleSlug, placement }: ArticleReportBarPro
             disabled={!isSubmittable || loading}
             className="flex h-[38px] flex-shrink-0 items-center gap-1.5 rounded-lg bg-white px-5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? 'Starting...' : 'Get My Independent Valuation →'}
+            {loading ? 'Starting...' : 'Get my valuation →'}
           </button>
         </div>
       </form>
