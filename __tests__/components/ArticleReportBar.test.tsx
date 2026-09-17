@@ -1,8 +1,8 @@
 /**
  * Tests for ArticleReportBar component
  *
- * Covers: render, value-prop ticker, form validation, localStorage storage,
- * redirect to pricing, and PostHog analytics events.
+ * Covers: render (headline/subhead copy), form validation, localStorage
+ * storage, redirect to pricing, and PostHog analytics events.
  */
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -64,39 +64,18 @@ describe('ArticleReportBar', () => {
 
     it('renders the CTA button', () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
-      expect(
-        screen.getByRole('button', { name: /get my independent valuation/i })
-      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /get my valuation/i })).toBeInTheDocument()
     })
 
-    it('renders the first value prop initially', () => {
+    it('renders the independent, evidence-backed headline', () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
-      expect(screen.getByText(/10 Real Comps/i)).toBeInTheDocument()
-    })
-  })
-
-  describe('value prop ticker', () => {
-    beforeEach(() => {
-      jest.useFakeTimers()
-    })
-    afterEach(() => {
-      jest.useRealTimers()
+      expect(screen.getByText(/independent, evidence-backed valuation/i)).toBeInTheDocument()
     })
 
-    it('advances to the second value prop after 3.5 seconds', () => {
+    it('renders the subhead citing 450M+ listings and 10 VIN-matched comparables', () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
-      act(() => {
-        jest.advanceTimersByTime(3500)
-      })
-      expect(screen.getByText(/save hours/i)).toBeInTheDocument()
-    })
-
-    it('wraps back to the first value prop after all 5 have shown', () => {
-      render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
-      act(() => {
-        jest.advanceTimersByTime(3500 * 5)
-      })
-      expect(screen.getByText(/10 Real Comps/i)).toBeInTheDocument()
+      expect(screen.getByText(/450M\+ real/i)).toBeInTheDocument()
+      expect(screen.getByText(/10 VIN-matched/i)).toBeInTheDocument()
     })
   })
 
@@ -104,7 +83,7 @@ describe('ArticleReportBar', () => {
     it('creates the report server-side with source: kb_article and the article slug', async () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
       await fillForm()
-      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      fireEvent.click(screen.getByRole('button', { name: /get my valuation/i }))
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
@@ -131,7 +110,7 @@ describe('ArticleReportBar', () => {
     it('sends the visitor PostHog distinct id when creating the report', async () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
       await fillForm()
-      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      fireEvent.click(screen.getByRole('button', { name: /get my valuation/i }))
 
       await waitFor(() => {
         const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
@@ -142,7 +121,7 @@ describe('ArticleReportBar', () => {
     it('does not write to localStorage on submission', async () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
       await fillForm()
-      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      fireEvent.click(screen.getByRole('button', { name: /get my valuation/i }))
       await waitFor(() => expect(mockPush).toHaveBeenCalled())
       expect(localStorage.getItem('hero_form_data')).toBeNull()
     })
@@ -150,7 +129,7 @@ describe('ArticleReportBar', () => {
     it('does not show any auth modal', async () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
       await fillForm()
-      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      fireEvent.click(screen.getByRole('button', { name: /get my valuation/i }))
       await waitFor(() => expect(mockPush).toHaveBeenCalled())
       expect(screen.queryByTestId('auth-modal')).not.toBeInTheDocument()
     })
@@ -162,7 +141,7 @@ describe('ArticleReportBar', () => {
       })
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
       await fillForm()
-      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      fireEvent.click(screen.getByRole('button', { name: /get my valuation/i }))
 
       await waitFor(() => {
         expect(screen.getByText(/failed to create report/i)).toBeInTheDocument()
@@ -177,7 +156,7 @@ describe('ArticleReportBar', () => {
       await userEvent.type(screen.getByPlaceholderText(/1HGCM82633A123456/i), 'SHORT')
       await userEvent.type(screen.getByPlaceholderText(/42,000/i), VALID_MILEAGE)
       await userEvent.type(screen.getByPlaceholderText(/90210/i), VALID_ZIP)
-      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      fireEvent.click(screen.getByRole('button', { name: /get my valuation/i }))
       expect(mockPush).not.toHaveBeenCalled()
       expect(localStorage.getItem('hero_form_data')).toBeNull()
     })
@@ -190,13 +169,13 @@ describe('ArticleReportBar', () => {
     it('disables submit when email is empty', async () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
       await fillForm({ email: '' })
-      expect(screen.getByRole('button', { name: /get my independent valuation/i })).toBeDisabled()
+      expect(screen.getByRole('button', { name: /get my valuation/i })).toBeDisabled()
     })
 
     it('disables submit when email is invalid', async () => {
       render(<ArticleReportBar articleSlug="test-article" placement="post_toc" />)
       await fillForm({ email: 'not-an-email' })
-      expect(screen.getByRole('button', { name: /get my independent valuation/i })).toBeDisabled()
+      expect(screen.getByRole('button', { name: /get my valuation/i })).toBeDisabled()
     })
 
     it('shows a validation warning and does not submit when submitted without a valid email', async () => {
@@ -237,7 +216,7 @@ describe('ArticleReportBar', () => {
     it('fires kb_article_report_bar_clicked with slug and placement on submit', async () => {
       render(<ArticleReportBar articleSlug="my-article" placement="post_faq_2" />)
       await fillForm()
-      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      fireEvent.click(screen.getByRole('button', { name: /get my valuation/i }))
       await waitFor(() => expect(mockPush).toHaveBeenCalled())
       expect(mockPosthog.capture).toHaveBeenCalledWith(
         'kb_article_report_bar_clicked',
@@ -251,7 +230,7 @@ describe('ArticleReportBar', () => {
     it('fires form_submitted with success:true on submit', async () => {
       render(<ArticleReportBar articleSlug="test-slug" placement="post_toc" />)
       await fillForm()
-      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      fireEvent.click(screen.getByRole('button', { name: /get my valuation/i }))
       await waitFor(() => expect(mockPush).toHaveBeenCalled())
       expect(mockPosthog.capture).toHaveBeenCalledWith(
         'form_submitted',
@@ -262,7 +241,7 @@ describe('ArticleReportBar', () => {
     it('fires report_workflow article_bar_form_submitted on submit', async () => {
       render(<ArticleReportBar articleSlug="my-article" placement="post_toc" />)
       await fillForm()
-      fireEvent.click(screen.getByRole('button', { name: /get my independent valuation/i }))
+      fireEvent.click(screen.getByRole('button', { name: /get my valuation/i }))
       await waitFor(() => expect(mockPush).toHaveBeenCalled())
       expect(mockPosthog.capture).toHaveBeenCalledWith(
         'report_workflow',
