@@ -45,20 +45,24 @@ export const TESTIMONIALS = [
       'First offer was $23.5K. I provided an updated list of comparable sales from the report and ended up receiving $28K — a $4,500 increase.',
     attribution: 'M.R., California — 2020 Honda Civic',
     outcome: '+$4,500',
+    outcomeValue: 4500,
   },
   {
     quote:
       'They initially tried to offer $9,800 for my car. An independent vehicle evaluation pegged it at $23,000. They cut me a check a week later.',
     attribution: 'T.K., Texas — 2018 Toyota Camry',
     outcome: '+$13,200',
+    outcomeValue: 13200,
   },
 ]
 
+// Trimmed from 6 to 4 (BL-155): "High/low value range with confidence score" and
+// "Negotiation-ready PDF format with professional layout" are cut because the
+// collapsible report preview now proves the value-range claim with real
+// numbers immediately below this list, making the bullet redundant.
 export const WHATS_INCLUDED = [
   { label: 'Accurate market value from 450M+ real listings' },
   { label: '10 verified comparable vehicles with prices and locations' },
-  { label: 'High/low value range with confidence score' },
   { label: 'VIN-decoded equipment and trim-level precision' },
   { label: 'Regional pricing factors specific to your ZIP code' },
-  { label: 'Negotiation-ready PDF format with professional layout' },
 ]

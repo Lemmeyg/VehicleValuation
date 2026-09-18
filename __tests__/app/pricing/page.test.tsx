@@ -62,21 +62,22 @@ jest.mock('@/lib/pricing/constants', () => {
           'First offer was $23.5K. I provided an updated list of comparable sales from the report and ended up receiving $28K — a $4,500 increase.',
         attribution: 'M.R., California — 2020 Honda Civic',
         outcome: '+$4,500',
+        outcomeValue: 4500,
       },
       {
         quote:
           'They initially tried to offer $9,800 for my car. An independent vehicle evaluation pegged it at $23,000. They cut me a check a week later.',
         attribution: 'T.K., Texas — 2018 Toyota Camry',
         outcome: '+$13,200',
+        outcomeValue: 13200,
       },
     ],
+    // Trimmed from 6 to 4 (BL-155) — see the real lib/pricing/constants.ts
     WHATS_INCLUDED: [
       { label: 'Accurate market value from 450M+ real listings' },
       { label: '10 verified comparable vehicles with prices and locations' },
-      { label: 'High/low value range with confidence score' },
       { label: 'VIN-decoded equipment and trim-level precision' },
       { label: 'Regional pricing factors specific to your ZIP code' },
-      { label: 'Negotiation-ready PDF format with professional layout' },
     ],
   }
 })
@@ -729,5 +730,69 @@ describe('PricingPage — checkout handoff marker (BL-85)', () => {
       })
     )
     expect(markCheckoutHandoff).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('PricingPage — report preview teaser tracking (BL-155)', () => {
+  // This page also wraps a dozen other sections in <Reveal>/<CountUp>, each
+  // with its own IntersectionObserver — so the mock must track every
+  // (callback, observed element) pair and let each test pick the one it
+  // actually cares about, rather than assuming there's only one instance.
+  let observed: Array<{ element: Element; callback: IntersectionObserverCallback }>
+
+  beforeEach(() => {
+    observed = []
+    global.IntersectionObserver = jest
+      .fn()
+      .mockImplementation((callback: IntersectionObserverCallback) => ({
+        observe: (element: Element) => observed.push({ element, callback }),
+        unobserve: jest.fn(),
+        disconnect: jest.fn(),
+      })) as unknown as typeof IntersectionObserver
+  })
+
+  afterEach(() => {
+    sessionStorage.clear()
+  })
+
+  function triggerIntersectionFor(matchText: string) {
+    const entry = observed.find(o => o.element.textContent?.includes(matchText))
+    if (!entry) throw new Error(`No observed element found containing text: ${matchText}`)
+    act(() => {
+      entry.callback(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+  }
+
+  it('fires report_preview_teaser_viewed once the card scrolls into view', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+    await screen.findByText(/vehicle specifications/i)
+
+    triggerIntersectionFor('TotalLossToolKit Report')
+
+    expect(trackEvent).toHaveBeenCalledWith('report_preview_teaser_viewed', { reportId: 'r1' })
+  })
+
+  it('fires report_preview_viewed only when the visitor expands to the full sample', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+
+    const expandButton = await screen.findByRole('button', {
+      name: /see what's inside your sample report/i,
+    })
+    expect(trackEvent).not.toHaveBeenCalledWith('report_preview_viewed', expect.anything())
+
+    fireEvent.click(expandButton)
+    expect(trackEvent).toHaveBeenCalledWith('report_preview_viewed', { reportId: 'r1' })
+  })
+
+  it('shows the value cards without requiring a click', async () => {
+    setPendingReport({ year: 2019, make: 'Honda', model: 'Civic' })
+    render(<PricingPage />)
+    expect(await screen.findAllByText('$20,389')).not.toHaveLength(0)
+    expect(screen.queryByText(/vehicle specifications/i)).toBeInTheDocument() // present, just visually clipped
   })
 })
