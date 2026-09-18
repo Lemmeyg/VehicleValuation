@@ -160,30 +160,12 @@ export default function ReportPreviewCondensed({
           </div>
         </div>
 
-        {collapsible && (
-          <button
-            type="button"
-            onClick={handleToggle}
-            aria-expanded={expanded}
-            className={`mb-4 flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:border-primary-300 ${
-              showAttentionCue ? 'motion-safe:animate-ring-pulse border-primary-200' : ''
-            }`}
-          >
-            <span>
-              {expanded ? 'Collapse sample report' : "See what's inside your sample report"}
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 flex-shrink-0 text-slate-500 transition-transform duration-200 ${
-                expanded ? 'rotate-180' : ''
-              } ${showAttentionCue ? 'motion-safe:animate-caret-nudge text-primary-600' : ''}`}
-            />
-          </button>
-        )}
-
         {/* Everything below is always rendered — when collapsible, a permanent
-            sliver of "Vehicle Specifications" peeks out beneath the button so
+            sliver of "Vehicle Specifications" peeks out with a fade so
             there's always a visible hint of real content, with no auto-open/
-            close motion. Expanding reveals it in full. */}
+            close motion. The expand button sits below this peek, at the
+            bottom of the frame — content and its fade first, the "read more"
+            action last, matching the standard preview-then-expand pattern. */}
         <div
           className={
             collapsible
@@ -294,21 +276,21 @@ export default function ReportPreviewCondensed({
                 {/* Bar chart */}
                 <div className="relative h-36 flex items-end justify-center gap-1 px-2">
                   {/* Price range bars */}
-                  <div className="flex flex-col items-center flex-1">
+                  <div className="flex h-full flex-1 flex-col items-center justify-end">
                     <div
                       className="w-full bg-slate-300 rounded-t transition-all hover:bg-slate-400"
                       style={{ height: '25%' }}
                     ></div>
                     <div className="text-[8px] text-slate-600 mt-1 text-center">$19-21k</div>
                   </div>
-                  <div className="flex flex-col items-center flex-1">
+                  <div className="flex h-full flex-1 flex-col items-center justify-end">
                     <div
                       className="w-full bg-slate-300 rounded-t transition-all hover:bg-slate-400"
                       style={{ height: '40%' }}
                     ></div>
                     <div className="text-[8px] text-slate-600 mt-1 text-center">$21-23k</div>
                   </div>
-                  <div className="flex flex-col items-center flex-1">
+                  <div className="flex h-full flex-1 flex-col items-center justify-end">
                     <div
                       className="w-full bg-emerald-500 rounded-t transition-all hover:bg-emerald-600"
                       style={{ height: '85%' }}
@@ -317,7 +299,7 @@ export default function ReportPreviewCondensed({
                       $23-25k
                     </div>
                   </div>
-                  <div className="flex flex-col items-center flex-1">
+                  <div className="flex h-full flex-1 flex-col items-center justify-end">
                     <div
                       className="w-full bg-emerald-500 rounded-t transition-all hover:bg-emerald-600"
                       style={{ height: '100%' }}
@@ -326,7 +308,7 @@ export default function ReportPreviewCondensed({
                       $25-27k
                     </div>
                   </div>
-                  <div className="flex flex-col items-center flex-1">
+                  <div className="flex h-full flex-1 flex-col items-center justify-end">
                     <div
                       className="w-full bg-emerald-500 rounded-t transition-all hover:bg-emerald-600"
                       style={{ height: '75%' }}
@@ -335,28 +317,28 @@ export default function ReportPreviewCondensed({
                       $27-29k
                     </div>
                   </div>
-                  <div className="flex flex-col items-center flex-1">
+                  <div className="flex h-full flex-1 flex-col items-center justify-end">
                     <div
                       className="w-full bg-blue-400 rounded-t transition-all hover:bg-blue-500"
                       style={{ height: '55%' }}
                     ></div>
                     <div className="text-[8px] text-blue-700 mt-1 text-center">$29-31k</div>
                   </div>
-                  <div className="flex flex-col items-center flex-1">
+                  <div className="flex h-full flex-1 flex-col items-center justify-end">
                     <div
                       className="w-full bg-blue-400 rounded-t transition-all hover:bg-blue-500"
                       style={{ height: '45%' }}
                     ></div>
                     <div className="text-[8px] text-blue-700 mt-1 text-center">$31-33k</div>
                   </div>
-                  <div className="flex flex-col items-center flex-1">
+                  <div className="flex h-full flex-1 flex-col items-center justify-end">
                     <div
                       className="w-full bg-blue-400 rounded-t transition-all hover:bg-blue-500"
                       style={{ height: '25%' }}
                     ></div>
                     <div className="text-[8px] text-blue-700 mt-1 text-center">$33-35k</div>
                   </div>
-                  <div className="flex flex-col items-center flex-1">
+                  <div className="flex h-full flex-1 flex-col items-center justify-end">
                     <div
                       className="w-full bg-blue-400 rounded-t transition-all hover:bg-blue-500"
                       style={{ height: '10%' }}
@@ -629,6 +611,26 @@ export default function ReportPreviewCondensed({
             </div>
           </div>
         </div>
+
+        {collapsible && (
+          <button
+            type="button"
+            onClick={handleToggle}
+            aria-expanded={expanded}
+            className={`mt-4 flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:border-primary-300 ${
+              showAttentionCue ? 'motion-safe:animate-ring-pulse border-primary-200' : ''
+            }`}
+          >
+            <span>
+              {expanded ? 'Collapse sample report' : "See what's inside your sample report"}
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 flex-shrink-0 text-slate-500 transition-transform duration-200 ${
+                expanded ? 'rotate-180' : ''
+              } ${showAttentionCue ? 'motion-safe:animate-caret-nudge text-primary-600' : ''}`}
+            />
+          </button>
+        )}
       </div>
     </div>
   )
