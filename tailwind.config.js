@@ -22,6 +22,21 @@ module.exports = {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      keyframes: {
+        'caret-nudge': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(5px)' },
+        },
+        'ring-pulse': {
+          '0%': { boxShadow: '0 0 0 0 rgba(5,150,105,0.32)' },
+          '70%': { boxShadow: '0 0 0 9px rgba(5,150,105,0)' },
+          '100%': { boxShadow: '0 0 0 0 rgba(5,150,105,0)' },
+        },
+      },
+      animation: {
+        'caret-nudge': 'caret-nudge 1.3s ease-in-out infinite',
+        'ring-pulse': 'ring-pulse 2s ease-out infinite',
+      },
     },
   },
   plugins: [],

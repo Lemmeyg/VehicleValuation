@@ -151,6 +151,23 @@ global.console = {
   warn: console.warn,
 }
 
+// jsdom does not implement window.matchMedia. Components that check
+// prefers-reduced-motion (Reveal, CountUp, ReportPreviewCondensed's
+// collapsible mode) call it unconditionally, so every test needs a default
+// stub. Individual tests can still override this with their own mock.
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  window.matchMedia = jest.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  }))
+}
+
 // Reset all mocks after each test
 afterEach(() => {
   jest.clearAllMocks()
