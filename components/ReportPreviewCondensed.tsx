@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Car, ChevronDown, ShieldCheck } from 'lucide-react'
+import Image from 'next/image'
+import { ChevronDown, ShieldCheck } from 'lucide-react'
 
 /**
  * Condensed Report Preview Component
@@ -563,18 +564,38 @@ export default function ReportPreviewCondensed({
                 <tbody className="divide-y divide-slate-100">
                   {[
                     {
+                      photo: '/images/sample-report/bmw-x3-comp-1.jpg',
                       mileage: '67,095',
                       price: '$23,077',
                       days: '149',
                       dealer: 'Trolley Square Auto',
                     },
-                    { mileage: '67,419', price: '$22,963', days: '188', dealer: 'Nucar' },
-                    { mileage: '66,622', price: '$23,502', days: '35', dealer: 'Habberstad Bmw' },
+                    {
+                      photo: '/images/sample-report/bmw-x3-comp-2.jpg',
+                      mileage: '67,419',
+                      price: '$22,963',
+                      days: '188',
+                      dealer: 'Nucar',
+                    },
+                    {
+                      photo: '/images/sample-report/bmw-x3-comp-3.jpg',
+                      mileage: '66,622',
+                      price: '$23,502',
+                      days: '35',
+                      dealer: 'Habberstad Bmw',
+                    },
                   ].map((comp, idx) => (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="py-3 px-2">
-                        <div className="w-12 h-10 rounded bg-slate-100 flex items-center justify-center">
-                          <Car className="h-5 w-5 text-slate-400" />
+                        <div className="relative h-10 w-12 overflow-hidden rounded bg-slate-100">
+                          <Image
+                            src={comp.photo}
+                            alt="2021 BMW X3 comparable listing"
+                            fill
+                            className="object-cover"
+                            sizes="48px"
+                            unoptimized
+                          />
                         </div>
                       </td>
                       <td className="py-3 px-2">
