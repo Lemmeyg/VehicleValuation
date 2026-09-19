@@ -10,7 +10,21 @@
  * requiring ESM transformation of the unified/remark/rehype ecosystem.
  */
 
-const HERO_FORM_URL = 'https://totallosstoolkit.com/#hero-form'
+/**
+ * Root-relative on purpose, never an absolute URL with a hostname.
+ *
+ * The site answers on both `totallosstoolkit.com` and `www.totallosstoolkit.com`
+ * (neither redirects to the other). Those are two different browser origins, so
+ * they do not share `sessionStorage` or `localStorage`. Sending a reader who is
+ * on one host to a link hardcoded to the other silently discards the whole
+ * purchase handoff: `pending_report` / `current_report_id` (read by
+ * `app/pricing/page.tsx`), the `tlt_checkout_handoff` marker
+ * (`lib/analytics/checkout-return.ts`), and KB attribution
+ * (`lib/analytics/kb-attribution.ts`).
+ *
+ * `/#hero-form` keeps the reader on whichever host they already arrived on.
+ */
+const HERO_FORM_URL = '/#hero-form'
 
 function heroFormCalloutBox(anchorText: string): string {
   return `<div class="hero-form-callout">

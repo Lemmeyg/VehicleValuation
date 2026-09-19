@@ -166,4 +166,17 @@ describe('transformHeroFormLinks', () => {
     expect(result).toContain('hero-form-callout__body')
     expect(result).toContain('Check Your Vehicle')
   })
+
+  // Regression guard: apex and www are separate browser origins and neither
+  // redirects to the other, so an absolute hostname here drops the reader's
+  // sessionStorage purchase handoff. Emitted hrefs must stay origin-relative.
+  it('emits origin-relative hero-form hrefs, never an absolute hostname', () => {
+    const html = `<p><a href="${HERO_URL}">Standalone</a></p>
+<p>Inline <a href="${HERO_URL}">link</a> here.</p>`
+
+    const result = transformHeroFormLinks(html)
+
+    expect(result).toContain('href="/#hero-form"')
+    expect(result).not.toContain('totallosstoolkit.com')
+  })
 })
