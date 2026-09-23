@@ -43,4 +43,12 @@ describe('findMatchingReportId', () => {
     const result = await findMatchingReportId('user@example.com')
     expect(result).toBeNull()
   })
+
+  it('returns null instead of rejecting when the Supabase chain throws synchronously', async () => {
+    const select = jest.fn(() => {
+      throw new Error('unexpected synchronous failure')
+    })
+    ;(supabaseAdmin.from as jest.Mock).mockReturnValue({ select })
+    await expect(findMatchingReportId('user@example.com')).resolves.toBeNull()
+  })
 })

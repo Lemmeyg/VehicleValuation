@@ -107,9 +107,10 @@ describe('CompsCheckForm', () => {
     )
   })
 
-  it('shows the server error message and fires trackAuditFormError when the API rejects the submission', async () => {
+  it('shows the server error message and fires trackAuditFormError with the HTTP status when the API rejects the submission', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
+      status: 400,
       json: async () => ({ error: 'This file could not be accepted.' }),
     })
     render(<CompsCheckForm />)
@@ -125,6 +126,43 @@ describe('CompsCheckForm', () => {
     await waitFor(() => {
       expect(screen.getByText('This file could not be accepted.')).toBeInTheDocument()
     })
-    expect(mockFormError).toHaveBeenCalledWith('server_rejected')
+    expect(mockFormError).toHaveBeenCalledWith('server_rejected_400')
+  })
+
+  it('falls back to a generic error message and still classifies it as a server error when the error response body is not valid JSON', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 413,
+      json: async () => {
+        throw new SyntaxError('Unexpected token in JSON')
+      },
+    })
+    render(<CompsCheckForm />)
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: 'user@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText(/insurer's report/i), {
+      target: { files: [makePdfFile()] },
+    })
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument()
+    })
+    expect(mockFormError).toHaveBeenCalledWith('server_rejected_413')
+  })
+
+  it('trims trailing whitespace before validating the email', () => {
+    render(<CompsCheckForm />)
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: 'user@example.com ' },
+    })
+    fireEvent.change(screen.getByLabelText(/insurer's report/i), {
+      target: { files: [makePdfFile()] },
+    })
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

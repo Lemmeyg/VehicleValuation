@@ -10,6 +10,11 @@ import { findMatchingReportId } from '@/lib/audit-submissions/match-report'
 import { captureAuditFormSubmitted } from '@/lib/analytics/server-events'
 
 const HONEYPOT_FIELD = 'company_website'
+const MIME_TO_EXTENSION: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+}
 const RATE_LIMIT_MAX = 5
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
 
@@ -50,6 +55,7 @@ export async function POST(request: NextRequest) {
   // this must never inflate audit_form_submitted.
   const honeypot = formData.get(HONEYPOT_FIELD)
   if (typeof honeypot === 'string' && honeypot.trim() !== '') {
+    console.warn('[audit-submissions] honeypot triggered, submission not persisted')
     return NextResponse.json({ success: true })
   }
 
@@ -74,7 +80,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    return NextResponse.json({ error: 'File must be 15MB or smaller.' }, { status: 400 })
+    return NextResponse.json({ error: 'File must be 4MB or smaller.' }, { status: 400 })
   }
 
   const buffer = Buffer.from(await file.arrayBuffer())
@@ -96,7 +102,12 @@ export async function POST(request: NextRequest) {
   }
 
   const submissionId = crypto.randomUUID()
-  const storagePath = `${submissionId}/${file.name}`
+  // Derive the storage filename from the validated MIME type rather than the
+  // client-supplied name — real-world filenames (smart quotes, accented
+  // characters, em-dashes) can be rejected outright as invalid Supabase
+  // Storage object keys.
+  const extension = MIME_TO_EXTENSION[file.type]
+  const storagePath = `${submissionId}/upload.${extension}`
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from('audit-submissions-backfill')

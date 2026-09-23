@@ -6,15 +6,19 @@ import { supabaseAdmin } from '@/lib/db/supabase'
  * DB error here should never block the submission itself.
  */
 export async function findMatchingReportId(email: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from('reports')
-    .select('id')
-    .ilike('email', email)
-    .gt('price_paid', 0)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('reports')
+      .select('id')
+      .ilike('email', email)
+      .gt('price_paid', 0)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-  if (error || !data) return null
-  return (data as { id: string }).id
+    if (error || !data) return null
+    return (data as { id: string }).id
+  } catch {
+    return null
+  }
 }

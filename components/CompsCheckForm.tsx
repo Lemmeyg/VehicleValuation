@@ -6,7 +6,7 @@ import { trackAuditPageViewed, trackAuditFormError } from '@/lib/analytics/event
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
-const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024
+const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error'
 
@@ -24,10 +24,10 @@ export default function CompsCheckForm() {
   }, [])
 
   function validate(): string | null {
-    if (!EMAIL_REGEX.test(email)) return 'Please enter a valid email address.'
+    if (!EMAIL_REGEX.test(email.trim())) return 'Please enter a valid email address.'
     if (!file) return 'Please attach a file.'
     if (!ALLOWED_FILE_TYPES.includes(file.type)) return 'Please upload a PDF, JPG, or PNG file.'
-    if (file.size > MAX_FILE_SIZE_BYTES) return 'File must be 15MB or smaller.'
+    if (file.size > MAX_FILE_SIZE_BYTES) return 'File must be 4MB or smaller.'
     if (!consent) return 'Please check the consent box to continue.'
     return null
   }
@@ -55,12 +55,19 @@ export default function CompsCheckForm() {
 
     try {
       const res = await fetch('/api/audit-submissions', { method: 'POST', body: formData })
-      const data = await res.json()
 
       if (!res.ok) {
-        setErrorMessage(data.error || 'Something went wrong. Please try again.')
+        let message = 'Something went wrong. Please try again.'
+        try {
+          const data = await res.json()
+          if (data?.error) message = data.error
+        } catch {
+          // Non-JSON error body (e.g. a platform-level 413 from an oversized
+          // upload) — fall back to the generic message rather than crashing.
+        }
+        setErrorMessage(message)
         setState('error')
-        trackAuditFormError('server_rejected')
+        trackAuditFormError(`server_rejected_${res.status}`)
         return
       }
 
@@ -107,7 +114,6 @@ export default function CompsCheckForm() {
           id="audit-file"
           type="file"
           accept="application/pdf,image/jpeg,image/png"
-          capture="environment"
           onChange={e => setFile(e.target.files?.[0] ?? null)}
           disabled={state === 'submitting'}
           className="w-full text-sm"

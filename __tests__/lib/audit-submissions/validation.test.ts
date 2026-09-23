@@ -19,8 +19,8 @@ describe('isAllowedMimeType', () => {
 })
 
 describe('MAX_FILE_SIZE_BYTES', () => {
-  it('is 15MB', () => {
-    expect(MAX_FILE_SIZE_BYTES).toBe(15 * 1024 * 1024)
+  it('is 4MB', () => {
+    expect(MAX_FILE_SIZE_BYTES).toBe(4 * 1024 * 1024)
   })
 })
 
