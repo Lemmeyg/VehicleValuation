@@ -158,7 +158,7 @@ export default function CompsCheckForm() {
         <span>
           We&apos;ll review the document you upload for pricing adjustments that courts have already
           ruled against in similar cases — we may or may not find something. Your file is kept for
-          90 days and then automatically deleted. This is free and optional; there&apos;s no
+          internal review and deleted within 90 days. This is free and optional; there&apos;s no
           obligation and no purchase required.
         </span>
       </label>
