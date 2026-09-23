@@ -13,6 +13,16 @@ import { addContactToList } from '@/lib/zoho-campaigns'
 
 interface GeneratePDFOptions {
   reportId: string
+  // Skips the Zoho "Report Delivery" enrollment and leaves email_date_sent
+  // untouched. Used by the manual-valuation-supplement admin route, which
+  // generates a corrected PDF for internal review without notifying the
+  // customer.
+  skipEmailEnrollment?: boolean
+  // getPaidReportType looks up the payments row by reportId, which only
+  // resolves for the report the customer actually paid for — a cloned row
+  // (new id) has no payments row of its own. Callers that clone a report
+  // must resolve the original's tier first and pass it here.
+  reportTypeOverride?: 'BASIC' | 'PREMIUM'
 }
 
 interface ReportData {
@@ -46,7 +56,7 @@ export async function generateAndUploadPDF(
   options: GeneratePDFOptions
 ): Promise<{ success: boolean; error?: string; pdfUrl?: string }> {
   try {
-    const { reportId } = options
+    const { reportId, skipEmailEnrollment, reportTypeOverride } = options
 
     // Use admin client to bypass RLS - called from webhook context without user session
     const supabase = supabaseAdmin
@@ -65,7 +75,8 @@ export async function generateAndUploadPDF(
 
     // price_paid is the real tax-inclusive charged total, not a stable per-tier
     // constant — payments.metadata.reportType (set at checkout) is authoritative.
-    const reportType = (await getPaidReportType(supabase, reportId)) ?? 'BASIC'
+    const reportType =
+      reportTypeOverride ?? (await getPaidReportType(supabase, reportId)) ?? 'BASIC'
 
     // Prepare data for PDF template
     const pdfData = {
@@ -160,7 +171,12 @@ export async function generateAndUploadPDF(
     // an unconditional set would permanently disable the send if this first
     // attempt hit a transient Zoho failure. Wrapped in its own try/catch so
     // nothing here can mark this otherwise-successful generation as failed.
-    if (reportData.price_paid && !reportData.email_date_sent && reportData.email) {
+    if (
+      !skipEmailEnrollment &&
+      reportData.price_paid &&
+      !reportData.email_date_sent &&
+      reportData.email
+    ) {
       const listKey = process.env.ZOHO_CAMPAIGNS_REPORT_DELIVERY_LIST_KEY
       if (listKey) {
         try {
