@@ -76,14 +76,36 @@ export async function POST(request: NextRequest) {
 
 async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
   try {
-    // Extract custom data from the webhook
-    const customData = event.meta.custom_data
-    const { reportId, userId: rawUserId, reportType } = customData
+    // Extract custom data from the webhook. custom_data can come back entirely
+    // missing (not just missing a field) — seen live 2026-09-22 — so default to {}
+    // rather than destructuring event.meta.custom_data directly.
+    const customData = event.meta.custom_data ?? {}
+    let { reportId } = customData
+    const { userId: rawUserId, reportType } = customData
     const customerEmail = event.data.attributes.user_email
 
     const orderId = event.data.id
     const amount = event.data.attributes.total
     const status = event.data.attributes.status
+    const orderCreatedAt = event.data.attributes.created_at
+
+    if (!reportId) {
+      console.warn(
+        `[WH-2a] Order ${orderId} arrived with no custom_data.reportId — attempting email fallback match`
+      )
+      const fallbackReportId = await resolveReportFromEmailFallback(
+        customerEmail,
+        orderCreatedAt,
+        orderId
+      )
+      if (!fallbackReportId) {
+        console.error(
+          `[WH-2a] Could not resolve a report for order ${orderId} — payment left unrecorded, needs manual reconciliation`
+        )
+        return
+      }
+      reportId = fallbackReportId
+    }
 
     console.log(
       `[WH-2] Processing order ${orderId} for report ${reportId}, user ${rawUserId ?? 'anonymous'}, status ${status}`
@@ -762,4 +784,84 @@ async function resolveUserFromEmail(email: string, reportId: string): Promise<st
   }
 
   return resolvedUserId
+}
+
+/**
+ * Fallback for an order_created webhook whose custom_data is missing reportId — seen live
+ * 2026-09-22, where a real, paid order arrived with an empty custom_data payload and crashed
+ * this handler before it could write anything. Rather than crash, or guess and risk attaching
+ * a payment to the wrong report, this matches on customer email among that customer's unpaid
+ * reports created at or before the order's own timestamp (so a report created *after* the
+ * order can never be picked). Only an unambiguous single match is used; anything else is
+ * logged for manual review rather than guessed.
+ */
+async function resolveReportFromEmailFallback(
+  customerEmail: string | undefined,
+  orderCreatedAt: string,
+  orderId: string
+): Promise<string | null> {
+  if (!customerEmail) {
+    await logApiCall({
+      provider: 'webhook',
+      endpoint: '[WH-2a] email fallback match',
+      success: false,
+      errorMessage: 'custom_data.reportId missing and order has no customer email — cannot match',
+      requestData: { orderId },
+    })
+    return null
+  }
+
+  const { data: candidates, error } = await supabaseAdmin
+    .from('reports')
+    .select('id, created_at')
+    .ilike('email', customerEmail)
+    .is('price_paid', null)
+    .lte('created_at', orderCreatedAt)
+    .order('created_at', { ascending: false })
+
+  if (error || !candidates || candidates.length !== 1) {
+    await logApiCall({
+      provider: 'webhook',
+      endpoint: '[WH-2a] email fallback match',
+      success: false,
+      errorMessage: error
+        ? `Fallback match query failed: ${error.message}`
+        : `Ambiguous or no match — found ${candidates?.length ?? 0} unpaid report(s) for this email at order time`,
+      requestData: {
+        orderId,
+        customerEmail,
+        orderCreatedAt,
+        candidateIds: candidates?.map(r => r.id) ?? [],
+      },
+    })
+    return null
+  }
+
+  const matchedReportId: string = candidates[0].id
+
+  const { data: existing } = await supabaseAdmin
+    .from('reports')
+    .select('"GL Notes"')
+    .eq('id', matchedReportId)
+    .single()
+  const existingNote = existing?.['GL Notes'] ? `${existing['GL Notes']}\n` : ''
+  await supabaseAdmin
+    .from('reports')
+    .update({
+      'GL Notes':
+        `${existingNote}[auto] Payment auto-matched by email — LemonSqueezy order ${orderId} ` +
+        `arrived with no custom_data; matched via customer email + order timestamp. Please ` +
+        `verify this is correct, ${new Date().toISOString().slice(0, 10)}`,
+    })
+    .eq('id', matchedReportId)
+
+  await logApiCall({
+    reportId: matchedReportId,
+    provider: 'webhook',
+    endpoint: '[WH-2a] email fallback match',
+    success: true,
+    responseData: { orderId, customerEmail, matchedReportId },
+  })
+
+  return matchedReportId
 }
