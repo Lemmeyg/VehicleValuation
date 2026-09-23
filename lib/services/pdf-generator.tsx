@@ -108,7 +108,12 @@ export async function generateAndUploadPDF(
       filenamePart = reportData.vin.toUpperCase().replace(/[^A-Z0-9]/g, '')
     }
     const filename = `total-loss-report-${filenamePart}.pdf`
-    const filepath = `reports/${reportData.user_id}/${filename}`
+    // Falls back to the report's own id when user_id is null (e.g. an internal
+    // manual-valuation-supplement clone, which deliberately doesn't inherit the
+    // original's user_id) — otherwise every such clone for the same vehicle
+    // year/make/model would collide in the same reports/null/ folder and
+    // silently overwrite each other's PDF (upload uses upsert: true).
+    const filepath = `reports/${reportData.user_id ?? reportData.id}/${filename}`
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage

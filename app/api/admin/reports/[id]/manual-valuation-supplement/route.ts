@@ -181,6 +181,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       dataSource: 'manual_research',
     },
     'GL Notes': glNotes,
+    // Not replicated: this clone isn't the customer's real purchase record, so it
+    // must not carry the original's account link or payment/order identifiers.
+    user_id: null,
+    stripe_payment_id: null,
+    lemon_squeezy_payment_id: null,
     // Fresh, unrelated to the original's — this row is never handed to the customer.
     access_token: crypto.randomUUID(),
     access_token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),

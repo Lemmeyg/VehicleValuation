@@ -169,6 +169,9 @@ describe('POST /api/admin/reports/[id]/manual-valuation-supplement', () => {
         status: 'completed',
         email: 'gigipaolini@gmail.com',
         vin: '2T2BK1BA0DC193577',
+        user_id: 'original-user-id',
+        stripe_payment_id: 'ls-order-255472122',
+        lemon_squeezy_payment_id: null,
         'GL Notes': null,
       },
     })
@@ -195,6 +198,9 @@ describe('POST /api/admin/reports/[id]/manual-valuation-supplement', () => {
     expect(clone.marketcheck_predicted_price).toBe(14500)
     expect(clone['GL Notes']).toBe('Duplicate with supplemented comps')
     expect(clone.comparables_supplemented).toBe(true)
+    expect(clone.user_id).toBeNull()
+    expect(clone.stripe_payment_id).toBeNull()
+    expect(clone.lemon_squeezy_payment_id).toBeNull()
   })
 
   it('500 when PDF generation fails, but reports the new row id for inspection', async () => {
