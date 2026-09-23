@@ -14,6 +14,7 @@ export default function CompsCheckForm() {
   const [email, setEmail] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [note, setNote] = useState('')
+  const [honeypot, setHoneypot] = useState('')
   const [consent, setConsent] = useState(false)
   const [state, setState] = useState<FormState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
@@ -50,7 +51,7 @@ export default function CompsCheckForm() {
     formData.append('file', file as File)
     if (note.trim()) formData.append('note', note.trim())
     formData.append('consentAck', String(consent))
-    formData.append('company_website', '')
+    formData.append('company_website', honeypot)
 
     try {
       const res = await fetch('/api/audit-submissions', { method: 'POST', body: formData })
@@ -133,6 +134,8 @@ export default function CompsCheckForm() {
           id="company_website"
           name="company_website"
           type="text"
+          value={honeypot}
+          onChange={e => setHoneypot(e.target.value)}
           tabIndex={-1}
           autoComplete="off"
         />

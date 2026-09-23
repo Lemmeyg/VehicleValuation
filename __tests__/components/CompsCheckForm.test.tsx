@@ -42,6 +42,28 @@ describe('CompsCheckForm', () => {
     expect(honeypot).toHaveAttribute('tabIndex', '-1')
   })
 
+  it('submits whatever a bot writes into the honeypot field, not a hardcoded empty string', async () => {
+    const { container } = render(<CompsCheckForm />)
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: 'user@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText(/insurer's report/i), {
+      target: { files: [makePdfFile()] },
+    })
+    fireEvent.click(screen.getByRole('checkbox'))
+
+    const honeypot = container.querySelector('input[name="company_website"]') as HTMLInputElement
+    fireEvent.change(honeypot, { target: { value: 'http://spam.example' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+    const body = mockFetch.mock.calls[0][1].body as FormData
+    expect(body.get('company_website')).toBe('http://spam.example')
+  })
+
   it('shows a validation error and does not call fetch when email is invalid', () => {
     render(<CompsCheckForm />)
     fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: 'bad-email' } })
