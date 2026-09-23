@@ -89,3 +89,38 @@ export async function captureReportDownloaded({
     console.error('[server-events] report_downloaded capture failed', err)
   }
 }
+
+interface AuditFormSubmittedParams {
+  hasNote: boolean
+}
+
+/**
+ * Record a real, persisted audit-submission success (Epic 3 smoke test).
+ *
+ * Captured server-side, inside the API route, only on the true success path —
+ * never for a honeypot-rejected request, which returns an identical response
+ * to the client but must not inflate this count. This is the one number the
+ * Epic 1 go/no-go threshold is measured against, so it must not be fireable
+ * from client code at all.
+ */
+export async function captureAuditFormSubmitted({
+  hasNote,
+}: AuditFormSubmittedParams): Promise<void> {
+  const client = createClient()
+  if (!client) return
+
+  try {
+    client.capture({
+      distinctId: `audit-submission:${Date.now()}`,
+      event: 'audit_form_submitted',
+      properties: {
+        has_note: hasNote,
+        timestamp: new Date().toISOString(),
+      },
+    })
+
+    await client.shutdown()
+  } catch (err) {
+    console.error('[server-events] audit_form_submitted capture failed', err)
+  }
+}
