@@ -72,7 +72,9 @@ export interface LemonSqueezyCheckoutResponse {
 export interface LemonSqueezyWebhookEvent {
   meta: {
     event_name: string
-    custom_data: LemonSqueezyCheckoutData
+    // Optional/partial, not the wishful LemonSqueezyCheckoutData: seen live 2026-09-22 with
+    // this key missing entirely on an otherwise-valid, paid order.
+    custom_data?: Partial<LemonSqueezyCheckoutData>
     webhook_id: string
     test_mode: boolean
   }

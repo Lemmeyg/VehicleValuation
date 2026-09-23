@@ -1120,3 +1120,212 @@ describe('POST /api/lemonsqueezy/webhook — Auto.dev guard', () => {
     expect(autodev.fetchAutoDevVinDecode).toHaveBeenCalledWith('1HGBH41JXMN109186')
   })
 })
+
+describe('POST /api/lemonsqueezy/webhook — missing custom_data fallback', () => {
+  beforeEach(() => {
+    pendingAfterCallbacks = []
+    jest.clearAllMocks()
+    ;(client.verifyWebhookSignature as jest.Mock).mockReturnValue(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabaseAdmin as any).rpc = jest.fn().mockResolvedValue({ data: null, error: null })
+    mockLogApiCall.mockResolvedValue(undefined)
+    ;(autodev.fetchAutoDevVinDecode as jest.Mock).mockResolvedValue({
+      success: true,
+      data: { make: 'Honda', model: 'Accord', vehicle: { year: 2021 }, vinValid: true },
+    })
+    ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
+      success: true,
+      data: {
+        predictedPrice: 25000,
+        confidence: 'high',
+        totalComparablesFound: 10,
+        recentComparables: { num_found: 5 },
+      },
+    })
+    ;(pdfGenerator.generateAndUploadPDF as jest.Mock).mockResolvedValue(undefined)
+  })
+
+  // Reproduces the exact live 2026-09-22 payload shape: custom_data key absent entirely,
+  // not just missing a field.
+  function makeBodyWithNoCustomData(overrides: Record<string, unknown> = {}) {
+    return JSON.stringify({
+      meta: {
+        event_name: 'order_created',
+        webhook_id: 'wh-1',
+        test_mode: false,
+      },
+      data: {
+        type: 'orders',
+        id: 'order-999',
+        attributes: {
+          status: 'paid',
+          total: 1900,
+          user_email: 'bronzell@gmail.com',
+          user_name: 'B Ronzell',
+          order_number: 5001,
+          created_at: '2026-09-22T15:31:37.000Z',
+          ...overrides,
+        },
+      },
+    })
+  }
+
+  function makeRequest(body: string) {
+    return new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body,
+    })
+  }
+
+  /** Builds a mockAdmin.from() that differentiates the 'reports' match/note calls from the rest. */
+  function mockFromWithReportsCandidates(
+    candidates: Array<{ id: string; created_at: string }> | null,
+    queryError: { message: string } | null = null
+  ) {
+    const mockOrder = jest.fn().mockResolvedValue({ data: candidates, error: queryError })
+    const mockLte = jest.fn().mockReturnValue({ order: mockOrder })
+    const mockIs = jest.fn().mockReturnValue({ lte: mockLte })
+    const mockIlike = jest.fn().mockReturnValue({ is: mockIs })
+    const glNotesSingle = jest.fn().mockResolvedValue({ data: { 'GL Notes': null }, error: null })
+    const glNotesUpdateEq = jest.fn().mockResolvedValue({ error: null })
+    const glNotesUpdate = jest.fn().mockReturnValue({ eq: glNotesUpdateEq })
+
+    const reportsTable = {
+      select: jest.fn((cols: string) => {
+        if (cols.includes('GL Notes')) {
+          return { eq: jest.fn().mockReturnValue({ single: glNotesSingle }) }
+        }
+        // id, created_at candidate-match select
+        return { ilike: mockIlike }
+      }),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: glNotesUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    }
+
+    const mockFrom = jest.fn((table: string) => {
+      if (table === 'reports') return reportsTable
+      return {
+        select: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ single: jest.fn() }) }),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn(),
+        insert: jest.fn().mockResolvedValue({ error: null }),
+        update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+        upsert: jest.fn().mockResolvedValue({ error: null }),
+      }
+    })
+
+    return { mockFrom, reportsTable, glNotesUpdate, mockIlike, mockIs, mockLte, mockOrder }
+  }
+
+  it('does not crash when custom_data is entirely undefined, and matches the one unpaid report by email', async () => {
+    const { mockFrom, glNotesUpdate } = mockFromWithReportsCandidates([
+      { id: 'report-matched-1', created_at: '2026-09-22T15:26:12.000Z' },
+    ])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const response = await POST(makeRequest(makeBodyWithNoCustomData()))
+    await drainAfterCallbacks()
+
+    expect(response.status).toBe(200)
+    // The match succeeded, so processing continued past the guard onto the real report.
+    expect(marketcheck.fetchMarketCheckData).toHaveBeenCalled()
+    // A visible note was left on the matched report.
+    expect(glNotesUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'GL Notes': expect.stringContaining('[auto] Payment auto-matched by email'),
+      })
+    )
+    expect(glNotesUpdate.mock.calls[0][0]['GL Notes']).toContain('order-999')
+  })
+
+  it('constrains the match to reports created at or before the order timestamp', async () => {
+    const { mockFrom, mockLte } = mockFromWithReportsCandidates([
+      { id: 'report-matched-1', created_at: '2026-09-22T15:26:12.000Z' },
+    ])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    await POST(makeRequest(makeBodyWithNoCustomData()))
+    await drainAfterCallbacks()
+
+    expect(mockLte).toHaveBeenCalledWith('created_at', '2026-09-22T15:31:37.000Z')
+  })
+
+  it('does not guess when two unpaid reports match the same email — logs and creates no payment', async () => {
+    const { mockFrom, reportsTable } = mockFromWithReportsCandidates([
+      { id: 'report-a', created_at: '2026-09-22T15:26:12.000Z' },
+      { id: 'report-b', created_at: '2026-09-22T15:20:00.000Z' },
+    ])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const response = await POST(makeRequest(makeBodyWithNoCustomData()))
+    await drainAfterCallbacks()
+
+    expect(response.status).toBe(200)
+    expect(reportsTable.insert).not.toHaveBeenCalled()
+    expect(marketcheck.fetchMarketCheckData).not.toHaveBeenCalled()
+    expect(mockLogApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'webhook',
+        endpoint: '[WH-2a] email fallback match',
+        success: false,
+        errorMessage: expect.stringContaining('Ambiguous or no match'),
+      })
+    )
+  })
+
+  it('does not guess when zero unpaid reports match the email — logs and creates no payment', async () => {
+    const { mockFrom, reportsTable } = mockFromWithReportsCandidates([])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const response = await POST(makeRequest(makeBodyWithNoCustomData()))
+    await drainAfterCallbacks()
+
+    expect(response.status).toBe(200)
+    expect(reportsTable.insert).not.toHaveBeenCalled()
+    expect(mockLogApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        errorMessage: expect.stringContaining('found 0 unpaid report'),
+      })
+    )
+  })
+
+  it('logs and does not crash when the order has no customer email at all', async () => {
+    const { mockFrom, reportsTable } = mockFromWithReportsCandidates(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const response = await POST(makeRequest(makeBodyWithNoCustomData({ user_email: undefined })))
+    await drainAfterCallbacks()
+
+    expect(response.status).toBe(200)
+    expect(reportsTable.insert).not.toHaveBeenCalled()
+    expect(mockLogApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        errorMessage: expect.stringContaining('no customer email'),
+      })
+    )
+  })
+})
