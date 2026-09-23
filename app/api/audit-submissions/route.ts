@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { supabaseAdmin } from '@/lib/db/supabase'
 import {
   auditSubmissionSchema,
@@ -125,8 +125,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 
-  captureAuditFormSubmitted({ hasNote: Boolean(parsed.data.note) }).catch(err =>
-    console.error('[audit-submissions] analytics capture failed (non-fatal)', err)
+  // Deferred with after() so the response is never blocked on analytics, but
+  // (unlike a bare fire-and-forget .catch()) the Next.js runtime guarantees
+  // this still runs to completion even if the serverless function would
+  // otherwise be frozen the instant the response is sent. audit_form_submitted
+  // is the one metric the Epic 1 go/no-go threshold is measured against, so
+  // silently dropping it for some fraction of requests is not acceptable —
+  // see the doc comment on captureAuditFormSubmitted itself.
+  after(() =>
+    captureAuditFormSubmitted({ hasNote: Boolean(parsed.data.note) }).catch(err =>
+      console.error('[audit-submissions] analytics capture failed (non-fatal)', err)
+    )
   )
 
   return NextResponse.json({ success: true })

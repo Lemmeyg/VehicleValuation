@@ -4,6 +4,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest } from 'next/server'
 
+jest.mock('next/server', () => ({
+  ...jest.requireActual('next/server'),
+  after: jest.fn((fn: () => unknown) => Promise.resolve(fn()).catch(() => {})),
+}))
+
 jest.mock('@/lib/db/supabase')
 import { supabaseAdmin } from '@/lib/db/supabase'
 
