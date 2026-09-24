@@ -147,17 +147,30 @@ describe('POST /api/admin/reports/[id]/manual-valuation', () => {
     expect(res.status).toBe(404)
   })
 
-  it('409 when the report is a healthy completed report', async () => {
+  it('409 when the report is a healthy completed report with a real (non-manual) valuation', async () => {
     wireSupabase({
       report: {
         status: 'completed',
         valuation_result: { predictedPrice: 1 },
-        marketcheck_valuation: {},
+        marketcheck_valuation: { dataSource: 'marketcheck' },
       },
     })
     const res = await call(makeRequest(validPayload()))
     expect(res.status).toBe(409)
     expect(mockGeneratePDF).not.toHaveBeenCalled()
+  })
+
+  it('200 when re-researching a completed report whose current valuation is already manual_research', async () => {
+    const { updateCalls } = wireSupabase({
+      report: {
+        status: 'completed',
+        valuation_result: { predictedPrice: 11500, dataSource: 'manual_research' },
+        marketcheck_valuation: { dataSource: 'manual_research', predictedPrice: 11500 },
+      },
+    })
+    const res = await call(makeRequest(validPayload()))
+    expect(res.status).toBe(200)
+    expect(updateCalls.some(u => u.status === 'completed')).toBe(true)
   })
 
   it('200 happy path: writes valuation, calls PDF gen, returns pdfUrl', async () => {
