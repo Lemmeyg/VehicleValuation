@@ -129,7 +129,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     report.status === 'completed' &&
     report.valuation_result == null &&
     report.marketcheck_valuation == null
-  if (report.status !== 'valuation_failed' && !legacyBlank) {
+  // A report already priced by THIS endpoint (dataSource === 'manual_research') is
+  // safe to re-research and overwrite again — it was never a real MarketCheck result
+  // to protect in the first place, e.g. correcting a first pass that included comps
+  // whose links couldn't be verified. The guard still refuses any report with a real
+  // automated valuation, which is what it exists to protect.
+  const alreadyManual =
+    report.status === 'completed' &&
+    (report.marketcheck_valuation as { dataSource?: string } | null)?.dataSource ===
+      'manual_research'
+  if (report.status !== 'valuation_failed' && !legacyBlank && !alreadyManual) {
     return NextResponse.json(
       {
         error: `Report status is '${report.status}' - refusing to overwrite a report that is not stranded`,
