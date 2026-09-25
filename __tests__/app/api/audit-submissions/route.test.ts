@@ -151,8 +151,8 @@ describe('POST /api/audit-submissions', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 for a file over 2MB', async () => {
-    const bigBytes = new Uint8Array(2 * 1024 * 1024 + 1)
+  it('returns 400 for a file over 3MB', async () => {
+    const bigBytes = new Uint8Array(3 * 1024 * 1024 + 1)
     const bigFile = new File([bigBytes], 'big.pdf', { type: 'application/pdf' })
     const res = await POST(makeFormRequest({ ...validFields, file: bigFile }))
     expect(res.status).toBe(400)
