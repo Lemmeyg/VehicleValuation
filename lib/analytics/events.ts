@@ -437,6 +437,30 @@ export function trackEmailCapture(properties: EmailCaptureEvent) {
 }
 
 /**
+ * Track the /comps-check page loading (Epic 3 smoke test).
+ */
+export function trackAuditPageViewed() {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('audit_page_viewed', {
+      source: 'backfill_email',
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
+ * Track a client-side validation or submission failure on /comps-check.
+ */
+export function trackAuditFormError(errorType: string) {
+  if (typeof window !== 'undefined' && posthog.__loaded) {
+    posthog.capture('audit_form_error', {
+      error_type: errorType,
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+/**
  * Generic event tracking function
  * Use this for custom events not covered by specific functions
  */

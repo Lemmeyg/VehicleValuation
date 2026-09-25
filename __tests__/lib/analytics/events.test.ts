@@ -2,7 +2,12 @@
  * Tests for new checkout analytics functions
  */
 import posthog from 'posthog-js'
-import { trackCheckoutInitiated, trackCheckoutAbandoned } from '@/lib/analytics/events'
+import {
+  trackCheckoutInitiated,
+  trackCheckoutAbandoned,
+  trackAuditPageViewed,
+  trackAuditFormError,
+} from '@/lib/analytics/events'
 
 jest.mock('posthog-js', () => ({
   __loaded: true,
@@ -62,6 +67,26 @@ describe('trackCheckoutAbandoned', () => {
     expect(mockPosthog.capture).toHaveBeenCalledWith(
       'checkout_abandoned',
       expect.objectContaining({ error: 'Network timeout' })
+    )
+  })
+})
+
+describe('trackAuditPageViewed', () => {
+  it('calls posthog.capture with audit_page_viewed and source backfill_email', () => {
+    trackAuditPageViewed()
+    expect(mockPosthog.capture).toHaveBeenCalledWith(
+      'audit_page_viewed',
+      expect.objectContaining({ source: 'backfill_email' })
+    )
+  })
+})
+
+describe('trackAuditFormError', () => {
+  it('calls posthog.capture with audit_form_error and the given error type', () => {
+    trackAuditFormError('client_validation')
+    expect(mockPosthog.capture).toHaveBeenCalledWith(
+      'audit_form_error',
+      expect.objectContaining({ error_type: 'client_validation' })
     )
   })
 })
