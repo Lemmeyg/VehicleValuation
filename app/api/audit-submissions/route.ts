@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    return NextResponse.json({ error: 'File must be 4MB or smaller.' }, { status: 400 })
+    return NextResponse.json({ error: 'File must be 2MB or smaller.' }, { status: 400 })
   }
 
   const buffer = Buffer.from(await file.arrayBuffer())

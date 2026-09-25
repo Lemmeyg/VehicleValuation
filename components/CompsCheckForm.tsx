@@ -6,7 +6,7 @@ import { trackAuditPageViewed, trackAuditFormError } from '@/lib/analytics/event
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
-const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024
+const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error'
 
@@ -27,7 +27,7 @@ export default function CompsCheckForm() {
     if (!EMAIL_REGEX.test(email.trim())) return 'Please enter a valid email address.'
     if (!file) return 'Please attach a file.'
     if (!ALLOWED_FILE_TYPES.includes(file.type)) return 'Please upload a PDF, JPG, or PNG file.'
-    if (file.size > MAX_FILE_SIZE_BYTES) return 'File must be 4MB or smaller.'
+    if (file.size > MAX_FILE_SIZE_BYTES) return 'File must be 2MB or smaller.'
     if (!consent) return 'Please check the consent box to continue.'
     return null
   }

@@ -151,22 +151,22 @@ describe('POST /api/audit-submissions', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 for a file over 4MB', async () => {
-    const bigBytes = new Uint8Array(4 * 1024 * 1024 + 1)
+  it('returns 400 for a file over 2MB', async () => {
+    const bigBytes = new Uint8Array(2 * 1024 * 1024 + 1)
     const bigFile = new File([bigBytes], 'big.pdf', { type: 'application/pdf' })
     const res = await POST(makeFormRequest({ ...validFields, file: bigFile }))
     expect(res.status).toBe(400)
   })
 
   it('returns 400 and does not store the file when the malware scan reports unsafe', async () => {
-    mockScan.mockResolvedValueOnce({ safe: false, reason: 'flagged_by_reputation_scan' })
+    mockScan.mockResolvedValueOnce({ safe: false, reason: 'flagged_by_scan' })
     const res = await POST(makeFormRequest(validFields))
     expect(res.status).toBe(400)
     expect((supabaseAdmin as any)._mockUpload).not.toHaveBeenCalled()
   })
 
   it('returns 503 when the malware scan throws (fail closed)', async () => {
-    mockScan.mockRejectedValueOnce(new Error('VIRUSTOTAL_API_KEY is not configured'))
+    mockScan.mockRejectedValueOnce(new Error('CLOUDMERSIVE_API_KEY is not configured'))
     const res = await POST(makeFormRequest(validFields))
     expect(res.status).toBe(503)
   })
