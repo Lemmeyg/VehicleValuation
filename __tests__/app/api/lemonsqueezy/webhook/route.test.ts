@@ -770,11 +770,13 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
       supplemented: true,
     })
 
-    // Capture the update call
+    // Capture the update call that writes the marketcheck fields — a later QA-gate
+    // hold update (this fixture lacks priceRange/10 comps, orthogonal to what this
+    // test checks) also calls update(), so an unfiltered capture would grab that one.
     let capturedUpdateArg: Record<string, unknown> | null = null
     const mockEq = jest.fn().mockResolvedValue({ error: null })
     const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
-      capturedUpdateArg = data
+      if (data.marketcheck_valuation !== undefined) capturedUpdateArg = data
       return { eq: mockEq }
     })
     const mockFrom = jest.fn().mockReturnValue({
@@ -817,10 +819,12 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
       },
     })
 
+    // Capture the update call that writes the marketcheck fields — see the note in
+    // the comparables_supplemented test above on why this must be filtered.
     let capturedUpdateArg: Record<string, unknown> | null = null
     const mockEq = jest.fn().mockResolvedValue({ error: null })
     const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
-      capturedUpdateArg = data
+      if (data.marketcheck_valuation !== undefined) capturedUpdateArg = data
       return { eq: mockEq }
     })
     const mockFrom = jest.fn().mockReturnValue({
@@ -949,10 +953,12 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
   it('proceeds without supplement when validateListingUrls throws — no retry triggered', async () => {
     mockValidateListingUrls.mockRejectedValue(new Error('URL validation network error'))
 
+    // Capture the update call that writes the marketcheck fields — see the note in
+    // the comparables_supplemented test above on why this must be filtered.
     let capturedUpdateArg: Record<string, unknown> | null = null
     const mockEq = jest.fn().mockResolvedValue({ error: null })
     const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
-      capturedUpdateArg = data
+      if (data.marketcheck_valuation !== undefined) capturedUpdateArg = data
       return { eq: mockEq }
     })
     const mockFrom = jest.fn().mockReturnValue({

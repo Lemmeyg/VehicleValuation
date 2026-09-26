@@ -9,6 +9,7 @@ import { supplementWithAlternateDealerType } from '@/lib/utils/dealer-type-suppl
 import { gateListings } from '@/lib/utils/comp-gates'
 import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
 import type { ValidationStats } from '@/lib/utils/url-validator'
+import { QA_CHECKS, type QaCheckContext, type QaCheckResult } from '@/lib/services/qa-checks'
 
 const PRIMARY_DEALER_TYPE = 'franchise' as const
 
@@ -25,6 +26,67 @@ export interface RunPipelineOptions {
   refetch?: boolean
 }
 
+type HeldStatus = 'vin_decode_failed' | 'valuation_failed' | 'needs_review'
+
+function runCheck(key: string, ctx: QaCheckContext): QaCheckResult {
+  const check = QA_CHECKS.find(c => c.key === key)
+  if (!check) throw new Error(`No QA check registered for key ${key}`)
+  return check.run(ctx)
+}
+
+async function writeProgressStep(
+  reportId: string,
+  step: 'comps' | 'listings' | 'valuation' | 'pdf'
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('reports')
+    .update({ progress_step: step })
+    .eq('id', reportId)
+  if (error) {
+    console.error(
+      `[report-pipeline] Failed to write progress_step '${step}' for report ${reportId}:`,
+      error
+    )
+  }
+}
+
+async function holdReport(
+  reportId: string,
+  status: HeldStatus,
+  qaResults: QaCheckResult[]
+): Promise<'held'> {
+  const failedChecks = qaResults.filter(r => !r.passed).map(r => r.key)
+  const { error } = await supabaseAdmin
+    .from('reports')
+    .update({
+      status,
+      qa_results: qaResults,
+      qa_failed_checks: failedChecks,
+      qa_evaluated_at: new Date().toISOString(),
+    })
+    .eq('id', reportId)
+  if (error) {
+    console.error(`[report-pipeline] Failed to write hold status for report ${reportId}:`, error)
+  }
+  return 'held'
+}
+
+async function releaseReport(reportId: string): Promise<'completed'> {
+  const { error } = await supabaseAdmin
+    .from('reports')
+    .update({
+      access_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+    .eq('id', reportId)
+  if (error) {
+    console.error(
+      `[report-pipeline] Failed to extend access token on release for report ${reportId}:`,
+      error
+    )
+  }
+  return 'completed'
+}
+
 /**
  * Runs every post-payment step for a report: VIN decode, MarketCheck valuation,
  * comp URL validation/supplement, and PDF generation. Called from the LemonSqueezy
@@ -34,7 +96,7 @@ export interface RunPipelineOptions {
 export async function runReportPipeline(
   reportId: string,
   opts: RunPipelineOptions = {}
-): Promise<void> {
+): Promise<'completed' | 'held'> {
   const { payment } = opts
   const supabase = supabaseAdmin
 
@@ -57,7 +119,14 @@ export async function runReportPipeline(
         errorMessage: fetchError?.message ?? 'report not found',
         requestData: { reportId },
       })
-      return
+      return holdReport(reportId, 'needs_review', [
+        {
+          key: 'pipeline_error',
+          label: 'Pipeline error',
+          passed: false,
+          detail: fetchError?.message ?? 'report not found',
+        },
+      ])
     }
     console.log(`[WH-6] Report fetched OK for report ${reportId}`)
 
@@ -67,6 +136,8 @@ export async function runReportPipeline(
       zip_code: report.zip_code,
       hasExistingMarketCheck: !!report.marketcheck_valuation,
     })
+
+    await writeProgressStep(reportId, 'comps')
 
     // ========================================
     // FETCH AUTO.DEV VIN DECODE DATA
@@ -220,6 +291,8 @@ export async function runReportPipeline(
       )
     }
 
+    await writeProgressStep(reportId, 'listings')
+
     // URL validation + supplement
     if (marketcheckData) {
       let validatedPrediction = marketcheckData
@@ -331,6 +404,8 @@ export async function runReportPipeline(
       marketcheckData = validatedPrediction
     }
 
+    await writeProgressStep(reportId, 'valuation')
+
     // ========================================
     // UPDATE REPORT WITH API DATA AND PAYMENT INFO
     // ========================================
@@ -393,60 +468,103 @@ export async function runReportPipeline(
 
     if (reportError) {
       console.error('[Webhook] Error updating report:', reportError)
-      return
+      return holdReport(reportId, 'needs_review', [
+        {
+          key: 'pipeline_error',
+          label: 'Pipeline error',
+          passed: false,
+          detail: reportError.message,
+        },
+      ])
     }
 
     console.log(`[Webhook] Report ${reportId} updated with payment info and API data`)
 
-    // VIN decode failed — flag for manual review, skip PDF
-    const hasVehicleData = autodevVinData || report.vehicle_data?.year
-    if (!hasVehicleData) {
-      console.warn(
-        `[Webhook] VIN decode failed for report ${reportId} — flagging for manual review`
-      )
-      const { error: flagError } = await supabase
-        .from('reports')
-        .update({ status: 'vin_decode_failed' })
-        .eq('id', reportId)
-      if (flagError) {
-        console.error(
-          `[Webhook] Failed to flag report ${reportId} as vin_decode_failed:`,
-          flagError
-        )
-      }
+    const qaSubject = {
+      year: subjectVehicle?.year ?? report.vehicle_data?.year ?? 0,
+      mileage: report.mileage ?? 0,
+      zip: report.zip_code ?? null,
+      model: subjectVehicle?.model,
+      trim: subjectVehicle?.trim,
+    }
+
+    const vehicleIdentifiedResult = runCheck('vehicle_identified', {
+      autodevVinData,
+      vehicleDataYear: report.vehicle_data?.year,
+      marketcheckData: null,
+      subject: qaSubject,
+    })
+    if (!vehicleIdentifiedResult.passed) {
+      console.warn(`[Webhook] VIN decode failed for report ${reportId} — holding for manual review`)
       console.log(`[Webhook] Report ${reportId} set to vin_decode_failed, skipping PDF`)
-      return
+      return holdReport(reportId, 'vin_decode_failed', [vehicleIdentifiedResult])
     }
 
     if (!marketcheckData) {
       console.warn(
-        `[Webhook] No MarketCheck valuation for report ${reportId} after all fallbacks — flagging for manual review`
+        `[Webhook] No MarketCheck valuation for report ${reportId} after all fallbacks — holding for manual review`
       )
-      const { error: flagError } = await supabase
-        .from('reports')
-        .update({ status: 'valuation_failed' })
-        .eq('id', reportId)
-      if (flagError) {
-        console.error(`[Webhook] Failed to flag report ${reportId} as valuation_failed:`, flagError)
-      }
       console.log(`[Webhook] Report ${reportId} set to valuation_failed, skipping PDF`)
-      return
+      return holdReport(reportId, 'valuation_failed', [vehicleIdentifiedResult])
+    }
+
+    const qaContext: QaCheckContext = {
+      autodevVinData,
+      vehicleDataYear: report.vehicle_data?.year,
+      marketcheckData,
+      subject: qaSubject,
+    }
+    const valuationCompleteResult = runCheck('valuation_complete', qaContext)
+    const tenCompsResult = runCheck('ten_comps_displayed', qaContext)
+
+    if (!valuationCompleteResult.passed || !tenCompsResult.passed) {
+      console.warn(`[Webhook] QA check failed pre-PDF for report ${reportId}`, {
+        valuationComplete: valuationCompleteResult.passed,
+        tenCompsDisplayed: tenCompsResult.passed,
+      })
+      return holdReport(reportId, 'needs_review', [
+        vehicleIdentifiedResult,
+        valuationCompleteResult,
+        tenCompsResult,
+      ])
     }
 
     // Generate PDF
+    await writeProgressStep(reportId, 'pdf')
+    console.log(`[Webhook] PDF generation starting for report ${reportId}`)
+    let pdfResult: { success: boolean; error?: string }
     try {
-      console.log(`[Webhook] PDF generation starting for report ${reportId}`)
-      await generateAndUploadPDF({ reportId })
-      console.log(`[Webhook] PDF generation completed for report ${reportId}`)
+      pdfResult = await generateAndUploadPDF({ reportId })
     } catch (error) {
-      console.error(`[Webhook] PDF generation failed for report ${reportId}:`, error)
-      await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
-      console.log(`[Webhook] Report ${reportId} marked as failed`)
+      pdfResult = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
     }
+    const pdfBuiltResult = runCheck('pdf_built', { ...qaContext, pdfResult })
+    if (!pdfBuiltResult.passed) {
+      console.error(`[Webhook] PDF generation failed for report ${reportId}:`, pdfResult.error)
+      return holdReport(reportId, 'needs_review', [
+        vehicleIdentifiedResult,
+        valuationCompleteResult,
+        tenCompsResult,
+        pdfBuiltResult,
+      ])
+    }
+    console.log(`[Webhook] PDF generation completed for report ${reportId}`)
+    return releaseReport(reportId)
   } catch (error) {
     console.error(
       `[Webhook] Unhandled error in post-payment processing for report ${reportId}:`,
       error
     )
+    return holdReport(reportId, 'needs_review', [
+      {
+        key: 'pipeline_error',
+        label: 'Pipeline error',
+        passed: false,
+        detail: error instanceof Error ? error.message : 'Unknown error',
+      },
+    ])
   }
 }
