@@ -217,6 +217,22 @@ async function handleOrderCreated(event: LemonSqueezyWebhookEvent) {
       }
     }
 
+    // Set the report page's access window (payment + 7 days) and mark when it
+    // was paid — the 120s display window (a later build step) reads paid_at.
+    // Reset on release too (§6.5 / a later task); this is the payment-time value.
+    const paidAt = new Date().toISOString()
+    const accessTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { error: paidAtError } = await supabase
+      .from('reports')
+      .update({ paid_at: paidAt, access_token_expires_at: accessTokenExpiresAt })
+      .eq('id', reportId)
+    if (paidAtError) {
+      console.error('[WH-5c] Failed to set paid_at/access_token_expires_at:', paidAtError)
+      // Non-fatal — the pipeline still runs; a later plan session's daily sweep
+      // (PRD §8.3) is unaffected since it keys off price_paid, not paid_at, for
+      // reports it re-checks, and admins can inspect this via logs.
+    }
+
     // ── Return 200 quickly. All heavy I/O runs after the response is sent. ──
     after(async () => {
       await runReportPipeline(reportId, {
