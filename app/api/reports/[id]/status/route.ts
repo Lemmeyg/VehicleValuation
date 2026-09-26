@@ -8,7 +8,7 @@ interface RouteContext {
 // Report statuses where the automated pipeline gave up and a human finishes the
 // report and emails it by hand (BL-62). The waiting page must not show a "ready"
 // screen for these — the buyer gets the "we need more time" message instead.
-const MANUAL_REVIEW_STATUSES = ['vin_decode_failed', 'valuation_failed']
+const MANUAL_REVIEW_STATUSES = ['vin_decode_failed', 'valuation_failed', 'needs_review']
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const { id } = await context.params

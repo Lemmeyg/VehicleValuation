@@ -314,6 +314,17 @@ describe('runReportPipeline — QA gate', () => {
       .map(c => c[0])
       .find(arg => 'access_token_expires_at' in arg)
     expect(releaseUpdate).toBeDefined()
+    // PRD §7 / AC-8: every result, pass or fail, is saved — a released report
+    // must not leave qa_results empty just because it took the happy path.
+    expect(releaseUpdate.qa_results).toHaveLength(4)
+    expect(releaseUpdate.qa_results.map((r: { key: string }) => r.key)).toEqual([
+      'vehicle_identified',
+      'valuation_complete',
+      'ten_comps_displayed',
+      'pdf_built',
+    ])
+    expect(releaseUpdate.qa_failed_checks).toEqual([])
+    expect(releaseUpdate.qa_evaluated_at).toBeDefined()
   })
 
   it('holds as needs_review with pdf_built failed when generateAndUploadPDF returns success: false (the silent-failure bug)', async () => {
@@ -465,5 +476,55 @@ describe('runReportPipeline — QA gate', () => {
       .map(c => c[0])
       .find(arg => arg.status === 'valuation_failed')
     expect(holdUpdate).toBeDefined()
+    // The reason must be recorded — an admin (or the future daily batch) reading
+    // qa_failed_checks needs to see why, not just that vehicle_identified passed.
+    expect(holdUpdate.qa_failed_checks).toContain('valuation_complete')
+  })
+
+  it('retries with status-only when the combined hold write fails (e.g. migration not applied yet)', async () => {
+    ;(autodev.fetchAutoDevVinDecode as jest.Mock).mockResolvedValue({
+      success: false,
+      error: 'VIN not found',
+    })
+    ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
+      success: false,
+      error: 'no data',
+    })
+    // Every other write in the pipeline (progress_step, the main marketcheck
+    // update) succeeds — only the combined hold write (identified by qa_results
+    // being present) fails, simulating the qa_* columns not existing yet.
+    const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
+      if ('qa_results' in data) {
+        return {
+          eq: jest
+            .fn()
+            .mockResolvedValue({ error: { message: 'column reports.qa_results does not exist' } }),
+        }
+      }
+      return { eq: jest.fn().mockResolvedValue({ error: null }) }
+    })
+    ;(mockAdmin.from as jest.Mock).mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: 'BADVIN00000000000',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: { vin: 'BADVIN00000000000' },
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      update: mockUpdate,
+    })
+
+    const outcome = await runReportPipeline('report-1')
+
+    expect(outcome).toBe('held')
+    const statusOnlyRetry = mockUpdate.mock.calls
+      .map(c => c[0])
+      .find(arg => Object.keys(arg).length === 1 && arg.status === 'vin_decode_failed')
+    expect(statusOnlyRetry).toBeDefined()
   })
 })

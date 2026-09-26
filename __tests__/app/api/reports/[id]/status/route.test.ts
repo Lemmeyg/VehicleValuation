@@ -135,6 +135,29 @@ describe('GET /api/reports/[id]/status', () => {
     expect(data.ready).toBe(false)
   })
 
+  it('returns manualReview: true (and ready: false) when status is needs_review, even if a valuation exists', async () => {
+    mockAdmin.from = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          price_paid: 2900,
+          marketcheck_valuation: { predictedPrice: 25000 },
+          status: 'needs_review',
+          vin: '1HGCM82633A004352',
+          email: 'buyer@example.com',
+        },
+        error: null,
+      }),
+    }) as any
+
+    const response = await GET(makeRequest('report-123'), makeContext('report-123'))
+    const data = await response.json()
+
+    expect(data.manualReview).toBe(true)
+    expect(data.ready).toBe(false)
+  })
+
   it('returns 404 when report not found', async () => {
     mockAdmin.from = jest.fn().mockReturnValue({
       select: jest.fn().mockReturnThis(),

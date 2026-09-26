@@ -66,16 +66,33 @@ async function holdReport(
     })
     .eq('id', reportId)
   if (error) {
-    console.error(`[report-pipeline] Failed to write hold status for report ${reportId}:`, error)
+    console.error(
+      `[report-pipeline] Failed to write hold status + QA columns for report ${reportId} ` +
+        `(qa_* migration not applied yet?) — retrying with status only:`,
+      error
+    )
+    const { error: statusOnlyError } = await supabaseAdmin
+      .from('reports')
+      .update({ status })
+      .eq('id', reportId)
+    if (statusOnlyError) {
+      console.error(
+        `[report-pipeline] Failed to write even the status-only fallback for report ${reportId}:`,
+        statusOnlyError
+      )
+    }
   }
   return 'held'
 }
 
-async function releaseReport(reportId: string): Promise<'completed'> {
+async function releaseReport(reportId: string, qaResults: QaCheckResult[]): Promise<'completed'> {
   const { error } = await supabaseAdmin
     .from('reports')
     .update({
       access_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      qa_results: qaResults,
+      qa_failed_checks: [],
+      qa_evaluated_at: new Date().toISOString(),
     })
     .eq('id', reportId)
   if (error) {
@@ -505,7 +522,13 @@ export async function runReportPipeline(
         `[Webhook] No MarketCheck valuation for report ${reportId} after all fallbacks — holding for manual review`
       )
       console.log(`[Webhook] Report ${reportId} set to valuation_failed, skipping PDF`)
-      return holdReport(reportId, 'valuation_failed', [vehicleIdentifiedResult])
+      const noValuationResult = runCheck('valuation_complete', {
+        autodevVinData,
+        vehicleDataYear: report.vehicle_data?.year,
+        marketcheckData: null,
+        subject: qaSubject,
+      })
+      return holdReport(reportId, 'valuation_failed', [vehicleIdentifiedResult, noValuationResult])
     }
 
     const qaContext: QaCheckContext = {
@@ -552,7 +575,12 @@ export async function runReportPipeline(
       ])
     }
     console.log(`[Webhook] PDF generation completed for report ${reportId}`)
-    return releaseReport(reportId)
+    return releaseReport(reportId, [
+      vehicleIdentifiedResult,
+      valuationCompleteResult,
+      tenCompsResult,
+      pdfBuiltResult,
+    ])
   } catch (error) {
     console.error(
       `[Webhook] Unhandled error in post-payment processing for report ${reportId}:`,
