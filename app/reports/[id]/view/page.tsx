@@ -237,6 +237,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
         transactionId={purchaseTrackerProps.transactionId}
         email={report.email ?? undefined}
         vin={report.vin}
+        userId={user?.id}
       />
       <RedditPurchaseTracker
         value={purchaseTrackerProps.amountCents / 100}
@@ -255,6 +256,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
     : computeReportDisplayState({
         status: report.status,
         pdfDownloadToken: (report.pdf_download_token as string | null) ?? null,
+        pdfStoragePath: (report.pdf_storage_path as string | null) ?? null,
       })
 
   if (displayState === 'refunded') {
@@ -339,6 +341,9 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
               reportId={id}
               token={token ?? undefined}
               pdfDownloadToken={(report.pdf_download_token as string | null) ?? null}
+              pdfDownloadTokenExpiresAt={
+                (report.pdf_download_token_expires_at as string | null) ?? null
+              }
             />
           </div>
         </div>
@@ -365,6 +370,11 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
             {autodevData?.vehicle?.year} {autodevData?.make} {autodevData?.model}
           </h1>
           <p className="text-slate-600 text-sm font-mono">{report.vin}</p>
+          {isTokenAccess && (
+            <p className="text-sm text-slate-500 mt-2">
+              Available here for 7 days — download the PDF to keep your own copy.
+            </p>
+          )}
         </div>
 
         {/* Market Value Cards */}

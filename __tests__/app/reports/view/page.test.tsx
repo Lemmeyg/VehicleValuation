@@ -19,10 +19,27 @@ jest.mock('@/components/ReportViewTracker', () => ({ ReportViewTracker: () => nu
 jest.mock('@/app/reports/[id]/view/print-pdf-buttons', () => ({ PrintPdfButtons: () => null }))
 jest.mock('@/app/reports/[id]/view/TokenAccessBanner', () => ({ TokenAccessBanner: () => null }))
 jest.mock('@/app/reports/[id]/view/PurchaseCompleteTracker', () => ({
-  PurchaseCompleteTracker: () => null,
+  PurchaseCompleteTracker: (props: {
+    reportId: string
+    planType: string
+    amountCents: number
+    transactionId?: string
+    email?: string
+    vin?: string
+    userId?: string
+  }) => (
+    <div
+      data-testid="purchase-complete-tracker"
+      data-plan-type={props.planType}
+      data-user-id={props.userId ?? ''}
+      data-email={props.email ?? ''}
+    />
+  ),
 }))
 jest.mock('@/app/reports/[id]/view/RedditPurchaseTracker', () => ({
-  RedditPurchaseTracker: () => null,
+  RedditPurchaseTracker: (props: { value: number; currency: string; transactionId?: string }) => (
+    <div data-testid="reddit-purchase-tracker" data-value={props.value} />
+  ),
 }))
 jest.mock('@/app/reports/[id]/view/PaymentConfirmationWatcher', () => ({
   PaymentConfirmationWatcher: () => null,
@@ -62,7 +79,15 @@ const baseReport = {
   pdf_download_token: null,
 }
 
-function mockSupabase(reportRow: Record<string, unknown>) {
+function mockSupabase(
+  reportRow: Record<string, unknown>,
+  paymentRow: Record<string, unknown> | null = {
+    id: 'pay-1',
+    amount: 2900,
+    stripe_payment_id: 'order-1',
+    metadata: { reportType: 'BASIC' },
+  }
+) {
   supabaseFromMock.mockImplementation((table: string) => {
     if (table === 'reports') {
       return {
@@ -78,7 +103,7 @@ function mockSupabase(reportRow: Record<string, unknown>) {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
-        maybeSingle: jest.fn().mockResolvedValue({ data: { id: 'pay-1' }, error: null }),
+        maybeSingle: jest.fn().mockResolvedValue({ data: paymentRow, error: null }),
       }
     }
     throw new Error(`Unexpected table: ${table}`)
@@ -202,5 +227,125 @@ describe('Report view page — gating', () => {
     render(result as React.ReactElement)
 
     expect(screen.getByText(/vehicle specifications/i)).toBeInTheDocument()
+  })
+
+  it('fires purchase trackers for a token-access (anonymous) buyer with checkout=complete', async () => {
+    ;(getUser as jest.Mock).mockResolvedValue(null)
+    mockSupabase({
+      ...baseReport,
+      user_id: null,
+      email: 'buyer@example.com',
+      access_token: 'tok-abc',
+      access_token_expires_at: '2099-01-01T00:00:00Z',
+      status: 'pending',
+    })
+
+    const ViewPage = await getViewPage()
+    const result = await ViewPage({
+      params: Promise.resolve({ id: 'report-1' }),
+      searchParams: Promise.resolve({ token: 'tok-abc', checkout: 'complete' }),
+    })
+    render(result as React.ReactElement)
+
+    expect(screen.getByTestId('purchase-complete-tracker')).toHaveAttribute(
+      'data-email',
+      'buyer@example.com'
+    )
+    expect(screen.getByTestId('purchase-complete-tracker')).toHaveAttribute('data-user-id', '')
+    expect(screen.getByTestId('reddit-purchase-tracker')).toBeInTheDocument()
+  })
+
+  it('fires purchase trackers with userId for an authenticated buyer with no token and checkout=complete (identifyUser linking, PRD §10)', async () => {
+    ;(getUser as jest.Mock).mockResolvedValue({ id: 'user-1', user_metadata: {} })
+    mockSupabase({ ...baseReport, status: 'pending' })
+
+    const ViewPage = await getViewPage()
+    const result = await ViewPage({
+      params: Promise.resolve({ id: 'report-1' }),
+      searchParams: Promise.resolve({ checkout: 'complete' }),
+    })
+    render(result as React.ReactElement)
+
+    expect(screen.getByTestId('purchase-complete-tracker')).toHaveAttribute(
+      'data-user-id',
+      'user-1'
+    )
+  })
+
+  it('does not fire purchase trackers when checkout=complete is absent', async () => {
+    mockSupabase({ ...baseReport, status: 'pending' })
+
+    const ViewPage = await getViewPage()
+    const result = await ViewPage({
+      params: Promise.resolve({ id: 'report-1' }),
+      searchParams: Promise.resolve({}),
+    })
+    render(result as React.ReactElement)
+
+    expect(screen.queryByTestId('purchase-complete-tracker')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('reddit-purchase-tracker')).not.toBeInTheDocument()
+  })
+
+  it('shows the ExpiredScreen for an anonymous buyer whose access token has expired', async () => {
+    ;(getUser as jest.Mock).mockResolvedValue(null)
+    mockSupabase({
+      access_token: 'real-token',
+      access_token_expires_at: '2020-01-01T00:00:00Z',
+    })
+
+    const ViewPage = await getViewPage()
+    const result = await ViewPage({
+      params: Promise.resolve({ id: 'report-1' }),
+      searchParams: Promise.resolve({ token: 'real-token' }),
+    })
+    render(result as React.ReactElement)
+
+    expect(screen.getByText(/this report link has expired/i)).toBeInTheDocument()
+  })
+
+  it('tells an anonymous (token-access) buyer their link is available for 7 days, on a ready report', async () => {
+    ;(getUser as jest.Mock).mockResolvedValue(null)
+    mockSupabase({
+      ...baseReport,
+      user_id: null,
+      status: 'completed',
+      pdf_download_token: 'tok-1',
+      access_token: 'tok-abc',
+      access_token_expires_at: '2099-01-01T00:00:00Z',
+      marketcheck_valuation: {
+        predictedPrice: 25000,
+        priceRange: { min: 22000, max: 28000 },
+        recentComparables: { listings: [] },
+      },
+    })
+    const ViewPage = await getViewPage()
+    const result = await ViewPage({
+      params: Promise.resolve({ id: 'report-1' }),
+      searchParams: Promise.resolve({ token: 'tok-abc' }),
+    })
+    render(result as React.ReactElement)
+
+    expect(screen.getByText(/available here for 7 days/i)).toBeInTheDocument()
+  })
+
+  it('does not show the 7-day expiry notice for a logged-in buyer (their page access never expires)', async () => {
+    mockSupabase({
+      ...baseReport,
+      status: 'completed',
+      pdf_download_token: 'tok-1',
+      marketcheck_valuation: {
+        predictedPrice: 25000,
+        priceRange: { min: 22000, max: 28000 },
+        recentComparables: { listings: [] },
+      },
+    })
+    const ViewPage = await getViewPage()
+    const result = await ViewPage({
+      params: Promise.resolve({ id: 'report-1' }),
+      searchParams: Promise.resolve({}),
+    })
+    render(result as React.ReactElement)
+
+    expect(screen.queryByText(/available here for 7 days/i)).not.toBeInTheDocument()
   })
 })

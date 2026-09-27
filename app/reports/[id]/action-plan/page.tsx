@@ -121,6 +121,7 @@ export default async function ActionPlanPage({ params, searchParams }: PageProps
       status: report.status,
       pdfDownloadToken:
         (report as { pdf_download_token?: string | null }).pdf_download_token ?? null,
+      pdfStoragePath: (report as { pdf_storage_path?: string | null }).pdf_storage_path ?? null,
     }) !== 'ready'
   ) {
     redirect(token ? `/reports/${id}/view?token=${token}` : `/reports/${id}/view`)

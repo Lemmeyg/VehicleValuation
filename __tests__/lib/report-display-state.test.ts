@@ -37,4 +37,24 @@ describe('computeReportDisplayState', () => {
       'refunded'
     )
   })
+
+  it('returns ready when status is completed and pdf_storage_path exists even without a pdf_download_token (legacy reports from before that column existed)', () => {
+    expect(
+      computeReportDisplayState({
+        status: 'completed',
+        pdfDownloadToken: null,
+        pdfStoragePath: 'reports/user-1/report.pdf',
+      })
+    ).toBe('ready')
+  })
+
+  it('still returns progress when status is completed and neither pdfDownloadToken nor pdfStoragePath exist', () => {
+    expect(
+      computeReportDisplayState({
+        status: 'completed',
+        pdfDownloadToken: null,
+        pdfStoragePath: null,
+      })
+    ).toBe('progress')
+  })
 })

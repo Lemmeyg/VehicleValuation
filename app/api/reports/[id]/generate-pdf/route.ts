@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { getUser } from '@/lib/db/auth'
 import { createServerSupabaseClient } from '@/lib/db/supabase'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
+import { isHeldStatus } from '@/lib/constants/report-status'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -34,6 +35,18 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     if (fetchError || !report) {
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+    }
+
+    // A held report failed the QA gate for a reason — this customer-facing
+    // route must never be the thing that releases it anyway (the PRD's
+    // "anything that isn't perfect is never displayed or sent" rule).
+    // Fixing whatever held it goes through runReportPipeline (admin re-run),
+    // not a direct PDF regeneration.
+    if (isHeldStatus(report.status)) {
+      return NextResponse.json(
+        { error: 'This report is under manual review and cannot be regenerated here.' },
+        { status: 409 }
+      )
     }
 
     // Optional: Check if report has been paid for

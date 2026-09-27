@@ -69,6 +69,23 @@ describe('GET /api/reports/[id]/status', () => {
     expect(data).toEqual({ state: 'working', step: 'listings', paidAt: '2026-09-26T12:00:00Z' })
   })
 
+  it('returns working with step comps during the comps/listings stages, when price_paid has not been written yet', async () => {
+    // price_paid is only written once the pipeline reaches the valuation stage
+    // (lib/services/report-pipeline.ts) — paid_at is set immediately by the
+    // webhook, before comps/listings run. Gating "paid" on price_paid alone
+    // left every step grey during the two longest stages.
+    mockReport({
+      price_paid: null,
+      status: 'pending',
+      progress_step: 'comps',
+      paid_at: '2026-09-26T12:00:00Z',
+      pdf_download_token: null,
+    })
+    const response = await GET(makeRequest('r1'), makeContext('r1'))
+    const data = await response.json()
+    expect(data).toEqual({ state: 'working', step: 'comps', paidAt: '2026-09-26T12:00:00Z' })
+  })
+
   it.each(['needs_review', 'vin_decode_failed', 'valuation_failed', 'failed'])(
     'returns held (with step: null) for status %s',
     async status => {

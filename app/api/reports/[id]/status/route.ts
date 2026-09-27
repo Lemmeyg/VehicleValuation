@@ -26,7 +26,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: 'Report not found' }, { status: 404 })
   }
 
-  const paid = report.price_paid != null && report.price_paid > 0
+  // price_paid is only written once the pipeline reaches the valuation stage
+  // (lib/services/report-pipeline.ts) — paid_at is set immediately by the
+  // webhook, before the comps/listings stages run. Gating on price_paid
+  // alone left every progress step grey during those two stages.
+  const paid = report.paid_at != null || (report.price_paid != null && report.price_paid > 0)
 
   let state: ReportApiState
   if (report.status === 'refunded') {
