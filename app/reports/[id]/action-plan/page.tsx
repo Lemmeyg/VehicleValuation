@@ -12,6 +12,8 @@ import Link from 'next/link'
 import { canViewReport } from '@/lib/utils/report-access'
 import { SUPPORT_EMAIL } from '@/lib/constants'
 import { PrintChecklistButton } from './PrintChecklistButton'
+import { computeReportDisplayState } from '@/lib/report-display-state'
+import { ExpiredScreen } from '../view/screens/ExpiredScreen'
 import {
   CheckCircle,
   Clock,
@@ -64,7 +66,7 @@ export default async function ActionPlanPage({ params, searchParams }: PageProps
       new Date(expiresAt) > new Date()
 
     if (!tokenValid) {
-      redirect(`/auth?redirect=/reports/${id}/action-plan&reason=token_expired`)
+      return <ExpiredScreen />
     }
 
     isTokenAccess = true
@@ -111,6 +113,17 @@ export default async function ActionPlanPage({ params, searchParams }: PageProps
         </div>
       </div>
     )
+  }
+
+  if (
+    !isAdmin &&
+    computeReportDisplayState({
+      status: report.status,
+      pdfDownloadToken:
+        (report as { pdf_download_token?: string | null }).pdf_download_token ?? null,
+    }) !== 'ready'
+  ) {
+    redirect(token ? `/reports/${id}/view?token=${token}` : `/reports/${id}/view`)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
