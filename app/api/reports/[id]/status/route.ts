@@ -1,21 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db/supabase'
+import { isHeldStatus } from '@/lib/constants/report-status'
 
 interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-// Report statuses where the automated pipeline gave up and a human finishes the
-// report and emails it by hand (BL-62). The waiting page must not show a "ready"
-// screen for these — the buyer gets the "we need more time" message instead.
-const MANUAL_REVIEW_STATUSES = ['vin_decode_failed', 'valuation_failed', 'needs_review']
+type ReportApiState = 'awaiting_payment' | 'working' | 'held' | 'ready' | 'refunded'
 
+/**
+ * Drives the report page's screens only — no report content, email, VIN, or
+ * price (docs/Inbox/report-delivery-prd.md §9.1, fixes bug 7). The 120-second
+ * display rule is applied by the page from paidAt, not by this endpoint.
+ */
 export async function GET(request: NextRequest, context: RouteContext) {
   const { id } = await context.params
 
   const { data: report, error } = await supabaseAdmin
     .from('reports')
-    .select('price_paid, marketcheck_valuation, vin, email, status')
+    .select('price_paid, status, progress_step, paid_at, pdf_download_token')
     .eq('id', id)
     .single()
 
@@ -24,18 +27,23 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   const paid = report.price_paid != null && report.price_paid > 0
-  const manualReview = paid && MANUAL_REVIEW_STATUSES.includes(report.status)
-  const ready = paid && !manualReview && report.marketcheck_valuation != null
+
+  let state: ReportApiState
+  if (report.status === 'refunded') {
+    state = 'refunded'
+  } else if (isHeldStatus(report.status)) {
+    state = 'held'
+  } else if (report.status === 'completed' && report.pdf_download_token) {
+    state = 'ready'
+  } else if (!paid) {
+    state = 'awaiting_payment'
+  } else {
+    state = 'working'
+  }
 
   return NextResponse.json({
-    ready,
-    manualReview,
-    ...(ready || manualReview
-      ? {
-          pricePaid: report.price_paid,
-          vin: report.vin ?? undefined,
-          email: report.email ?? undefined,
-        }
-      : {}),
+    state,
+    step: state === 'working' ? ((report.progress_step as string | null) ?? null) : null,
+    paidAt: (report.paid_at as string | null) ?? null,
   })
 }
