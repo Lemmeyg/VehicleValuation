@@ -83,7 +83,9 @@ export async function POST(request: NextRequest) {
     // authenticated buyers and anonymous buyers with no access_token were being
     // recorded as abandoners on their very first post-purchase pageview (BL-85
     // contamination) — see CheckoutReturnTracker.tsx for the read side.
-    let successUrl = `${appUrl}/reports/${reportId}/success?checkout=complete`
+    // Every buyer lands on /view now — /success is retired to a thin
+    // redirect (docs/Inbox/report-delivery-prd.md §10, D13).
+    let successUrl = `${appUrl}/reports/${reportId}/view?checkout=complete`
     if (!user) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const accessToken = (report as any).access_token as string | null

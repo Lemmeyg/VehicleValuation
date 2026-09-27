@@ -106,7 +106,7 @@ describe('POST /api/lemonsqueezy/create-checkout', () => {
   })
 
   describe('checkout=complete on successUrl (BL-85 abandonment-marker fix)', () => {
-    it('carries checkout=complete on the authenticated-user success URL', async () => {
+    it('sends an authenticated buyer to /view, not /success (PRD §10, D13)', async () => {
       mockGetUser.mockResolvedValue({ id: 'user-1' } as never)
       mockSingle.mockResolvedValue({
         data: {
@@ -124,7 +124,7 @@ describe('POST /api/lemonsqueezy/create-checkout', () => {
 
       expect(mockCreateCheckout).toHaveBeenCalledWith(
         expect.objectContaining({
-          successUrl: 'https://example.com/reports/report-1/success?checkout=complete',
+          successUrl: 'https://example.com/reports/report-1/view?checkout=complete',
         })
       )
     })
