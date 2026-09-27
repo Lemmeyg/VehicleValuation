@@ -335,7 +335,11 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
                 {user ? '← Back to Dashboard' : '← Home'}
               </Link>
             </div>
-            <PrintPdfButtons reportId={id} token={token ?? undefined} />
+            <PrintPdfButtons
+              reportId={id}
+              token={token ?? undefined}
+              pdfDownloadToken={(report.pdf_download_token as string | null) ?? null}
+            />
           </div>
         </div>
       </nav>

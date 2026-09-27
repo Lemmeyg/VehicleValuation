@@ -1,29 +1,23 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { Download, Share2 } from 'lucide-react'
-import { trackReportWorkflow, trackButtonClick } from '@/lib/analytics/events'
+import { trackButtonClick } from '@/lib/analytics/events'
 
 interface PrintPdfButtonsProps {
   reportId: string
   token?: string
+  pdfDownloadToken: string | null
 }
 
-export function PrintPdfButtons({ reportId, token }: PrintPdfButtonsProps) {
-  const router = useRouter()
-
-  const handleSaveAsPdf = () => {
-    // Intent only — this navigates to the print page. The download itself is
-    // tracked from PrintToolbar, where the browser print dialog actually opens.
-    trackReportWorkflow({ step: 'print_flow_started', reportId })
-    const href = token ? `/reports/${reportId}/print?token=${token}` : `/reports/${reportId}/print`
-    router.push(href)
-  }
-
+/**
+ * Hidden until the report is released — "Download PDF" links straight to
+ * the stored, QA-checked PDF (the same file the ready email links to),
+ * never a fresh /print re-render (docs/Inbox/report-delivery-prd.md §9.6).
+ */
+export function PrintPdfButtons({ reportId, pdfDownloadToken }: PrintPdfButtonsProps) {
   const handleShare = async () => {
     const url = window.location.href
     trackButtonClick('share_report', { reportId })
-    trackReportWorkflow({ step: 'report_shared', reportId })
 
     if (navigator.share) {
       try {
@@ -51,16 +45,18 @@ export function PrintPdfButtons({ reportId, token }: PrintPdfButtonsProps) {
     }
   }
 
+  if (!pdfDownloadToken) return null
+
   return (
     <div className="flex items-center space-x-4">
-      <button
-        onClick={handleSaveAsPdf}
+      <a
+        href={`/api/reports/download/${pdfDownloadToken}?source=page`}
         className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors print:hidden"
-        title="Save as PDF"
+        title="Download PDF"
       >
         <Download className="h-4 w-4 mr-2" />
-        Save as PDF
-      </button>
+        Download PDF
+      </a>
 
       <button
         onClick={handleShare}
