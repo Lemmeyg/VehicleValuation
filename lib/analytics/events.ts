@@ -79,7 +79,7 @@ export function getPostHogDistinctId(): string | null {
  * - 'email_link' — the secure PDF link sent in the report-delivery email,
  *                  captured server-side because no browser code of ours runs
  */
-export type ReportDownloadSource = 'print' | 'email_link'
+export type ReportDownloadSource = 'print' | 'email_link' | 'page'
 
 export type ReportWorkflowEvent = {
   step:

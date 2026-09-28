@@ -37,10 +37,12 @@ export async function GET(request: Request, { params }: RouteParams) {
     // after() so the customer's download never waits on an analytics call, and
     // skipped for link scanners so their prefetches don't inflate the number.
     if (!isLikelyBotUserAgent(request.headers.get('user-agent'))) {
+      const source = new URL(request.url).searchParams.get('source')
       after(() =>
         captureReportDownloaded({
           reportId: report.id as string,
           distinctId: (report.posthog_distinct_id as string | null) ?? null,
+          ...(source === 'page' || source === 'print' || source === 'email_link' ? { source } : {}),
         })
       )
     }

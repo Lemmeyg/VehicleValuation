@@ -4,143 +4,38 @@ jest.mock('next/navigation', () => ({
   }),
 }))
 
-jest.mock('@/lib/db/auth', () => ({
-  getUser: jest.fn(),
-}))
-
-const supabaseFromMock = jest.fn()
-jest.mock('@/lib/db/supabase', () => ({
-  createServerSupabaseClient: jest.fn().mockResolvedValue({ from: supabaseFromMock }),
-  supabaseAdmin: { from: jest.fn() },
-}))
-
-jest.mock('@/app/reports/[id]/success/RedditPurchaseTracker', () => ({
-  RedditPurchaseTracker: () => null,
-}))
-jest.mock('@/app/reports/[id]/success/PostHogPurchaseTracker', () => ({
-  PostHogPurchaseTracker: (props: { planType: string }) => (
-    <div data-testid="posthog-tracker" data-plan-type={props.planType} />
-  ),
-}))
-jest.mock('@/app/reports/[id]/success/ReportReadyPoller', () => ({
-  ReportReadyPoller: () => null,
-}))
-jest.mock('@/app/reports/[id]/success/AuthenticatedPaymentPoller', () => ({
-  AuthenticatedPaymentPoller: () => null,
-}))
-
-jest.mock('next/link', () => {
-  return function MockLink({ children }: { children: React.ReactNode }) {
-    return children
-  }
-})
-
-import { render, screen } from '@testing-library/react'
-import { getUser } from '@/lib/db/auth'
-
-const baseReport = {
-  id: 'report-1',
-  vin: '1HGBH41JXMN109186',
-  status: 'complete',
-}
+import { redirect } from 'next/navigation'
 
 const getSuccessPage = () => import('@/app/reports/[id]/success/page').then(m => m.default)
 
-// reports.select('*').eq('id',..).eq('user_id',..).single()
-// payments.select('metadata').eq('report_id',..).eq('status','succeeded').order(..).limit(1).maybeSingle()
-function mockSupabaseFrom(reportRow: Record<string, unknown>, paymentReportType: string | null) {
-  supabaseFromMock.mockImplementation((table: string) => {
-    if (table === 'reports') {
-      return {
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({ data: reportRow, error: null }),
-      }
-    }
-    if (table === 'payments') {
-      const paymentData = paymentReportType ? { metadata: { reportType: paymentReportType } } : null
-      return {
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        order: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        maybeSingle: jest.fn().mockResolvedValue({ data: paymentData, error: null }),
-      }
-    }
-    throw new Error(`Unexpected table: ${table}`)
-  })
-}
+describe('/reports/[id]/success — retired, redirects to /view', () => {
+  beforeEach(() => jest.clearAllMocks())
 
-describe('Payment success page — money-back guarantee', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-    ;(getUser as jest.Mock).mockResolvedValue({ id: 'user-1', email: 'buyer@example.com' })
-  })
-
-  it('does NOT render the guarantee card for a Basic report (real $19 price_paid, payment metadata BASIC)', async () => {
-    mockSupabaseFrom({ ...baseReport, price_paid: 1900 }, 'BASIC')
-
+  it('redirects to /view preserving the token and checkout query params', async () => {
     const SuccessPage = await getSuccessPage()
-    const result = await SuccessPage({
-      params: Promise.resolve({ id: 'report-1' }),
-      searchParams: Promise.resolve({}),
-    })
-    render(result as React.ReactElement)
+    await expect(
+      SuccessPage({
+        params: Promise.resolve({ id: 'report-1' }),
+        searchParams: Promise.resolve({ token: 'tok-1', checkout: 'complete' }),
+      })
+    ).rejects.toThrow('NEXT_REDIRECT')
 
-    expect(screen.queryByText(/100% Money-Back Guarantee/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/Basic Report/i)).toBeInTheDocument()
+    const url = (redirect as jest.Mock).mock.calls[0][0] as string
+    expect(url.startsWith('/reports/report-1/view?')).toBe(true)
+    const params = new URLSearchParams(url.split('?')[1])
+    expect(params.get('token')).toBe('tok-1')
+    expect(params.get('checkout')).toBe('complete')
   })
 
-  it('renders the guarantee card for a Premium report (real $25+tax price_paid, payment metadata PREMIUM)', async () => {
-    mockSupabaseFrom({ ...baseReport, price_paid: 2650 }, 'PREMIUM')
-
+  it('redirects to /view with no query string when there are no params', async () => {
     const SuccessPage = await getSuccessPage()
-    const result = await SuccessPage({
-      params: Promise.resolve({ id: 'report-1' }),
-      searchParams: Promise.resolve({}),
-    })
-    render(result as React.ReactElement)
+    await expect(
+      SuccessPage({
+        params: Promise.resolve({ id: 'report-1' }),
+        searchParams: Promise.resolve({}),
+      })
+    ).rejects.toThrow('NEXT_REDIRECT')
 
-    expect(screen.getByText(/100% Money-Back Guarantee/i)).toBeInTheDocument()
-    expect(screen.getByText(/Premium Report/i)).toBeInTheDocument()
-  })
-
-  it('does NOT render the guarantee card when payment metadata has no reportType (e.g. admin free report)', async () => {
-    mockSupabaseFrom({ ...baseReport, price_paid: 0 }, null)
-
-    const SuccessPage = await getSuccessPage()
-    const result = await SuccessPage({
-      params: Promise.resolve({ id: 'report-1' }),
-      searchParams: Promise.resolve({}),
-    })
-    render(result as React.ReactElement)
-
-    expect(screen.queryByText(/100% Money-Back Guarantee/i)).not.toBeInTheDocument()
-  })
-
-  it('passes the correct planType to PostHogPurchaseTracker for a Basic report', async () => {
-    mockSupabaseFrom({ ...baseReport, price_paid: 1900 }, 'BASIC')
-
-    const SuccessPage = await getSuccessPage()
-    const result = await SuccessPage({
-      params: Promise.resolve({ id: 'report-1' }),
-      searchParams: Promise.resolve({}),
-    })
-    render(result as React.ReactElement)
-
-    expect(screen.getByTestId('posthog-tracker')).toHaveAttribute('data-plan-type', 'basic')
-  })
-
-  it('passes the correct planType to PostHogPurchaseTracker for a Premium report', async () => {
-    mockSupabaseFrom({ ...baseReport, price_paid: 2650 }, 'PREMIUM')
-
-    const SuccessPage = await getSuccessPage()
-    const result = await SuccessPage({
-      params: Promise.resolve({ id: 'report-1' }),
-      searchParams: Promise.resolve({}),
-    })
-    render(result as React.ReactElement)
-
-    expect(screen.getByTestId('posthog-tracker')).toHaveAttribute('data-plan-type', 'premium')
+    expect(redirect).toHaveBeenCalledWith('/reports/report-1/view')
   })
 })

@@ -491,6 +491,98 @@ describe('POST /api/lemonsqueezy/webhook — order processing', () => {
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'valuation_failed' }))
   })
 
+  it('sets paid_at and access_token_expires_at (+7 days) on the report after a successful payment insert', async () => {
+    let capturedPaidAtUpdate: Record<string, unknown> | null = null
+    const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
+      if ('paid_at' in data) capturedPaidAtUpdate = data
+      return { eq: jest.fn().mockResolvedValue({ error: null }) }
+    })
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const before = Date.now()
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body: makeOrderCreatedBody(),
+    })
+
+    await POST(request)
+
+    expect(capturedPaidAtUpdate).not.toBeNull()
+    const arg = capturedPaidAtUpdate as unknown as {
+      paid_at: string
+      access_token_expires_at: string
+    }
+    const paidAtMs = new Date(arg.paid_at).getTime()
+    const expiresMs = new Date(arg.access_token_expires_at).getTime()
+    expect(paidAtMs).toBeGreaterThanOrEqual(before)
+    expect(expiresMs - paidAtMs).toBeCloseTo(7 * 24 * 60 * 60 * 1000, -3)
+  })
+
+  it('does not write paid_at on a duplicate delivery (idempotent retry)', async () => {
+    const mockUpdate = jest
+      .fn()
+      .mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) })
+    const mockFrom = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          vin: '1HGBH41JXMN109186',
+          mileage: 35000,
+          zip_code: '90210',
+          vehicle_data: null,
+          marketcheck_valuation: null,
+        },
+        error: null,
+      }),
+      insert: jest.fn().mockResolvedValue({
+        error: { code: '23505', message: 'duplicate key', details: 'already exists' },
+      }),
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockAdmin.from = mockFrom as any
+
+    const request = new Request('http://localhost/api/lemonsqueezy/webhook', {
+      method: 'POST',
+      headers: {
+        'x-signature': 'valid',
+        'x-forwarded-host': 'www.totallosstoolkit.com',
+        'x-forwarded-proto': 'https',
+      },
+      body: makeOrderCreatedBody(),
+    })
+
+    await POST(request)
+
+    const paidAtCalls = mockUpdate.mock.calls.filter(call => 'paid_at' in call[0])
+    expect(paidAtCalls).toHaveLength(0)
+  })
+
   it('returns 200 silently when orderId already has a payment (idempotent retry)', async () => {
     const mockFrom = jest.fn().mockReturnValue({
       select: jest.fn().mockReturnThis(),
@@ -678,11 +770,13 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
       supplemented: true,
     })
 
-    // Capture the update call
+    // Capture the update call that writes the marketcheck fields — a later QA-gate
+    // hold update (this fixture lacks priceRange/10 comps, orthogonal to what this
+    // test checks) also calls update(), so an unfiltered capture would grab that one.
     let capturedUpdateArg: Record<string, unknown> | null = null
     const mockEq = jest.fn().mockResolvedValue({ error: null })
     const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
-      capturedUpdateArg = data
+      if (data.marketcheck_valuation !== undefined) capturedUpdateArg = data
       return { eq: mockEq }
     })
     const mockFrom = jest.fn().mockReturnValue({
@@ -725,10 +819,12 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
       },
     })
 
+    // Capture the update call that writes the marketcheck fields — see the note in
+    // the comparables_supplemented test above on why this must be filtered.
     let capturedUpdateArg: Record<string, unknown> | null = null
     const mockEq = jest.fn().mockResolvedValue({ error: null })
     const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
-      capturedUpdateArg = data
+      if (data.marketcheck_valuation !== undefined) capturedUpdateArg = data
       return { eq: mockEq }
     })
     const mockFrom = jest.fn().mockReturnValue({
@@ -857,10 +953,12 @@ describe('POST /api/lemonsqueezy/webhook — URL validation and comparables supp
   it('proceeds without supplement when validateListingUrls throws — no retry triggered', async () => {
     mockValidateListingUrls.mockRejectedValue(new Error('URL validation network error'))
 
+    // Capture the update call that writes the marketcheck fields — see the note in
+    // the comparables_supplemented test above on why this must be filtered.
     let capturedUpdateArg: Record<string, unknown> | null = null
     const mockEq = jest.fn().mockResolvedValue({ error: null })
     const mockUpdate = jest.fn().mockImplementation((data: Record<string, unknown>) => {
-      capturedUpdateArg = data
+      if (data.marketcheck_valuation !== undefined) capturedUpdateArg = data
       return { eq: mockEq }
     })
     const mockFrom = jest.fn().mockReturnValue({

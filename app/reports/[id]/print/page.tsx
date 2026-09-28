@@ -10,6 +10,8 @@ import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintToolbar } from './PrintToolbar'
 import { SUPPORT_EMAIL } from '@/lib/constants'
+import { computeReportDisplayState } from '@/lib/report-display-state'
+import { ExpiredScreen } from '../view/screens/ExpiredScreen'
 interface PageProps {
   params: Promise<{ id: string }>
   searchParams: Promise<{ token?: string }>
@@ -45,7 +47,7 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
       new Date(expiresAt) > new Date()
 
     if (!tokenValid) {
-      redirect(`/auth?redirect=/reports/${id}/print&reason=token_expired`)
+      return <ExpiredScreen />
     }
 
     isTokenAccess = true
@@ -92,6 +94,18 @@ export default async function PrintPage({ params, searchParams }: PageProps) {
         </div>
       </div>
     )
+  }
+
+  if (
+    !isAdmin &&
+    computeReportDisplayState({
+      status: report.status,
+      pdfDownloadToken:
+        (report as { pdf_download_token?: string | null }).pdf_download_token ?? null,
+      pdfStoragePath: (report as { pdf_storage_path?: string | null }).pdf_storage_path ?? null,
+    }) !== 'ready'
+  ) {
+    redirect(token ? `/reports/${id}/view?token=${token}` : `/reports/${id}/view`)
   }
 
   if (!isTokenAccess && (!report.price_paid || report.price_paid === 0)) {
