@@ -93,7 +93,9 @@ export default async function KnowledgeBasePage() {
         <main className="pt-24 pb-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
-              <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">Knowledge Base</h1>
+              <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
+                Total Loss Guides by State &amp; Insurer
+              </h1>
               <p className="text-lg text-slate-600 max-w-2xl mx-auto">
                 Expert guides and resources to help you understand vehicle valuation, insurance
                 claims, and your rights
