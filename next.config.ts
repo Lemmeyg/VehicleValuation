@@ -2,6 +2,23 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   /* config options here */
+  async redirects() {
+    return [
+      // KB consolidation (2026-09-28): the two overlapping appraisal articles were merged into
+      // the independent-appraisal guide and unpublished. Permanent so search engines move
+      // their ranking signals to the surviving page.
+      {
+        source: '/knowledge-base/right-to-appraisal-auto-insurance-explained',
+        destination: '/knowledge-base/total-loss-settlement-too-low-independent-appraisal-guide',
+        permanent: true,
+      },
+      {
+        source: '/knowledge-base/appraisal-clause-secret-weapon-settlement-standoff',
+        destination: '/knowledge-base/total-loss-settlement-too-low-independent-appraisal-guide',
+        permanent: true,
+      },
+    ]
+  },
   async headers() {
     return [
       {

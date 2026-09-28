@@ -24,6 +24,31 @@ describe('next.config redirects', () => {
     expect(articleRedirect).toBeUndefined()
   })
 
+  it.each([
+    '/knowledge-base/right-to-appraisal-auto-insurance-explained',
+    '/knowledge-base/appraisal-clause-secret-weapon-settlement-standoff',
+  ])('permanently redirects the merged appraisal article %s to the appraisal guide', async source => {
+    const redirects = nextConfig.redirects ? await nextConfig.redirects() : []
+
+    const redirect = redirects.find(r => r.source === source)
+
+    expect(redirect).toMatchObject({
+      destination: '/knowledge-base/total-loss-settlement-too-low-independent-appraisal-guide',
+      permanent: true,
+    })
+  })
+
+  it('does not redirect the surviving appraisal guide away from itself', async () => {
+    const redirects = nextConfig.redirects ? await nextConfig.redirects() : []
+
+    const guideRedirect = redirects.find(
+      r =>
+        r.source === '/knowledge-base/total-loss-settlement-too-low-independent-appraisal-guide'
+    )
+
+    expect(guideRedirect).toBeUndefined()
+  })
+
   it('does not contain a non-www to www redirect (Vercel handles this)', async () => {
     const redirects = nextConfig.redirects ? await nextConfig.redirects() : []
 
