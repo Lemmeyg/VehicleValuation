@@ -8,8 +8,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/db/admin-auth'
 import { supabaseAdmin } from '@/lib/db/supabase'
+import { submitToIndexNow } from '@/lib/indexnow'
 import matter from 'gray-matter'
 import readingTime from 'reading-time'
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,9 +49,7 @@ export async function POST(request: NextRequest) {
         const missingFields = requiredFields.filter(field => !data[field])
 
         if (missingFields.length > 0) {
-          errors.push(
-            `${file.name}: Missing required fields: ${missingFields.join(', ')}`
-          )
+          errors.push(`${file.name}: Missing required fields: ${missingFields.join(', ')}`)
           continue
         }
 
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
           console.error('[UPLOAD_ERROR] Storage upload failed:', {
             file: file.name,
             path: storagePath,
-            error: uploadError
+            error: uploadError,
           })
           errors.push(`${file.name}: Storage upload failed - ${uploadError.message}`)
           continue
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
 
         console.log('[UPLOAD_SUCCESS] File uploaded to storage:', {
           file: file.name,
-          path: storagePath
+          path: storagePath,
         })
 
         // Calculate reading time
@@ -106,15 +107,13 @@ export async function POST(request: NextRequest) {
 
         // Upsert uses the UNIQUE constraint on 'slug' column (no onConflict parameter needed)
         // Use admin client to bypass RLS policies for reliable inserts
-        const { error: dbError } = await supabaseAdmin
-          .from('articles')
-          .upsert(articleData)
+        const { error: dbError } = await supabaseAdmin.from('articles').upsert(articleData)
 
         if (dbError) {
           console.error('[DB_ERROR] Database insert failed:', {
             file: file.name,
             slug: data.slug,
-            error: dbError
+            error: dbError,
           })
           errors.push(`${file.name}: Database insert failed - ${dbError.message}`)
 
@@ -134,7 +133,7 @@ export async function POST(request: NextRequest) {
         console.log('[DB_SUCCESS] Article inserted/updated:', {
           file: file.name,
           slug: data.slug,
-          title: data.title
+          title: data.title,
         })
 
         results.push({
@@ -143,11 +142,10 @@ export async function POST(request: NextRequest) {
           category: data.category,
           storagePath,
           title: data.title,
+          published: articleData.published,
         })
       } catch (err) {
-        errors.push(
-          `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}`
-        )
+        errors.push(`${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}`)
       }
     }
 
@@ -156,8 +154,15 @@ export async function POST(request: NextRequest) {
       totalFiles: files.length,
       successful: results.length,
       failed: errors.length,
-      errors: errors
+      errors: errors,
     })
+
+    // Tell Bing/Yandex about newly-published articles right away instead of
+    // waiting for their crawler to notice. Never blocks or fails the upload.
+    const publishedUrls = results
+      .filter(r => r.published)
+      .map(r => `${SITE_URL}/knowledge-base/${r.slug}`)
+    await submitToIndexNow(publishedUrls)
 
     // Return results
     return NextResponse.json({

@@ -8,7 +8,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/db/admin-auth'
 import { supabaseAdmin } from '@/lib/db/supabase'
+import { submitToIndexNow } from '@/lib/indexnow'
 import matter from 'gray-matter'
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
 const serviceTypeDirectories: Record<string, string> = {
   appraiser: 'appraisers',
@@ -160,6 +163,7 @@ export async function POST(request: NextRequest) {
           businessName: data.businessName,
           serviceType: data.serviceType,
           storagePath,
+          published: supplierData.published,
         })
       } catch (err) {
         errors.push(`${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -173,6 +177,13 @@ export async function POST(request: NextRequest) {
       failed: errors.length,
       errors: errors,
     })
+
+    // Tell Bing/Yandex about newly-published suppliers right away instead of
+    // waiting for their crawler to notice. Never blocks or fails the upload.
+    const publishedUrls = results
+      .filter(r => r.published)
+      .map(r => `${SITE_URL}/directory/${r.slug}`)
+    await submitToIndexNow(publishedUrls)
 
     return NextResponse.json({
       success: results.length > 0,
