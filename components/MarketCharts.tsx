@@ -145,7 +145,7 @@ export function MarketCharts({
                   borderRadius: '8px',
                   fontSize: 12,
                 }}
-                formatter={(value: number | undefined) => [`${value || 0} vehicles`, 'Count']}
+                formatter={value => [`${value || 0} vehicles`, 'Count']}
               />
               <ReferenceLine
                 x={findClosestBin(priceDistribution, estimatedValue)}
@@ -200,7 +200,7 @@ export function MarketCharts({
                   borderRadius: '8px',
                   fontSize: 12,
                 }}
-                formatter={(value: number | undefined) => [`${value || 0} vehicles`, 'Count']}
+                formatter={value => [`${value || 0} vehicles`, 'Count']}
               />
               <ReferenceLine
                 x={findClosestBin(priceDistribution, estimatedValue)}
@@ -297,7 +297,7 @@ export function MarketCharts({
                   borderRadius: '8px',
                   fontSize: 12,
                 }}
-                formatter={(value: number | undefined, name: string | undefined) => {
+                formatter={(value, name) => {
                   const val = value || 0
                   if (name === 'price') return [`$${val.toLocaleString()}`, 'Price']
                   if (name === 'mileage') return [`${val.toLocaleString()} mi`, 'Mileage']
@@ -381,7 +381,7 @@ export function MarketCharts({
                   borderRadius: '8px',
                   fontSize: 12,
                 }}
-                formatter={(value: number | undefined, name: string | undefined) => {
+                formatter={(value, name) => {
                   const val = value || 0
                   if (name === 'price') return [`$${val.toLocaleString()}`, 'Price']
                   if (name === 'mileage') return [`${val.toLocaleString()} mi`, 'Mileage']
