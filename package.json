@@ -64,7 +64,7 @@
     "@types/zipcodes": "^8.0.5",
     "autoprefixer": "^10.4.23",
     "dotenv": "^18.0.4",
-    "eslint": "^9",
+    "eslint": "^10",
     "eslint-config-next": "16.0.8",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
