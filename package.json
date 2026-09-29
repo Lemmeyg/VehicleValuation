@@ -63,7 +63,7 @@
     "@types/react-dom": "^19",
     "@types/zipcodes": "^8.0.5",
     "autoprefixer": "^10.4.23",
-    "dotenv": "^17.2.3",
+    "dotenv": "^18.0.4",
     "eslint": "^9",
     "eslint-config-next": "16.0.8",
     "eslint-config-prettier": "^10.1.8",
