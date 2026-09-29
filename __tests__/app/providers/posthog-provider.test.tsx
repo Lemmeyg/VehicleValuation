@@ -3,8 +3,10 @@
  *
  * Verifies that PostHog is NOT initialised on Vercel preview deployments so
  * preview traffic doesn't pollute production analytics, that autocapture is not
- * url_allowlist-restricted, that exception capture is on (BL-127), and that init
- * happens at module evaluation rather than in an effect (BL-128).
+ * url_allowlist-restricted, that exception capture is on (BL-127), that init
+ * happens at module evaluation rather than in an effect (BL-128), and that
+ * api_host points at the same-origin reverse-proxy path rather than posthog.com
+ * directly, so browser requests aren't domain-blocked by ad blockers.
  *
  * Because init now runs at module scope, each case re-evaluates the module with
  * the env it wants via jest.resetModules() instead of relying on render().
@@ -29,15 +31,16 @@ type PosthogMock = { __loaded: boolean; init: jest.Mock }
  * Re-evaluate the provider module under the current process.env and return the
  * fresh posthog mock it initialised against.
  */
-function loadProvider(): { posthog: PosthogMock; module: typeof import('@/app/providers/posthog-provider') } {
-  let posthog!: PosthogMock
-  let mod!: typeof import('@/app/providers/posthog-provider')
-
+function loadProvider(): {
+  posthog: PosthogMock
+  module: typeof import('@/app/providers/posthog-provider')
+} {
   jest.resetModules()
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  posthog = require('posthog-js') as PosthogMock
+  const posthog = require('posthog-js') as PosthogMock
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  mod = require('@/app/providers/posthog-provider')
+  const mod =
+    require('@/app/providers/posthog-provider') as typeof import('@/app/providers/posthog-provider')
 
   return { posthog, module: mod }
 }
@@ -71,7 +74,7 @@ describe('PostHogProvider — Vercel preview filter', () => {
 
     expect(posthog.init).toHaveBeenCalledWith(
       'phc_test',
-      expect.objectContaining({ api_host: 'https://app.posthog.com' })
+      expect.objectContaining({ api_host: '/ingest' })
     )
   })
 
@@ -89,6 +92,30 @@ describe('PostHogProvider — Vercel preview filter', () => {
     const { posthog } = loadProvider()
 
     expect(posthog.init).not.toHaveBeenCalled()
+  })
+})
+
+describe('PostHogProvider — reverse proxy (ad-blocker circumvention)', () => {
+  it('uses the same-origin /ingest path for api_host, not the real posthog.com host', () => {
+    process.env.NEXT_PUBLIC_VERCEL_ENV = 'production'
+
+    const { posthog } = loadProvider()
+
+    expect(posthog.init).toHaveBeenCalledWith(
+      'phc_test',
+      expect.objectContaining({ api_host: '/ingest' })
+    )
+  })
+
+  it('sets ui_host to the real posthog host, for links back into the PostHog app', () => {
+    process.env.NEXT_PUBLIC_VERCEL_ENV = 'production'
+
+    const { posthog } = loadProvider()
+
+    expect(posthog.init).toHaveBeenCalledWith(
+      'phc_test',
+      expect.objectContaining({ ui_host: 'https://app.posthog.com' })
+    )
   })
 })
 
