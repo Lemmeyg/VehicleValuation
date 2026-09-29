@@ -18,3 +18,10 @@ updates:
           - 'patch'
     labels:
       - 'dependencies'
+    # eslint 10 (2026-09-29) broke `npm run lint` repo-wide: eslint-config-next's
+    # nested eslint-plugin-react@7.37.5 (the newest version published) isn't
+    # compatible with it yet. Re-allow once eslint-config-next ships a version
+    # that pulls in a fixed eslint-plugin-react.
+    ignore:
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
