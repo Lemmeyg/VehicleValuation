@@ -2,7 +2,8 @@
  * POST /api/admin/reports/[id]/manual-valuation
  *
  * Recovery path for a paid report that MarketCheck could not price (old / rare /
- * high-mileage vehicles halted into status 'valuation_failed' by BL-62). The
+ * high-mileage vehicles halted into status 'valuation_failed' by BL-62), or one the
+ * delivery pipeline held as 'needs_review' because too few comps displayed. The
  * manual-valuation-builder skill researches a valuation off-platform, gets Skip's
  * sign-off, then POSTs the approved MarketCheckPrediction-shaped object here.
  *
@@ -19,9 +20,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db/supabase'
 import { generateAndUploadPDF } from '@/lib/services/pdf-generator'
 import type { MarketCheckPrediction } from '@/lib/api/marketcheck-client'
+import { QA_CHECKS, type QaCheckContext } from '@/lib/services/qa-checks'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+
+/** QA check keys (lib/services/qa-checks.ts) that a manual valuation resolves. */
+const MANUAL_VALUATION_FIXABLE_CHECKS = ['valuation_complete', 'ten_comps_displayed']
+
+/** autodev_vin_data is stored as a JSON string on some rows and an object on others. */
+function parseJsonColumn(value: unknown): Record<string, unknown> | null {
+  if (value == null) return null
+  if (typeof value === 'object') return value as Record<string, unknown>
+  if (typeof value !== 'string') return null
+  try {
+    return JSON.parse(value) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -117,7 +134,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { data: report, error: fetchError } = await supabaseAdmin
     .from('reports')
-    .select('id, status, valuation_result, marketcheck_valuation')
+    .select(
+      'id, status, valuation_result, marketcheck_valuation, qa_failed_checks, autodev_vin_data, vehicle_data, mileage, zip_code'
+    )
     .eq('id', id)
     .single()
 
@@ -138,7 +157,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     report.status === 'completed' &&
     (report.marketcheck_valuation as { dataSource?: string } | null)?.dataSource ===
       'manual_research'
-  if (report.status !== 'valuation_failed' && !legacyBlank && !alreadyManual) {
+  // A report the delivery pipeline held as 'needs_review' only because its comps
+  // were too thin (or its valuation incomplete) never shipped, and a manual
+  // valuation is exactly the fix. Held for anything else — PDF failure, pipeline
+  // error — and a new valuation wouldn't address the cause, so refuse.
+  const failedChecks = (report.qa_failed_checks as string[] | null) ?? []
+  const heldForThinComps =
+    report.status === 'needs_review' &&
+    failedChecks.length > 0 &&
+    failedChecks.every(k => MANUAL_VALUATION_FIXABLE_CHECKS.includes(k))
+  if (report.status !== 'valuation_failed' && !legacyBlank && !alreadyManual && !heldForThinComps) {
     return NextResponse.json(
       {
         error: `Report status is '${report.status}' - refusing to overwrite a report that is not stranded`,
@@ -181,10 +209,50 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const pdf = await generateAndUploadPDF({ reportId: id })
   if (!pdf.success) {
     console.error('[MANUAL_VALUATION] PDF generation failed:', pdf.error)
-    await supabaseAdmin.from('reports').update({ status: 'valuation_failed' }).eq('id', id)
+    await supabaseAdmin
+      .from('reports')
+      .update({ status: heldForThinComps ? 'needs_review' : 'valuation_failed' })
+      .eq('id', id)
     return NextResponse.json(
       { error: 'Valuation saved but PDF generation failed', reportId: id, pdfError: pdf.error },
       { status: 500 }
+    )
+  }
+
+  // Same release bookkeeping as report-pipeline's releaseReport: a fresh QA record
+  // for the valuation that actually shipped (so a held report doesn't keep showing
+  // the failure that got it held) and the 7-day access-token clock restarted at
+  // release. Recorded, not gated — Skip already signed off on this valuation, and
+  // a thin-market manual report can legitimately show fewer than 10 comps.
+  const autodev = parseJsonColumn(report.autodev_vin_data)
+  const autodevVehicle = autodev?.vehicle as { year?: number } | undefined
+  const qaContext: QaCheckContext = {
+    autodevVinData: autodev,
+    vehicleDataYear: report.vehicle_data?.year,
+    marketcheckData: v,
+    subject: {
+      year: Number(autodevVehicle?.year ?? report.vehicle_data?.year ?? 0),
+      mileage: report.mileage ?? 0,
+      zip: report.zip_code ?? null,
+      model: autodev?.model as string | undefined,
+      trim: autodev?.trim as string | undefined,
+    },
+    pdfResult: pdf,
+  }
+  const qaResults = QA_CHECKS.map(check => check.run(qaContext))
+  const { error: releaseError } = await supabaseAdmin
+    .from('reports')
+    .update({
+      access_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      qa_results: qaResults,
+      qa_failed_checks: qaResults.filter(r => !r.passed).map(r => r.key),
+      qa_evaluated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (releaseError) {
+    console.error(
+      '[MANUAL_VALUATION] Failed to write release QA record / token expiry:',
+      releaseError
     )
   }
 
