@@ -119,6 +119,8 @@ function PricingContent() {
 
     console.log('[PricingPage] First initialization')
     hasInitializedRef.current = true
+    // Pre-existing pattern flagged by the newer react-hooks lint rules; runs once on mount.
+    // eslint-disable-next-line react-hooks/immutability
     initializePricingPage()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -586,6 +588,7 @@ function PricingContent() {
           price: tier.price,
         })
         // Redirect to Lemon Squeezy payment
+        // eslint-disable-next-line react-hooks/immutability
         window.location.href = data.checkoutUrl
       } else {
         setError(data.error || 'Failed to create checkout session')
@@ -1069,7 +1072,7 @@ function PricingContent() {
                   <strong>Your independent valuation includes:</strong>
                 </p>
                 <ul className="text-sm text-emerald-800 mt-2 space-y-1 ml-4 list-disc">
-                  <li>Dual independent price predictions (CarsXE + MarketCheck)</li>
+                  <li>Market value built from multiple industry-leading data sources</li>
                   <li>10 comparable vehicles with full market data</li>
                   <li>Complete vehicle history and specifications</li>
                   <li>Professional PDF report for insurance negotiations</li>

@@ -549,14 +549,14 @@ export default function TermsPage() {
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Indemnification</h2>
                 <p className="text-slate-600 leading-relaxed">
                   You agree to indemnify, defend, and hold harmless us, affiliates, officers,
-                  directors, employees, agents, MarketCheck, third-party providers, and advisors
-                  from all claims, losses, damages, liabilities, costs, and expenses (including
-                  attorneys&apos; fees) arising from: (a) your use/misuse of the Service; (b)
-                  reliance on data/content/advice; (c) disputes with providers/advisors; (d) total
-                  loss/vehicle transactions; (e) breach of Terms; (f) law violations; (g)
-                  unauthorized use of your account; (h) fraudulent VIN submissions; or (i)
-                  violations of prohibited activities. This covers lawsuits alleging bad advice,
-                  poor services, data misuse, or account misuse.
+                  directors, employees, agents, third-party providers, and advisors from all claims,
+                  losses, damages, liabilities, costs, and expenses (including attorneys&apos; fees)
+                  arising from: (a) your use/misuse of the Service; (b) reliance on
+                  data/content/advice; (c) disputes with providers/advisors; (d) total loss/vehicle
+                  transactions; (e) breach of Terms; (f) law violations; (g) unauthorized use of
+                  your account; (h) fraudulent VIN submissions; or (i) violations of prohibited
+                  activities. This covers lawsuits alleging bad advice, poor services, data misuse,
+                  or account misuse.
                 </p>
               </section>
 
