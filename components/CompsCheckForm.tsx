@@ -17,6 +17,15 @@ const FILE_TOO_LARGE_MESSAGE =
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error'
 
+// Errors about the file are shown right under the file picker. On a phone the
+// bottom of the form is a full screen away, so an error there goes unseen.
+const FILE_ERROR_CODES = new Set([
+  'missing_file',
+  'file_type',
+  'file_too_large',
+  'server_rejected_413',
+])
+
 interface ValidationFailure {
   code: string
   message: string
@@ -39,6 +48,7 @@ export default function CompsCheckForm({
   const [consent, setConsent] = useState(false)
   const [state, setState] = useState<FormState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const [errorIsAboutFile, setErrorIsAboutFile] = useState(false)
   const attributionRef = useRef<AuditAttribution>({
     source: 'direct',
     utmContent: null,
@@ -52,6 +62,7 @@ export default function CompsCheckForm({
 
   function fail(code: string, message: string) {
     setErrorMessage(message)
+    setErrorIsAboutFile(FILE_ERROR_CODES.has(code))
     setState('error')
     trackAuditFormError(code, attributionRef.current)
   }
@@ -162,10 +173,11 @@ export default function CompsCheckForm({
 
       <div>
         <label htmlFor="audit-file" className="block text-sm font-medium text-slate-700 mb-1">
-          Your insurer&apos;s report or comps list (PDF, JPG, or PNG)
+          Your insurer&apos;s report (CCC One, Mitchell or Audatex) or their comps list
         </label>
         <p id="audit-file-hint" className="text-sm text-slate-500 mb-2">
-          Up to 3MB. A PDF works best; a clear phone photo is fine too.
+          Usually a PDF your adjuster emailed you. PDF, JPG or PNG, up to 3MB. A clear phone photo
+          is fine too.
         </p>
         <input
           id="audit-file"
@@ -176,6 +188,11 @@ export default function CompsCheckForm({
           disabled={state === 'submitting'}
           className="w-full text-sm"
         />
+        {errorMessage && errorIsAboutFile && (
+          <p className="mt-2 text-sm text-red-600" role="alert">
+            {errorMessage}
+          </p>
+        )}
       </div>
 
       <div>
@@ -214,14 +231,12 @@ export default function CompsCheckForm({
           className="mt-1"
         />
         <span>
-          We&apos;ll review the document you upload for pricing adjustments that courts have already
-          ruled against in similar cases — we may or may not find something. Your file is kept for
-          internal review and deleted within 90 days. This is free and optional; there&apos;s no
-          obligation and no purchase required.
+          I agree to Total Loss Toolkit reviewing this document. It&apos;s free with no obligation.
+          We delete it within 90 days, or sooner if you email support@totallosstoolkit.com.
         </span>
       </label>
 
-      {errorMessage && (
+      {errorMessage && !errorIsAboutFile && (
         <p className="text-sm text-red-600" role="alert">
           {errorMessage}
         </p>

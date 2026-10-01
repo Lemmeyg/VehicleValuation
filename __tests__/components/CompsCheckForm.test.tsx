@@ -213,6 +213,28 @@ describe('CompsCheckForm', () => {
     expect(screen.getByText(/up to 3mb/i)).toBeInTheDocument()
   })
 
+  it('names the report types people actually have', () => {
+    render(<CompsCheckForm />)
+    expect(screen.getByLabelText(/ccc one, mitchell or audatex/i)).toBeInTheDocument()
+  })
+
+  it('shows a file error right under the file picker, not at the bottom of the form', () => {
+    render(<CompsCheckForm />)
+    fireEvent.change(screen.getByLabelText(/insurer's report/i), {
+      target: { files: [makeBigPhoto()] },
+    })
+    const fileBlock = screen.getByLabelText(/insurer's report/i).parentElement as HTMLElement
+    expect(fileBlock).toContainElement(screen.getByRole('alert'))
+  })
+
+  it('shows a non-file error near the submit button', () => {
+    render(<CompsCheckForm />)
+    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: 'bad' } })
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
+    const fileBlock = screen.getByLabelText(/insurer's report/i).parentElement as HTMLElement
+    expect(fileBlock).not.toContainElement(screen.getByRole('alert'))
+  })
+
   it('warns about an oversized photo as soon as it is picked, with a specific error code', () => {
     render(<CompsCheckForm />)
     fireEvent.change(screen.getByLabelText(/insurer's report/i), {

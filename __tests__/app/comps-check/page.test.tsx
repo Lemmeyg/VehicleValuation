@@ -80,6 +80,13 @@ describe('CompsCheckPage', () => {
     expect(form).toHaveAttribute('data-submit-label', 'Check my report')
   })
 
+  it('explains what happens next in three steps', async () => {
+    render(await CompsCheckPage())
+    const steps = screen.getByRole('list', { name: /how it works/i })
+    expect(steps.querySelectorAll('li')).toHaveLength(3)
+    expect(steps).toHaveTextContent(/within 48 hours/i)
+  })
+
   it('does not render an empty trust line', async () => {
     const { container } = render(await CompsCheckPage())
     expect(container.querySelectorAll('p.font-medium')).toHaveLength(0)

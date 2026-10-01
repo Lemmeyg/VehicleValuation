@@ -31,6 +31,12 @@ export function isLikelyBotUserAgent(userAgent: string | null | undefined): bool
 }
 
 function createClient(): PostHog | null {
+  // Preview deployments share the production PostHog project. Server-side events
+  // carry no $host to filter on, so a test upload or download on a preview would
+  // be counted as real (it happened during WS7 QA, 2026-10-01). VERCEL_ENV is set
+  // by Vercel at runtime; it is undefined locally and in tests.
+  if (process.env.VERCEL_ENV === 'preview') return null
+
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
   if (!key) return null
 

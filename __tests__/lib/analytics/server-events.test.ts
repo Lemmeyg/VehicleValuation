@@ -171,6 +171,24 @@ describe('captureAuditFormSubmitted', () => {
   })
 })
 
+describe('preview deployments', () => {
+  it('sends nothing to PostHog from a Vercel preview deployment', async () => {
+    const orig = process.env.VERCEL_ENV
+    process.env.VERCEL_ENV = 'preview'
+    mockCapture.mockClear()
+    await captureAuditFormSubmitted({
+      hasNote: false,
+      distinctId: 'browser-person-1',
+      source: 'comps_check_qa',
+      utmContent: null,
+      pageVariant: 'default',
+    })
+    expect(mockCapture).not.toHaveBeenCalled()
+    if (orig === undefined) delete process.env.VERCEL_ENV
+    else process.env.VERCEL_ENV = orig
+  })
+})
+
 describe('isLikelyBotUserAgent', () => {
   // Corporate mail scanners follow links to check them for malware. Counting
   // those as customer downloads would inflate the funnel's final stage.

@@ -37,11 +37,11 @@ export type CompsCheckCopy = {
 
 export const DEFAULT_COMPS_CHECK_COPY: CompsCheckCopy = {
   version: 'default',
-  headline: "Let us double-check your insurer's numbers",
+  headline: "Send us your insurer's valuation report. We'll check it for free.",
   subheadline:
-    "Upload the comps list or valuation report your insurance company sent you and we'll personally check it for pricing adjustments that courts have already ruled against in similar cases.",
-  submitLabel: 'Submit for review',
-  trustLine: null,
+    'We look for the adjustments insurers have been sued over, like the "Typical Negotiation Adjustment" on CCC reports, and for comparable cars that don\'t match yours.',
+  submitLabel: 'Send my report for a free check',
+  trustLine: 'Free, no obligation. Checked by our team, not just software.',
 }
 
 export function parseCopyPayload(payload: unknown): CompsCheckCopy {

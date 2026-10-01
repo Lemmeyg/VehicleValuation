@@ -18,6 +18,12 @@ export const metadata = {
   },
 }
 
+const HOW_IT_WORKS = [
+  "Upload your insurer's valuation report. It takes about two minutes.",
+  'Our team checks it against what insurers have been challenged on.',
+  'You get a written answer by email within 48 hours, whether we find something or not.',
+]
+
 // The wording comes from a PostHog flag payload ("copy slots", workstream 7), so an
 // approved change goes live without a deploy. Re-read at most once a minute.
 export const revalidate = 60
@@ -42,6 +48,17 @@ export default async function CompsCheckPage() {
               <p className="mt-3 text-base font-medium text-slate-700">{copy.trustLine}</p>
             )}
           </div>
+
+          <ol className="grid gap-3 sm:grid-cols-3 mb-8 text-left" aria-label="How it works">
+            {HOW_IT_WORKS.map((step, i) => (
+              <li key={step} className="flex gap-3 rounded-xl border border-slate-200 p-4">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-50 text-sm font-semibold text-primary-700">
+                  {i + 1}
+                </span>
+                <span className="text-sm text-slate-700">{step}</span>
+              </li>
+            ))}
+          </ol>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 mb-6">
             <CompsCheckForm pageVariant={copy.version} submitLabel={copy.submitLabel} />
