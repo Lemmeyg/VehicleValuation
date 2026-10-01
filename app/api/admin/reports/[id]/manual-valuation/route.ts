@@ -2,7 +2,8 @@
  * POST /api/admin/reports/[id]/manual-valuation
  *
  * Recovery path for a paid report that MarketCheck could not price (old / rare /
- * high-mileage vehicles halted into status 'valuation_failed' by BL-62). The
+ * high-mileage vehicles halted into status 'valuation_failed' by BL-62), or one the
+ * delivery pipeline held as 'needs_review' because too few comps displayed. The
  * manual-valuation-builder skill researches a valuation off-platform, gets Skip's
  * sign-off, then POSTs the approved MarketCheckPrediction-shaped object here.
  *
@@ -22,6 +23,9 @@ import type { MarketCheckPrediction } from '@/lib/api/marketcheck-client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+
+/** QA check keys (lib/services/qa-checks.ts) that a manual valuation resolves. */
+const MANUAL_VALUATION_FIXABLE_CHECKS = ['valuation_complete', 'ten_comps_displayed']
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -117,7 +121,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { data: report, error: fetchError } = await supabaseAdmin
     .from('reports')
-    .select('id, status, valuation_result, marketcheck_valuation')
+    .select('id, status, valuation_result, marketcheck_valuation, qa_failed_checks')
     .eq('id', id)
     .single()
 
@@ -138,7 +142,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     report.status === 'completed' &&
     (report.marketcheck_valuation as { dataSource?: string } | null)?.dataSource ===
       'manual_research'
-  if (report.status !== 'valuation_failed' && !legacyBlank && !alreadyManual) {
+  // A report the delivery pipeline held as 'needs_review' only because its comps
+  // were too thin (or its valuation incomplete) never shipped, and a manual
+  // valuation is exactly the fix. Held for anything else — PDF failure, pipeline
+  // error — and a new valuation wouldn't address the cause, so refuse.
+  const failedChecks = (report.qa_failed_checks as string[] | null) ?? []
+  const heldForThinComps =
+    report.status === 'needs_review' &&
+    failedChecks.length > 0 &&
+    failedChecks.every(k => MANUAL_VALUATION_FIXABLE_CHECKS.includes(k))
+  if (report.status !== 'valuation_failed' && !legacyBlank && !alreadyManual && !heldForThinComps) {
     return NextResponse.json(
       {
         error: `Report status is '${report.status}' - refusing to overwrite a report that is not stranded`,
@@ -181,7 +194,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const pdf = await generateAndUploadPDF({ reportId: id })
   if (!pdf.success) {
     console.error('[MANUAL_VALUATION] PDF generation failed:', pdf.error)
-    await supabaseAdmin.from('reports').update({ status: 'valuation_failed' }).eq('id', id)
+    await supabaseAdmin
+      .from('reports')
+      .update({ status: heldForThinComps ? 'needs_review' : 'valuation_failed' })
+      .eq('id', id)
     return NextResponse.json(
       { error: 'Valuation saved but PDF generation failed', reportId: id, pdfError: pdf.error },
       { status: 500 }

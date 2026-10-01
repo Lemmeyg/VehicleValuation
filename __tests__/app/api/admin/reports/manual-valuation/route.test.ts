@@ -200,6 +200,59 @@ describe('POST /api/admin/reports/[id]/manual-valuation', () => {
     expect(res.status).toBe(200)
   })
 
+  it('200 accepts a needs_review report held only because too few comps displayed', async () => {
+    const { updateCalls } = wireSupabase({
+      report: {
+        status: 'needs_review',
+        qa_failed_checks: ['ten_comps_displayed'],
+        marketcheck_valuation: { dataSource: 'marketcheck', compsEmpty: true },
+      },
+    })
+    const res = await call(makeRequest(validPayload()))
+    expect(res.status).toBe(200)
+    expect(mockGeneratePDF).toHaveBeenCalledWith({ reportId: REPORT_ID })
+    expect(updateCalls.some(u => u.status === 'completed')).toBe(true)
+  })
+
+  it('200 accepts a needs_review report held for valuation_complete + ten_comps_displayed', async () => {
+    wireSupabase({
+      report: {
+        status: 'needs_review',
+        qa_failed_checks: ['valuation_complete', 'ten_comps_displayed'],
+      },
+    })
+    const res = await call(makeRequest(validPayload()))
+    expect(res.status).toBe(200)
+  })
+
+  it.each([
+    [['pdf_built']],
+    [['pipeline_error']],
+    [['ten_comps_displayed', 'pdf_built']],
+    [[]],
+    [null],
+  ])(
+    '409 for a needs_review report whose failed checks (%j) a manual valuation does not fix',
+    async failed => {
+      wireSupabase({ report: { status: 'needs_review', qa_failed_checks: failed } })
+      const res = await call(makeRequest(validPayload()))
+      expect(res.status).toBe(409)
+      expect(mockGeneratePDF).not.toHaveBeenCalled()
+    }
+  )
+
+  it('500 and restores needs_review (not valuation_failed) when PDF generation fails on a needs_review report', async () => {
+    mockGeneratePDF.mockResolvedValue({ success: false, error: 'render blew up' })
+    const { updateCalls } = wireSupabase({
+      report: { status: 'needs_review', qa_failed_checks: ['ten_comps_displayed'] },
+    })
+    const res = await call(makeRequest(validPayload()))
+    expect(res.status).toBe(500)
+    expect(updateCalls.some(u => u.status === 'needs_review')).toBe(true)
+    expect(updateCalls.some(u => u.status === 'valuation_failed')).toBe(false)
+    expect(updateCalls.some(u => u.status === 'completed')).toBe(false)
+  })
+
   it('500 and resets status to valuation_failed when PDF generation fails', async () => {
     mockGeneratePDF.mockResolvedValue({ success: false, error: 'render blew up' })
     const { updateCalls } = wireSupabase({ report: { status: 'valuation_failed' } })
