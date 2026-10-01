@@ -87,9 +87,7 @@ export default function ReportPreview() {
             </div>
             <div>
               <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Trim</div>
-              <div className="text-lg font-medium text-slate-900">
-                xDrive30i SAV
-              </div>
+              <div className="text-lg font-medium text-slate-900">xDrive30i SAV</div>
             </div>
             <div>
               <div className="text-sm font-semibold text-slate-500 uppercase mb-2">Body Style</div>
@@ -411,8 +409,8 @@ export default function ReportPreview() {
             <p>
               This valuation report is intended for informational purposes only and does not
               constitute a professional appraisal, legal advice, or binding offer. Valuations use
-              proprietary algorithms aggregating data from VinAudit, Auto.dev, CarsXE, and
-              MarketCheck. Vehicle market values are subject to rapid change based on local demand,
+              proprietary algorithms aggregating data from multiple industry-leading vehicle data
+              sources. Vehicle market values are subject to rapid change based on local demand,
               condition variances, and economic fluctuations. Consult with a certified appraiser or
               insurance adjuster for final settlement figures.
             </p>

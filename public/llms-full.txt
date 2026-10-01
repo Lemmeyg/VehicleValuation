@@ -2,7 +2,7 @@
 
 > Independent market data reports and free guides to help vehicle owners dispute undervalued total loss insurance settlements.
 
-TotalLossToolkit.com helps vehicle owners who have received a total loss determination from their insurance company and believe their settlement offer is too low. When a car is declared a total loss, insurers typically undervalue the payout by using flawed comparable vehicles, ignoring condition adjustments, or applying unfavorable regional pricing. TotalLossToolkit provides paid comparable vehicle market analysis reports backed by real MarketCheck data — giving owners the documentation needed to dispute low offers and negotiate fair settlements.
+TotalLossToolkit.com helps vehicle owners who have received a total loss determination from their insurance company and believe their settlement offer is too low. When a car is declared a total loss, insurers typically undervalue the payout by using flawed comparable vehicles, ignoring condition adjustments, or applying unfavorable regional pricing. TotalLossToolkit provides paid comparable vehicle market analysis reports backed by real market data from multiple industry-leading sources — giving owners the documentation needed to dispute low offers and negotiate fair settlements.
 
 The target user is a vehicle owner who has just received a total loss notice from their insurer and wants to challenge the settlement amount. Reports are designed to be used directly in conversations with insurance adjusters — no technical expertise required.
 
@@ -20,7 +20,7 @@ The target user is a vehicle owner who has just received a total loss notice fro
 - High/low valuation range with actual vehicle value
 - 10 verified live comparable listings
 - Covers 25+ model years with equipment-level precision
-- Dual independent price predictions (CarsXE + MarketCheck)
+- Market value built from multiple industry-leading data sources
 - Professional PDF report suitable for insurance negotiations
 
 **Premium Report — $25 (one-time)** *(recommended)*

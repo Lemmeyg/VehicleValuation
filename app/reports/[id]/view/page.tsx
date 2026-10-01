@@ -209,8 +209,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const metadata = payment.metadata as any
       const planType = (metadata?.reportType === 'PREMIUM' ? 'premium' : 'basic') as
-        | 'basic'
-        | 'premium'
+        'basic' | 'premium'
       purchaseTrackerProps = {
         planType,
         amountCents: payment.amount,
@@ -808,10 +807,10 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
             <p>
               This valuation report is intended for informational purposes only and does not
               constitute a professional appraisal, legal advice, or binding offer. Valuations use
-              proprietary algorithms aggregating data from Auto.dev and MarketCheck. Vehicle market
-              values are subject to rapid change based on local demand, condition variances, and
-              economic fluctuations. Consult with a certified appraiser or insurance adjuster for
-              final settlement figures.
+              proprietary algorithms aggregating data from multiple industry-leading vehicle data
+              sources. Vehicle market values are subject to rapid change based on local demand,
+              condition variances, and economic fluctuations. Consult with a certified appraiser or
+              insurance adjuster for final settlement figures.
             </p>
             <div className="flex items-center justify-between pt-4">
               <div>© 2024 ELITE VALUATION SERVICES</div>
