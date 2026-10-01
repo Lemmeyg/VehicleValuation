@@ -261,4 +261,73 @@ describe('POST /api/admin/reports/[id]/manual-valuation', () => {
     expect(updateCalls.some(u => u.status === 'valuation_failed')).toBe(true)
     expect(updateCalls.some(u => u.status === 'completed')).toBe(false)
   })
+
+  describe('release bookkeeping (mirrors report-pipeline releaseReport)', () => {
+    const HELD_REPORT = {
+      status: 'needs_review',
+      qa_failed_checks: ['ten_comps_displayed'],
+      vehicle_data: { year: '2000' },
+      mileage: 200000,
+      zip_code: '30512',
+      autodev_vin_data: null,
+    }
+    const tenListings = Array.from({ length: 10 }, (_, i) => ({
+      year: 2000,
+      make: 'Dodge',
+      model: 'Ram 3500',
+      miles: 190000 + i * 1000,
+      price: 11000 + i * 100,
+      vdp_url: `https://x.test/${i}`,
+    }))
+    const tenCompPayload = () =>
+      validPayload({
+        totalComparablesFound: 10,
+        recentComparables: { num_found: 10, listings: tenListings },
+      })
+    const qaWrite = (calls: Record<string, unknown>[]) => calls.find(u => 'qa_failed_checks' in u)
+
+    it('clears the stale failed-check list when the new valuation passes QA', async () => {
+      const { updateCalls } = wireSupabase({ report: HELD_REPORT })
+      const res = await call(makeRequest(tenCompPayload()))
+      expect(res.status).toBe(200)
+      const w = qaWrite(updateCalls)
+      expect(w).toBeDefined()
+      expect(w!.qa_failed_checks).toEqual([])
+      const results = w!.qa_results as { key: string; passed: boolean; detail: string }[]
+      expect(results.map(r => r.key)).toEqual([
+        'vehicle_identified',
+        'valuation_complete',
+        'ten_comps_displayed',
+        'pdf_built',
+      ])
+      expect(results.find(r => r.key === 'ten_comps_displayed')!.detail).toBe('10 displayed')
+      expect(typeof w!.qa_evaluated_at).toBe('string')
+    })
+
+    it('records an honest ten_comps_displayed failure but still releases (manual sign-off, not a gate)', async () => {
+      const { updateCalls } = wireSupabase({ report: HELD_REPORT })
+      const res = await call(makeRequest(validPayload())) // 4 listings
+      expect(res.status).toBe(200)
+      expect(qaWrite(updateCalls)!.qa_failed_checks).toEqual(['ten_comps_displayed'])
+      expect(updateCalls.some(u => u.status === 'completed')).toBe(true)
+    })
+
+    it('restarts the 7-day access-token clock at release', async () => {
+      const { updateCalls } = wireSupabase({ report: HELD_REPORT })
+      const before = Date.now()
+      await call(makeRequest(tenCompPayload()))
+      const expires = Date.parse(qaWrite(updateCalls)!.access_token_expires_at as string)
+      const sevenDays = 7 * 24 * 60 * 60 * 1000
+      expect(expires).toBeGreaterThanOrEqual(before + sevenDays)
+      expect(expires).toBeLessThanOrEqual(Date.now() + sevenDays)
+    })
+
+    it('writes no release bookkeeping when PDF generation fails', async () => {
+      mockGeneratePDF.mockResolvedValue({ success: false, error: 'render blew up' })
+      const { updateCalls } = wireSupabase({ report: HELD_REPORT })
+      await call(makeRequest(tenCompPayload()))
+      expect(qaWrite(updateCalls)).toBeUndefined()
+      expect(updateCalls.some(u => 'access_token_expires_at' in u)).toBe(false)
+    })
+  })
 })
