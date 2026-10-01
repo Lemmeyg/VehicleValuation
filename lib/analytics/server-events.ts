@@ -31,6 +31,12 @@ export function isLikelyBotUserAgent(userAgent: string | null | undefined): bool
 }
 
 function createClient(): PostHog | null {
+  // Preview deployments share the production PostHog project. Server-side events
+  // carry no $host to filter on, so a test upload or download on a preview would
+  // be counted as real (it happened during WS7 QA, 2026-10-01). VERCEL_ENV is set
+  // by Vercel at runtime; it is undefined locally and in tests.
+  if (process.env.VERCEL_ENV === 'preview') return null
+
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
   if (!key) return null
 
@@ -87,5 +93,52 @@ export async function captureReportDownloaded({
     await client.shutdown()
   } catch (err) {
     console.error('[server-events] report_downloaded capture failed', err)
+  }
+}
+
+interface AuditFormSubmittedParams {
+  hasNote: boolean
+  /** The browser's PostHog id, so the upload joins the same person's page view. */
+  distinctId: string | null
+  source: string
+  utmContent: string | null
+  pageVariant: string
+}
+
+/**
+ * Record a real, persisted audit-submission success (Epic 3 smoke test).
+ *
+ * Captured server-side, inside the API route, only on the true success path —
+ * never for a honeypot-rejected request, which returns an identical response
+ * to the client but must not inflate this count. This is the one number the
+ * Epic 1 go/no-go threshold is measured against, so it must not be fireable
+ * from client code at all.
+ */
+export async function captureAuditFormSubmitted({
+  hasNote,
+  distinctId,
+  source,
+  utmContent,
+  pageVariant,
+}: AuditFormSubmittedParams): Promise<void> {
+  const client = createClient()
+  if (!client) return
+
+  try {
+    client.capture({
+      distinctId: distinctId ?? `audit-submission:${Date.now()}`,
+      event: 'audit_form_submitted',
+      properties: {
+        has_note: hasNote,
+        source,
+        utm_content: utmContent,
+        page_variant: pageVariant,
+        timestamp: new Date().toISOString(),
+      },
+    })
+
+    await client.shutdown()
+  } catch (err) {
+    console.error('[server-events] audit_form_submitted capture failed', err)
   }
 }

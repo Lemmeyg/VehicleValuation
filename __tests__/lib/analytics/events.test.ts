@@ -2,7 +2,12 @@
  * Tests for new checkout analytics functions
  */
 import posthog from 'posthog-js'
-import { trackCheckoutInitiated, trackCheckoutAbandoned } from '@/lib/analytics/events'
+import {
+  trackCheckoutInitiated,
+  trackCheckoutAbandoned,
+  trackAuditPageViewed,
+  trackAuditFormError,
+} from '@/lib/analytics/events'
 
 jest.mock('posthog-js', () => ({
   __loaded: true,
@@ -62,6 +67,38 @@ describe('trackCheckoutAbandoned', () => {
     expect(mockPosthog.capture).toHaveBeenCalledWith(
       'checkout_abandoned',
       expect.objectContaining({ error: 'Network timeout' })
+    )
+  })
+})
+
+describe('trackAuditPageViewed', () => {
+  it('calls posthog.capture with audit_page_viewed and the channel/version tags', () => {
+    trackAuditPageViewed({
+      source: 'comps_check_outreach',
+      utmContent: 'v1',
+      pageVariant: 'default',
+    })
+    expect(mockPosthog.capture).toHaveBeenCalledWith(
+      'audit_page_viewed',
+      expect.objectContaining({
+        source: 'comps_check_outreach',
+        utm_content: 'v1',
+        page_variant: 'default',
+      })
+    )
+  })
+})
+
+describe('trackAuditFormError', () => {
+  it('calls posthog.capture with audit_form_error, the error type and the tags', () => {
+    trackAuditFormError('file_too_large', {
+      source: 'comps_check_outreach',
+      utmContent: 'v1',
+      pageVariant: 'default',
+    })
+    expect(mockPosthog.capture).toHaveBeenCalledWith(
+      'audit_form_error',
+      expect.objectContaining({ error_type: 'file_too_large', source: 'comps_check_outreach' })
     )
   })
 })

@@ -103,3 +103,6 @@ fix-article-*.mjs
 update-article-*.mjs
 scripts/insert-article-*.mjs
 article-*-draft.md
+
+# Admin export scripts (PII — do not commit)
+audit-backfill-recipients.csv
