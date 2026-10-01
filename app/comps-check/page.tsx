@@ -1,6 +1,7 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import CompsCheckForm from '@/components/CompsCheckForm'
+import { getCompsCheckCopy } from '@/lib/audit-submissions/page-copy'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.totallosstoolkit.com'
 
@@ -17,7 +18,13 @@ export const metadata = {
   },
 }
 
-export default function CompsCheckPage() {
+// The wording comes from a PostHog flag payload ("copy slots", workstream 7), so an
+// approved change goes live without a deploy. Re-read at most once a minute.
+export const revalidate = 60
+
+export default async function CompsCheckPage() {
+  const copy = await getCompsCheckCopy()
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
@@ -28,17 +35,16 @@ export default function CompsCheckPage() {
               Beta — a new, free service we&apos;re piloting
             </span>
             <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4 leading-tight">
-              Let us double-check your insurer&apos;s numbers
+              {copy.headline}
             </h1>
-            <p className="text-xl text-slate-600">
-              Upload the comps list or valuation report your insurance company sent you and
-              we&apos;ll personally check it for pricing adjustments that courts have already ruled
-              against in similar cases.
-            </p>
+            <p className="text-xl text-slate-600">{copy.subheadline}</p>
+            {copy.trustLine && (
+              <p className="mt-3 text-base font-medium text-slate-700">{copy.trustLine}</p>
+            )}
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 mb-6">
-            <CompsCheckForm />
+            <CompsCheckForm pageVariant={copy.version} submitLabel={copy.submitLabel} />
           </div>
         </div>
       </main>

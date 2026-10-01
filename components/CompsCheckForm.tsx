@@ -1,16 +1,37 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Loader2, CheckCircle2 } from 'lucide-react'
-import { trackAuditPageViewed, trackAuditFormError } from '@/lib/analytics/events'
+import {
+  trackAuditPageViewed,
+  trackAuditFormError,
+  getPostHogDistinctId,
+} from '@/lib/analytics/events'
+import { readAttribution, type AuditAttribution } from '@/lib/audit-submissions/attribution'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
 const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024
+const FILE_TOO_LARGE_MESSAGE =
+  'That file is over the 3MB limit. Try the PDF version of the report, or retake the photo at a lower resolution (a screenshot also works).'
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error'
 
-export default function CompsCheckForm() {
+interface ValidationFailure {
+  code: string
+  message: string
+}
+
+interface CompsCheckFormProps {
+  /** Copy-slot payload version, carried on every audit_* event as page_variant. */
+  pageVariant?: string
+  submitLabel?: string
+}
+
+export default function CompsCheckForm({
+  pageVariant = 'default',
+  submitLabel = 'Submit for review',
+}: CompsCheckFormProps) {
   const [email, setEmail] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [note, setNote] = useState('')
@@ -18,28 +39,54 @@ export default function CompsCheckForm() {
   const [consent, setConsent] = useState(false)
   const [state, setState] = useState<FormState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const attributionRef = useRef<AuditAttribution>({
+    source: 'direct',
+    utmContent: null,
+    pageVariant,
+  })
 
   useEffect(() => {
-    trackAuditPageViewed()
-  }, [])
+    attributionRef.current = readAttribution(window.location.search, pageVariant)
+    trackAuditPageViewed(attributionRef.current)
+  }, [pageVariant])
 
-  function validate(): string | null {
-    if (!EMAIL_REGEX.test(email.trim())) return 'Please enter a valid email address.'
-    if (!file) return 'Please attach a file.'
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) return 'Please upload a PDF, JPG, or PNG file.'
-    if (file.size > MAX_FILE_SIZE_BYTES) return 'File must be 3MB or smaller.'
-    if (!consent) return 'Please check the consent box to continue.'
+  function fail(code: string, message: string) {
+    setErrorMessage(message)
+    setState('error')
+    trackAuditFormError(code, attributionRef.current)
+  }
+
+  function validate(): ValidationFailure | null {
+    if (!EMAIL_REGEX.test(email.trim()))
+      return { code: 'invalid_email', message: 'Please enter a valid email address.' }
+    if (!file) return { code: 'missing_file', message: 'Please attach a file.' }
+    if (!ALLOWED_FILE_TYPES.includes(file.type))
+      return { code: 'file_type', message: 'Please upload a PDF, JPG, or PNG file.' }
+    if (file.size > MAX_FILE_SIZE_BYTES)
+      return { code: 'file_too_large', message: FILE_TOO_LARGE_MESSAGE }
+    if (!consent)
+      return { code: 'missing_consent', message: 'Please check the consent box to continue.' }
     return null
+  }
+
+  function handleFileChange(selected: File | null) {
+    setFile(selected)
+    // Tell people about an oversized photo the moment they pick it, not after
+    // they've filled in everything else.
+    if (selected && selected.size > MAX_FILE_SIZE_BYTES) {
+      fail('file_too_large', FILE_TOO_LARGE_MESSAGE)
+    } else if (state === 'error') {
+      setErrorMessage('')
+      setState('idle')
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    const validationError = validate()
-    if (validationError) {
-      setErrorMessage(validationError)
-      setState('error')
-      trackAuditFormError('client_validation')
+    const validationFailure = validate()
+    if (validationFailure) {
+      fail(validationFailure.code, validationFailure.message)
       return
     }
 
@@ -52,36 +99,43 @@ export default function CompsCheckForm() {
     if (note.trim()) formData.append('note', note.trim())
     formData.append('consentAck', String(consent))
     formData.append('company_website', honeypot)
+    formData.append('source', attributionRef.current.source)
+    if (attributionRef.current.utmContent) {
+      formData.append('utm_content', attributionRef.current.utmContent)
+    }
+    formData.append('page_variant', attributionRef.current.pageVariant)
+    const distinctId = getPostHogDistinctId()
+    if (distinctId) formData.append('ph_distinct_id', distinctId)
 
     try {
       const res = await fetch('/api/audit-submissions', { method: 'POST', body: formData })
 
       if (!res.ok) {
-        let message = 'Something went wrong. Please try again.'
+        let message =
+          res.status === 413 ? FILE_TOO_LARGE_MESSAGE : 'Something went wrong. Please try again.'
         try {
           const data = await res.json()
           if (data?.error) message = data.error
         } catch {
           // Non-JSON error body (e.g. a platform-level 413 from an oversized
-          // upload) — fall back to the generic message rather than crashing.
+          // upload) — keep the fallback message rather than crashing.
         }
-        setErrorMessage(message)
-        setState('error')
-        trackAuditFormError(`server_rejected_${res.status}`)
+        fail(`server_rejected_${res.status}`, message)
         return
       }
 
       setState('success')
     } catch {
-      setErrorMessage('Something went wrong. Please try again.')
-      setState('error')
-      trackAuditFormError('network_error')
+      fail('network_error', 'Something went wrong. Please try again.')
     }
   }
 
   if (state === 'success') {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-6 text-center">
+      <div
+        id="comps-check-success"
+        className="flex flex-col items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-6 text-center"
+      >
         <CheckCircle2 className="h-8 w-8 text-green-600" />
         <p className="font-semibold text-green-800">
           Thanks — we&apos;ll review this and get back to you within 48 hours.
@@ -110,11 +164,15 @@ export default function CompsCheckForm() {
         <label htmlFor="audit-file" className="block text-sm font-medium text-slate-700 mb-1">
           Your insurer&apos;s report or comps list (PDF, JPG, or PNG)
         </label>
+        <p id="audit-file-hint" className="text-sm text-slate-500 mb-2">
+          Up to 3MB. A PDF works best; a clear phone photo is fine too.
+        </p>
         <input
           id="audit-file"
           type="file"
           accept="application/pdf,image/jpeg,image/png"
-          onChange={e => setFile(e.target.files?.[0] ?? null)}
+          aria-describedby="audit-file-hint"
+          onChange={e => handleFileChange(e.target.files?.[0] ?? null)}
           disabled={state === 'submitting'}
           className="w-full text-sm"
         />
@@ -180,7 +238,7 @@ export default function CompsCheckForm() {
             Submitting...
           </>
         ) : (
-          'Submit for review'
+          submitLabel
         )}
       </button>
     </form>

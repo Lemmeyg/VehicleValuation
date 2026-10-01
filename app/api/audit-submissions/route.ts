@@ -7,6 +7,7 @@ import {
 } from '@/lib/audit-submissions/validation'
 import { scanFileForThreats } from '@/lib/audit-submissions/malware-scan'
 import { findMatchingReportId } from '@/lib/audit-submissions/match-report'
+import { sanitizeTag, DIRECT_SOURCE } from '@/lib/audit-submissions/attribution'
 import { captureAuditFormSubmitted } from '@/lib/analytics/server-events'
 
 const HONEYPOT_FIELD = 'company_website'
@@ -15,6 +16,8 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
 }
+// PostHog distinct ids are UUID-ish; anything longer or stranger is ignored.
+const DISTINCT_ID_PATTERN = /^[A-Za-z0-9_.:$-]{1,200}$/
 const RATE_LIMIT_MAX = 5
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
 
@@ -120,7 +123,18 @@ export async function POST(request: NextRequest) {
 
   const matchedReportId = await findMatchingReportId(parsed.data.email)
 
-  const { error: insertError } = await supabaseAdmin.from('audit_submissions_backfill').insert({
+  // Channel + page-version tags (workstream 7). Client-supplied, so sanitized;
+  // a missing or junk value never blocks a real submission.
+  const source = sanitizeTag(formData.get('source')) ?? DIRECT_SOURCE
+  const utmContent = sanitizeTag(formData.get('utm_content'))
+  const pageVariant = sanitizeTag(formData.get('page_variant')) ?? 'default'
+  const rawDistinctId = formData.get('ph_distinct_id')
+  const distinctId =
+    typeof rawDistinctId === 'string' && DISTINCT_ID_PATTERN.test(rawDistinctId)
+      ? rawDistinctId
+      : null
+
+  const baseRow = {
     id: submissionId,
     email: parsed.data.email,
     matched_report_id: matchedReportId,
@@ -128,7 +142,23 @@ export async function POST(request: NextRequest) {
     file_mime_type: file.type,
     note: parsed.data.note ?? null,
     consent_ack: parsed.data.consentAck,
+  }
+  let { error: insertError } = await supabaseAdmin.from('audit_submissions_backfill').insert({
+    ...baseRow,
+    source,
+    utm_content: utmContent,
+    page_variant: pageVariant,
   })
+
+  // If the tag columns' migration hasn't been applied yet, PostgREST rejects the
+  // unknown columns (PGRST204). Never lose a real upload over analytics tags:
+  // retry without them. The PostHog event below still carries the tags.
+  if (insertError?.code === 'PGRST204') {
+    console.error('[audit-submissions] tag columns missing — apply migration 20261001000000')
+    ;({ error: insertError } = await supabaseAdmin
+      .from('audit_submissions_backfill')
+      .insert(baseRow))
+  }
 
   if (insertError) {
     console.error('[audit-submissions] insert failed', insertError)
@@ -144,9 +174,13 @@ export async function POST(request: NextRequest) {
   // silently dropping it for some fraction of requests is not acceptable —
   // see the doc comment on captureAuditFormSubmitted itself.
   after(() =>
-    captureAuditFormSubmitted({ hasNote: Boolean(parsed.data.note) }).catch(err =>
-      console.error('[audit-submissions] analytics capture failed (non-fatal)', err)
-    )
+    captureAuditFormSubmitted({
+      hasNote: Boolean(parsed.data.note),
+      distinctId,
+      source,
+      utmContent,
+      pageVariant,
+    }).catch(err => console.error('[audit-submissions] analytics capture failed (non-fatal)', err))
   )
 
   return NextResponse.json({ success: true })

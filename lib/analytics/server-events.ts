@@ -92,6 +92,11 @@ export async function captureReportDownloaded({
 
 interface AuditFormSubmittedParams {
   hasNote: boolean
+  /** The browser's PostHog id, so the upload joins the same person's page view. */
+  distinctId: string | null
+  source: string
+  utmContent: string | null
+  pageVariant: string
 }
 
 /**
@@ -105,16 +110,23 @@ interface AuditFormSubmittedParams {
  */
 export async function captureAuditFormSubmitted({
   hasNote,
+  distinctId,
+  source,
+  utmContent,
+  pageVariant,
 }: AuditFormSubmittedParams): Promise<void> {
   const client = createClient()
   if (!client) return
 
   try {
     client.capture({
-      distinctId: `audit-submission:${Date.now()}`,
+      distinctId: distinctId ?? `audit-submission:${Date.now()}`,
       event: 'audit_form_submitted',
       properties: {
         has_note: hasNote,
+        source,
+        utm_content: utmContent,
+        page_variant: pageVariant,
         timestamp: new Date().toISOString(),
       },
     })

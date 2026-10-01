@@ -7,10 +7,27 @@ global.fetch = mockFetch
 jest.mock('@/lib/analytics/events', () => ({
   trackAuditPageViewed: jest.fn(),
   trackAuditFormError: jest.fn(),
+  getPostHogDistinctId: jest.fn(() => 'browser-person-1'),
 }))
 import { trackAuditPageViewed, trackAuditFormError } from '@/lib/analytics/events'
 const mockPageViewed = trackAuditPageViewed as jest.Mock
 const mockFormError = trackAuditFormError as jest.Mock
+
+function makeBigPhoto() {
+  const file = new File(['x'], 'photo.jpg', { type: 'image/jpeg' })
+  Object.defineProperty(file, 'size', { value: 4 * 1024 * 1024 })
+  return file
+}
+
+function fillValidForm() {
+  fireEvent.change(screen.getByLabelText(/email address/i), {
+    target: { value: 'user@example.com' },
+  })
+  fireEvent.change(screen.getByLabelText(/insurer's report/i), {
+    target: { files: [makePdfFile()] },
+  })
+  fireEvent.click(screen.getByRole('checkbox'))
+}
 
 function makePdfFile() {
   return new File(['%PDF-1.4 content'], 'report.pdf', { type: 'application/pdf' })
@@ -70,7 +87,7 @@ describe('CompsCheckForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(mockFetch).not.toHaveBeenCalled()
-    expect(mockFormError).toHaveBeenCalledWith('client_validation')
+    expect(mockFormError).toHaveBeenCalledWith('invalid_email', expect.any(Object))
   })
 
   it('shows a validation error when consent is not checked', () => {
@@ -126,7 +143,7 @@ describe('CompsCheckForm', () => {
     await waitFor(() => {
       expect(screen.getByText('This file could not be accepted.')).toBeInTheDocument()
     })
-    expect(mockFormError).toHaveBeenCalledWith('server_rejected_400')
+    expect(mockFormError).toHaveBeenCalledWith('server_rejected_400', expect.any(Object))
   })
 
   it('falls back to a generic error message and still classifies it as a server error when the error response body is not valid JSON', async () => {
@@ -148,9 +165,95 @@ describe('CompsCheckForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument()
+      expect(screen.getByText(/over the 3MB limit/i)).toBeInTheDocument()
     })
-    expect(mockFormError).toHaveBeenCalledWith('server_rejected_413')
+    expect(mockFormError).toHaveBeenCalledWith('server_rejected_413', expect.any(Object))
+  })
+
+  it('tags the page view with the channel, link version and page variant from the URL', () => {
+    window.history.pushState(
+      {},
+      '',
+      '/comps-check?utm_campaign=comps_check_outreach&utm_content=send-1'
+    )
+    render(<CompsCheckForm pageVariant="v2" />)
+    expect(mockPageViewed).toHaveBeenCalledWith({
+      source: 'comps_check_outreach',
+      utmContent: 'send-1',
+      pageVariant: 'v2',
+    })
+    window.history.pushState({}, '', '/')
+  })
+
+  it('tags a visit with no campaign as direct', () => {
+    render(<CompsCheckForm />)
+    expect(mockPageViewed).toHaveBeenCalledWith({
+      source: 'direct',
+      utmContent: null,
+      pageVariant: 'default',
+    })
+  })
+
+  it('sends the tags and the browser distinct id with the upload', async () => {
+    window.history.pushState({}, '', '/comps-check?utm_campaign=comps_check_drip_e3')
+    render(<CompsCheckForm pageVariant="v2" />)
+    fillValidForm()
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1))
+    const body = mockFetch.mock.calls[0][1].body as FormData
+    expect(body.get('source')).toBe('comps_check_drip_e3')
+    expect(body.get('page_variant')).toBe('v2')
+    expect(body.get('utm_content')).toBeNull()
+    expect(body.get('ph_distinct_id')).toBe('browser-person-1')
+    window.history.pushState({}, '', '/')
+  })
+
+  it('shows the 3MB limit before anyone picks a file', () => {
+    render(<CompsCheckForm />)
+    expect(screen.getByText(/up to 3mb/i)).toBeInTheDocument()
+  })
+
+  it('warns about an oversized photo as soon as it is picked, with a specific error code', () => {
+    render(<CompsCheckForm />)
+    fireEvent.change(screen.getByLabelText(/insurer's report/i), {
+      target: { files: [makeBigPhoto()] },
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(/over the 3MB limit/i)
+    expect(mockFormError).toHaveBeenCalledWith('file_too_large', expect.any(Object))
+  })
+
+  it('clears the size warning when a smaller file is picked', () => {
+    render(<CompsCheckForm />)
+    const input = screen.getByLabelText(/insurer's report/i)
+    fireEvent.change(input, { target: { files: [makeBigPhoto()] } })
+    fireEvent.change(input, { target: { files: [makePdfFile()] } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('reports missing consent with its own error code', () => {
+    render(<CompsCheckForm />)
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: 'user@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText(/insurer's report/i), {
+      target: { files: [makePdfFile()] },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
+    expect(mockFormError).toHaveBeenCalledWith('missing_consent', expect.any(Object))
+  })
+
+  it('uses the submit label from the copy slot', () => {
+    render(<CompsCheckForm submitLabel="Check my report" />)
+    expect(screen.getByRole('button', { name: 'Check my report' })).toBeInTheDocument()
+  })
+
+  it('marks the success message so a PostHog survey can target it', async () => {
+    const { container } = render(<CompsCheckForm />)
+    fillValidForm()
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
+    await waitFor(() => {
+      expect(container.querySelector('#comps-check-success')).toBeInTheDocument()
+    })
   })
 
   it('trims trailing whitespace before validating the email', () => {

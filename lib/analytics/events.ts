@@ -437,12 +437,30 @@ export function trackEmailCapture(properties: EmailCaptureEvent) {
 }
 
 /**
- * Track the /comps-check page loading (Epic 3 smoke test).
+ * Channel + page-version tags carried on every audit_* event (workstream 7).
+ * See lib/audit-submissions/attribution.ts.
  */
-export function trackAuditPageViewed() {
+export interface AuditEventTags {
+  source: string
+  utmContent: string | null
+  pageVariant: string
+}
+
+function auditTagProperties(tags: AuditEventTags) {
+  return {
+    source: tags.source,
+    utm_content: tags.utmContent,
+    page_variant: tags.pageVariant,
+  }
+}
+
+/**
+ * Track the /comps-check page loading.
+ */
+export function trackAuditPageViewed(tags: AuditEventTags) {
   if (typeof window !== 'undefined' && posthog.__loaded) {
     posthog.capture('audit_page_viewed', {
-      source: 'backfill_email',
+      ...auditTagProperties(tags),
       timestamp: new Date().toISOString(),
     })
   }
@@ -450,11 +468,14 @@ export function trackAuditPageViewed() {
 
 /**
  * Track a client-side validation or submission failure on /comps-check.
+ * errorType is a specific code (e.g. file_too_large, missing_consent) so the
+ * loop can tell which step people fail at.
  */
-export function trackAuditFormError(errorType: string) {
+export function trackAuditFormError(errorType: string, tags: AuditEventTags) {
   if (typeof window !== 'undefined' && posthog.__loaded) {
     posthog.capture('audit_form_error', {
       error_type: errorType,
+      ...auditTagProperties(tags),
       timestamp: new Date().toISOString(),
     })
   }

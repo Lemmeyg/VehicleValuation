@@ -72,21 +72,33 @@ describe('trackCheckoutAbandoned', () => {
 })
 
 describe('trackAuditPageViewed', () => {
-  it('calls posthog.capture with audit_page_viewed and source backfill_email', () => {
-    trackAuditPageViewed()
+  it('calls posthog.capture with audit_page_viewed and the channel/version tags', () => {
+    trackAuditPageViewed({
+      source: 'comps_check_outreach',
+      utmContent: 'v1',
+      pageVariant: 'default',
+    })
     expect(mockPosthog.capture).toHaveBeenCalledWith(
       'audit_page_viewed',
-      expect.objectContaining({ source: 'backfill_email' })
+      expect.objectContaining({
+        source: 'comps_check_outreach',
+        utm_content: 'v1',
+        page_variant: 'default',
+      })
     )
   })
 })
 
 describe('trackAuditFormError', () => {
-  it('calls posthog.capture with audit_form_error and the given error type', () => {
-    trackAuditFormError('client_validation')
+  it('calls posthog.capture with audit_form_error, the error type and the tags', () => {
+    trackAuditFormError('file_too_large', {
+      source: 'comps_check_outreach',
+      utmContent: 'v1',
+      pageVariant: 'default',
+    })
     expect(mockPosthog.capture).toHaveBeenCalledWith(
       'audit_form_error',
-      expect.objectContaining({ error_type: 'client_validation' })
+      expect.objectContaining({ error_type: 'file_too_large', source: 'comps_check_outreach' })
     )
   })
 })

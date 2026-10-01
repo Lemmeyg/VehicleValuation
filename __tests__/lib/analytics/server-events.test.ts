@@ -94,7 +94,13 @@ describe('captureReportDownloaded', () => {
 
 describe('captureAuditFormSubmitted', () => {
   it('captures audit_form_submitted with has_note true when a note was provided', async () => {
-    await captureAuditFormSubmitted({ hasNote: true })
+    await captureAuditFormSubmitted({
+      hasNote: true,
+      distinctId: null,
+      source: 'direct',
+      utmContent: null,
+      pageVariant: 'default',
+    })
     expect(mockCapture).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'audit_form_submitted',
@@ -104,16 +110,63 @@ describe('captureAuditFormSubmitted', () => {
   })
 
   it('captures has_note false when no note was provided', async () => {
-    await captureAuditFormSubmitted({ hasNote: false })
+    await captureAuditFormSubmitted({
+      hasNote: false,
+      distinctId: null,
+      source: 'direct',
+      utmContent: null,
+      pageVariant: 'default',
+    })
     expect(mockCapture).toHaveBeenCalledWith(
       expect.objectContaining({ properties: expect.objectContaining({ has_note: false }) })
+    )
+  })
+
+  it('uses the browser distinct id and carries the channel/version tags', async () => {
+    await captureAuditFormSubmitted({
+      hasNote: false,
+      distinctId: 'browser-person-1',
+      source: 'comps_check_drip_e3',
+      utmContent: 'e3-ps-v1',
+      pageVariant: 'v2',
+    })
+    expect(mockCapture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        distinctId: 'browser-person-1',
+        properties: expect.objectContaining({
+          source: 'comps_check_drip_e3',
+          utm_content: 'e3-ps-v1',
+          page_variant: 'v2',
+        }),
+      })
+    )
+  })
+
+  it('falls back to a one-off distinct id when the browser id is missing', async () => {
+    await captureAuditFormSubmitted({
+      hasNote: false,
+      distinctId: null,
+      source: 'direct',
+      utmContent: null,
+      pageVariant: 'default',
+    })
+    expect(mockCapture).toHaveBeenCalledWith(
+      expect.objectContaining({ distinctId: expect.stringMatching(/^audit-submission:/) })
     )
   })
 
   it('does not throw when the PostHog client is unavailable (no key configured)', async () => {
     const origKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
     delete process.env.NEXT_PUBLIC_POSTHOG_KEY
-    await expect(captureAuditFormSubmitted({ hasNote: false })).resolves.not.toThrow()
+    await expect(
+      captureAuditFormSubmitted({
+        hasNote: false,
+        distinctId: null,
+        source: 'direct',
+        utmContent: null,
+        pageVariant: 'default',
+      })
+    ).resolves.not.toThrow()
     if (origKey !== undefined) process.env.NEXT_PUBLIC_POSTHOG_KEY = origKey
   })
 })

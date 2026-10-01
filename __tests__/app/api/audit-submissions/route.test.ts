@@ -115,12 +115,76 @@ describe('POST /api/audit-submissions', () => {
 
   it('captures audit_form_submitted with has_note false when no note was given', async () => {
     await POST(makeFormRequest(validFields))
-    expect(mockCaptureSubmitted).toHaveBeenCalledWith({ hasNote: false })
+    expect(mockCaptureSubmitted).toHaveBeenCalledWith(expect.objectContaining({ hasNote: false }))
   })
 
   it('captures audit_form_submitted with has_note true when a note was given', async () => {
     await POST(makeFormRequest({ ...validFields, note: 'extra context' }))
-    expect(mockCaptureSubmitted).toHaveBeenCalledWith({ hasNote: true })
+    expect(mockCaptureSubmitted).toHaveBeenCalledWith(expect.objectContaining({ hasNote: true }))
+  })
+
+  it('stores and reports the channel/version tags and links the browser distinct id', async () => {
+    const req = makeFormRequest(validFields)
+    const fd = await req.formData()
+    fd.set('source', 'comps_check_outreach')
+    fd.set('utm_content', 'send-1')
+    fd.set('page_variant', 'v2')
+    fd.set('ph_distinct_id', '0190abcd-1234-7def-8000-000000000001')
+    const res = await POST(
+      new NextRequest('http://localhost/api/audit-submissions', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '1.2.3.4' },
+        body: fd,
+      })
+    )
+    expect(res.status).toBe(200)
+    expect((supabaseAdmin as any)._mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'comps_check_outreach',
+        utm_content: 'send-1',
+        page_variant: 'v2',
+      })
+    )
+    expect(mockCaptureSubmitted).toHaveBeenCalledWith({
+      hasNote: false,
+      distinctId: '0190abcd-1234-7def-8000-000000000001',
+      source: 'comps_check_outreach',
+      utmContent: 'send-1',
+      pageVariant: 'v2',
+    })
+  })
+
+  it('defaults the tags and ignores junk tag values instead of rejecting the upload', async () => {
+    const req = makeFormRequest(validFields)
+    const fd = await req.formData()
+    fd.set('source', '<script>alert(1)</script>')
+    fd.set('ph_distinct_id', 'x'.repeat(500))
+    const res = await POST(
+      new NextRequest('http://localhost/api/audit-submissions', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '1.2.3.4' },
+        body: fd,
+      })
+    )
+    expect(res.status).toBe(200)
+    expect((supabaseAdmin as any)._mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'direct', utm_content: null, page_variant: 'default' })
+    )
+    expect(mockCaptureSubmitted).toHaveBeenCalledWith(
+      expect.objectContaining({ distinctId: null, source: 'direct' })
+    )
+  })
+
+  it('still saves the upload without tags if the tag columns do not exist yet', async () => {
+    const mockInsert = (supabaseAdmin as any)._mockInsert as jest.Mock
+    mockInsert
+      .mockResolvedValueOnce({ error: { code: 'PGRST204', message: 'column not found' } })
+      .mockResolvedValueOnce({ error: null })
+    const res = await POST(makeFormRequest(validFields))
+    expect(res.status).toBe(200)
+    expect(mockInsert).toHaveBeenCalledTimes(2)
+    expect(mockInsert.mock.calls[1][0]).not.toHaveProperty('source')
+    expect((supabaseAdmin as any)._mockRemove).not.toHaveBeenCalled()
   })
 
   it('returns 400 for a missing email', async () => {
