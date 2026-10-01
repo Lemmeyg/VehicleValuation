@@ -41,7 +41,7 @@ export const DEFAULT_COMPS_CHECK_COPY: CompsCheckCopy = {
   subheadline:
     'We look for the adjustments insurers have been sued over, like the "Typical Negotiation Adjustment" on CCC reports, and for comparable cars that don\'t match yours.',
   submitLabel: 'Send my report for a free check',
-  trustLine: 'Free, no obligation. Checked by our team, not just software.',
+  trustLine: 'Free, no obligation. A written answer from our team within 48 hours.',
 }
 
 export function parseCopyPayload(payload: unknown): CompsCheckCopy {

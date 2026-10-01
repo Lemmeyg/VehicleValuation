@@ -49,7 +49,11 @@ export default async function CompsCheckPage() {
             )}
           </div>
 
-          <ol className="grid gap-3 sm:grid-cols-3 mb-8 text-left" aria-label="How it works">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 mb-6">
+            <CompsCheckForm pageVariant={copy.version} submitLabel={copy.submitLabel} />
+          </div>
+
+          <ol className="grid gap-3 sm:grid-cols-3 text-left" aria-label="How it works">
             {HOW_IT_WORKS.map((step, i) => (
               <li key={step} className="flex gap-3 rounded-xl border border-slate-200 p-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-50 text-sm font-semibold text-primary-700">
@@ -59,10 +63,6 @@ export default async function CompsCheckPage() {
               </li>
             ))}
           </ol>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 mb-6">
-            <CompsCheckForm pageVariant={copy.version} submitLabel={copy.submitLabel} />
-          </div>
         </div>
       </main>
       <Footer />
