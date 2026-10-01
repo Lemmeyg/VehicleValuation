@@ -83,10 +83,27 @@ export async function POST(request: NextRequest) {
     // authenticated buyers and anonymous buyers with no access_token were being
     // recorded as abandoners on their very first post-purchase pageview (BL-85
     // contamination) — see CheckoutReturnTracker.tsx for the read side.
-    let successUrl = `${appUrl}/reports/${reportId}/success?checkout=complete`
+    // Every buyer lands on /view now — /success is retired to a thin
+    // redirect (docs/Inbox/report-delivery-prd.md §10, D13).
+    let successUrl = `${appUrl}/reports/${reportId}/view?checkout=complete`
     if (!user) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const accessToken = (report as any).access_token as string | null
+      let accessToken = (report as any).access_token as string | null
+      // A report created while logged in (session since expired) never got an
+      // access_token — without one this buyer lands on /view with nothing to
+      // prove ownership and gets bounced to /auth, losing both their report
+      // and payment_success (PRD §10: "generate a token at checkout creation").
+      if (!accessToken) {
+        accessToken = crypto.randomUUID()
+        const accessTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        const { error: tokenWriteError } = await supabaseAdmin
+          .from('reports')
+          .update({ access_token: accessToken, access_token_expires_at: accessTokenExpiresAt })
+          .eq('id', reportId)
+        if (tokenWriteError) {
+          console.error('[create-checkout] Failed to write fallback access_token:', tokenWriteError)
+        }
+      }
       if (accessToken) {
         successUrl = `${appUrl}/reports/${reportId}/view?token=${accessToken}&checkout=complete`
       }

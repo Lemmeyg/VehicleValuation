@@ -166,6 +166,34 @@ describe('PDF filename generation', () => {
   })
 })
 
+describe('generateAndUploadPDF — storage folder fallback', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockRenderToBuffer.mockResolvedValue(Buffer.from(''))
+  })
+
+  it('stores the PDF under the report user_id when present', async () => {
+    mockReportAndPayment({ ...baseReportRow, user_id: 'user-42', price_paid: 1900 }, 'BASIC')
+
+    await generateAndUploadPDF({ reportId: 'report-1' })
+
+    const filepath = (supabaseAdmin.storage.upload as jest.Mock).mock.calls[0][0]
+    expect(filepath).toBe('reports/user-42/total-loss-report-1HGBH41JXMN109186.pdf')
+  })
+
+  it("falls back to the report id when user_id is null (e.g. a manual-valuation-supplement clone, which deliberately does not inherit the original report's user_id)", async () => {
+    mockReportAndPayment(
+      { ...baseReportRow, id: 'clone-report-9', user_id: null, price_paid: 1900 },
+      'BASIC'
+    )
+
+    await generateAndUploadPDF({ reportId: 'clone-report-9' })
+
+    const filepath = (supabaseAdmin.storage.upload as jest.Mock).mock.calls[0][0]
+    expect(filepath).toBe('reports/clone-report-9/total-loss-report-1HGBH41JXMN109186.pdf')
+  })
+})
+
 describe('PDF admin URL TTL constant', () => {
   it('is 10 years in seconds', () => {
     expect(ADMIN_URL_TTL_SECONDS).toBe(10 * 365 * 24 * 60 * 60)

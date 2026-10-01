@@ -65,6 +65,10 @@ const validReport = {
   created_at: '2026-06-01T12:00:00Z',
   autodev_vin_data: { make: 'Honda', model: 'Civic', vehicle: { year: 2020 } },
   marketcheck_valuation: null,
+  // A report actually reaching /print's content must be completed with a
+  // stored PDF (PRD §9.5) — this fixture predates that gate.
+  status: 'completed',
+  pdf_download_token: 'tok-1',
 }
 
 const getPrintPage = () => import('@/app/reports/[id]/print/page').then(m => m.default)

@@ -18,10 +18,14 @@ import { formatDateET } from '@/lib/utils/format-date-eastern'
 import { MarketCharts } from '@/components/MarketCharts'
 import { PrintPdfButtons } from './print-pdf-buttons'
 import { ReportViewTracker } from '@/components/ReportViewTracker'
-import { ReportReadyWatcher } from './ReportReadyWatcher'
 import { TokenAccessBanner } from './TokenAccessBanner'
 import { PurchaseCompleteTracker } from './PurchaseCompleteTracker'
+import { RedditPurchaseTracker } from './RedditPurchaseTracker'
 import { PaymentConfirmationWatcher } from './PaymentConfirmationWatcher'
+import { computeReportDisplayState } from '@/lib/report-display-state'
+import { ProgressHeldGate } from './screens/ProgressHeldGate'
+import { RefundedScreen } from './screens/RefundedScreen'
+import { ExpiredScreen } from './screens/ExpiredScreen'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -59,7 +63,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
       new Date(expiresAt) > new Date()
 
     if (!tokenValid) {
-      redirect(`/auth?redirect=/reports/${id}/view&reason=token_expired`)
+      return <ExpiredScreen />
     }
 
     isTokenAccess = true
@@ -192,7 +196,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
     transactionId?: string
   } | null = null
 
-  if (isTokenAccess && checkout === 'complete') {
+  if (checkout === 'complete') {
     const { data: payment } = await supabaseAdmin
       .from('payments')
       .select('amount, stripe_payment_id, metadata')
@@ -220,8 +224,58 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const marketCheck = report.marketcheck_valuation as any
 
-  // Report is ready when marketcheck data is populated (webhook fires async after payment)
-  const isReady = marketCheck != null
+  const vehicleLabel =
+    `${autodevData?.vehicle?.year ?? ''} ${autodevData?.make ?? ''} ${autodevData?.model ?? ''}`.trim() ||
+    'your vehicle'
+
+  const trackers = purchaseTrackerProps && (
+    <>
+      <PurchaseCompleteTracker
+        reportId={id}
+        planType={purchaseTrackerProps.planType}
+        amountCents={purchaseTrackerProps.amountCents}
+        transactionId={purchaseTrackerProps.transactionId}
+        email={report.email ?? undefined}
+        vin={report.vin}
+        userId={user?.id}
+      />
+      <RedditPurchaseTracker
+        value={purchaseTrackerProps.amountCents / 100}
+        currency="USD"
+        transactionId={purchaseTrackerProps.transactionId}
+      />
+    </>
+  )
+
+  // Admins can inspect any report's content whatever its status (existing
+  // behavior) — everyone else goes through the shared gate (PRD §9.5).
+  const displayState = isAdmin
+    ? marketCheck != null
+      ? 'ready'
+      : 'progress'
+    : computeReportDisplayState({
+        status: report.status,
+        pdfDownloadToken: (report.pdf_download_token as string | null) ?? null,
+        pdfStoragePath: (report.pdf_storage_path as string | null) ?? null,
+      })
+
+  if (displayState === 'refunded') {
+    return <RefundedScreen />
+  }
+
+  if (displayState !== 'ready') {
+    return (
+      <>
+        {trackers}
+        <ProgressHeldGate
+          reportId={id}
+          vehicleLabel={vehicleLabel}
+          paidAt={(report.paid_at as string | null) ?? null}
+          initialState={displayState === 'held' ? 'held' : 'progress'}
+        />
+      </>
+    )
+  }
 
   // Get ALL listings from database
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -270,16 +324,7 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
         vehicleMake={autodevData?.make}
         vehicleModel={autodevData?.model}
       />
-      {purchaseTrackerProps && (
-        <PurchaseCompleteTracker
-          reportId={id}
-          planType={purchaseTrackerProps.planType}
-          amountCents={purchaseTrackerProps.amountCents}
-          transactionId={purchaseTrackerProps.transactionId}
-          email={report.email ?? undefined}
-          vin={report.vin}
-        />
-      )}
+      {trackers}
       {/* Header Navigation */}
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -292,7 +337,14 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
                 {user ? '← Back to Dashboard' : '← Home'}
               </Link>
             </div>
-            <PrintPdfButtons reportId={id} token={token ?? undefined} />
+            <PrintPdfButtons
+              reportId={id}
+              token={token ?? undefined}
+              pdfDownloadToken={(report.pdf_download_token as string | null) ?? null}
+              pdfDownloadTokenExpiresAt={
+                (report.pdf_download_token_expires_at as string | null) ?? null
+              }
+            />
           </div>
         </div>
       </nav>
@@ -318,532 +370,465 @@ export default async function ReportViewPage({ params, searchParams }: PageProps
             {autodevData?.vehicle?.year} {autodevData?.make} {autodevData?.model}
           </h1>
           <p className="text-slate-600 text-sm font-mono">{report.vin}</p>
+          {isTokenAccess && (
+            <p className="text-sm text-slate-500 mt-2">
+              Available here for 7 days — download the PDF to keep your own copy.
+            </p>
+          )}
         </div>
 
-        {/* Valuation content — skeleton while report is generating, full content when ready */}
-        {!isReady ? (
-          <>
-            <ReportReadyWatcher reportId={id} />
-            {/* Skeleton for value cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-              {[0, 1, 2].map(i => (
-                <div
-                  key={i}
-                  className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm animate-pulse"
-                >
-                  <div className="h-3 bg-slate-200 rounded w-24 mb-3" />
-                  <div className="h-10 bg-slate-200 rounded w-32 mb-2" />
-                  <div className="h-2 bg-slate-100 rounded w-20" />
-                </div>
-              ))}
+        {/* Market Value Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {/* Low Range */}
+          <div className="bg-white border-l-4 border-slate-400 rounded-lg p-6 shadow-sm">
+            <div className="text-xs font-semibold text-slate-600 tracking-wide uppercase mb-2">
+              LOW RANGE
             </div>
-            {/* Skeleton for market analysis panel */}
-            <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8 animate-pulse">
-              <div className="h-6 bg-slate-200 rounded w-64 mb-4" />
-              <div className="h-4 bg-slate-100 rounded w-48 mb-8" />
-              <div className="h-48 bg-slate-100 rounded w-full" />
-            </div>
-            {/* Skeleton for comparables table */}
-            <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8 animate-pulse">
-              <div className="h-6 bg-slate-200 rounded w-48 mb-6" />
-              {[0, 1, 2, 3, 4].map(i => (
-                <div key={i} className="flex gap-4 py-4 border-b border-slate-100">
-                  <div className="w-24 h-16 bg-slate-200 rounded-lg" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-slate-200 rounded w-40" />
-                    <div className="h-3 bg-slate-100 rounded w-24" />
-                  </div>
-                  <div className="h-4 bg-slate-200 rounded w-20" />
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Market Value Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-              {/* Low Range */}
-              <div className="bg-white border-l-4 border-slate-400 rounded-lg p-6 shadow-sm">
-                <div className="text-xs font-semibold text-slate-600 tracking-wide uppercase mb-2">
-                  LOW RANGE
-                </div>
-                <div className="text-4xl font-bold text-slate-900 mb-1">
-                  {formatCurrency(lowRange)}
-                </div>
-                <div className="text-xs text-slate-500">Market floor estimate</div>
-              </div>
+            <div className="text-4xl font-bold text-slate-900 mb-1">{formatCurrency(lowRange)}</div>
+            <div className="text-xs text-slate-500">Market floor estimate</div>
+          </div>
 
-              {/* Market Value - Primary */}
-              <div className="bg-white border-l-4 border-emerald-500 rounded-lg p-6 shadow-sm">
-                <div className="text-xs font-semibold text-emerald-600 tracking-wide uppercase mb-2">
-                  MARKET VALUE
-                </div>
-                <div className="text-4xl font-bold text-slate-900 mb-1">
-                  {formatCurrency(estimatedValue)}
-                </div>
-                <div className="text-xs text-slate-500">{confidence.toUpperCase()} CONFIDENCE</div>
-              </div>
+          {/* Market Value - Primary */}
+          <div className="bg-white border-l-4 border-emerald-500 rounded-lg p-6 shadow-sm">
+            <div className="text-xs font-semibold text-emerald-600 tracking-wide uppercase mb-2">
+              MARKET VALUE
+            </div>
+            <div className="text-4xl font-bold text-slate-900 mb-1">
+              {formatCurrency(estimatedValue)}
+            </div>
+            <div className="text-xs text-slate-500">{confidence.toUpperCase()} CONFIDENCE</div>
+          </div>
 
-              {/* High Range */}
-              <div className="bg-white border-l-4 border-blue-500 rounded-lg p-6 shadow-sm">
-                <div className="text-xs font-semibold text-blue-600 tracking-wide uppercase mb-2">
-                  HIGH RANGE
-                </div>
-                <div className="text-4xl font-bold text-slate-900 mb-1">
-                  {formatCurrency(highRange)}
-                </div>
-                <div className="text-xs text-slate-500">Market ceiling estimate</div>
+          {/* High Range */}
+          <div className="bg-white border-l-4 border-blue-500 rounded-lg p-6 shadow-sm">
+            <div className="text-xs font-semibold text-blue-600 tracking-wide uppercase mb-2">
+              HIGH RANGE
+            </div>
+            <div className="text-4xl font-bold text-slate-900 mb-1">
+              {formatCurrency(highRange)}
+            </div>
+            <div className="text-xs text-slate-500">Market ceiling estimate</div>
+          </div>
+        </div>
+
+        {/* Vehicle Specifications */}
+        <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8">
+          <div className="flex items-center mb-6">
+            <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center mr-3">
+              <FileText className="h-5 w-5 text-slate-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900">Vehicle Specifications</h2>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-x-8 gap-y-6">
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Year</div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.vehicle?.year || 'N/A'}
               </div>
             </div>
-
-            {/* Vehicle Specifications */}
-            <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8">
-              <div className="flex items-center mb-6">
-                <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center mr-3">
-                  <FileText className="h-5 w-5 text-slate-600" />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900">Vehicle Specifications</h2>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Make</div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.make || 'N/A'}
               </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-x-8 gap-y-6">
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Year</div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.vehicle?.year || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Make</div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.make || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Mileage</div>
-                  <div className="text-base font-medium text-slate-900">
-                    {report.mileage ? `${report.mileage.toLocaleString()} mi` : 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Model</div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.model || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Trim</div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.trim || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Body Style
-                  </div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.body || autodevData?.style || 'N/A'}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Engine</div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.engine || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Transmission
-                  </div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.transmission || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Drive Type
-                  </div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.drive || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Vehicle Type
-                  </div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.type || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Origin</div>
-                  <div className="text-base font-medium text-slate-900">
-                    {autodevData?.origin || 'N/A'}
-                  </div>
-                </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Mileage</div>
+              <div className="text-base font-medium text-slate-900">
+                {report.mileage ? `${report.mileage.toLocaleString()} mi` : 'N/A'}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Model</div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.model || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Trim</div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.trim || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Body Style</div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.body || autodevData?.style || 'N/A'}
               </div>
             </div>
 
-            {/* Market Distribution & Analysis */}
-            <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-slate-900">
-                  Market Distribution & Analysis
-                </h2>
-                <div
-                  className={`text-xs font-semibold tracking-wide uppercase ${
-                    confidence === 'high'
-                      ? 'text-emerald-600'
-                      : confidence === 'medium'
-                        ? 'text-blue-600'
-                        : 'text-amber-600'
-                  }`}
-                >
-                  CONFIDENCE: {confidence.toUpperCase()}
-                </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Engine</div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.engine || 'N/A'}
               </div>
-              <p className="text-sm text-slate-600 mb-2">
-                Based on {allListings.length} live comparable listings from recent market data
-              </p>
-              {marketCheck?.generatedAt && (
-                <p className="text-sm text-slate-500 mb-8">
-                  Comparable listings retrieved{' '}
-                  {formatDateET(marketCheck.generatedAt, {
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </p>
-              )}
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">
+                Transmission
+              </div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.transmission || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Drive Type</div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.drive || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">
+                Vehicle Type
+              </div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.type || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Origin</div>
+              <div className="text-base font-medium text-slate-900">
+                {autodevData?.origin || 'N/A'}
+              </div>
+            </div>
+          </div>
+        </div>
 
-              {/* Interactive Charts */}
-              {allListings.length > 0 ? (
-                <MarketCharts
-                  listings={allListings}
-                  displayedComparables={displayedComparables}
-                  estimatedValue={estimatedValue}
-                  lowRange={lowRange}
-                  highRange={highRange}
-                  subjectVehicle={{
-                    mileage: report.mileage || 0,
-                    year: autodevData?.vehicle?.year,
-                    make: autodevData?.make,
-                    model: autodevData?.model,
-                  }}
-                />
-              ) : (
-                <div className="text-center py-12 text-slate-500">
-                  No active local listings were found for this vehicle. This valuation is based on{' '}
-                  {marketCheck?.totalComparablesFound ??
-                    marketCheck?.recentComparables?.num_found ??
-                    0}{' '}
-                  statistical comparable vehicles from recent market data.
-                </div>
-              )}
+        {/* Market Distribution & Analysis */}
+        <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-slate-900">Market Distribution & Analysis</h2>
+            <div
+              className={`text-xs font-semibold tracking-wide uppercase ${
+                confidence === 'high'
+                  ? 'text-emerald-600'
+                  : confidence === 'medium'
+                    ? 'text-blue-600'
+                    : 'text-amber-600'
+              }`}
+            >
+              CONFIDENCE: {confidence.toUpperCase()}
+            </div>
+          </div>
+          <p className="text-sm text-slate-600 mb-2">
+            Based on {allListings.length} live comparable listings from recent market data
+          </p>
+          {marketCheck?.generatedAt && (
+            <p className="text-sm text-slate-500 mb-8">
+              Comparable listings retrieved{' '}
+              {formatDateET(marketCheck.generatedAt, {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </p>
+          )}
 
-              {/* Value Boxes */}
-              <div className="grid grid-cols-3 gap-6 mt-8 pt-8 border-t border-slate-200">
-                <div className="text-center p-4 bg-slate-50 rounded-lg">
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-2">
-                    Low Range
-                  </div>
-                  <div className="text-2xl font-bold text-slate-900">
-                    {formatCurrency(lowRange)}
-                  </div>
+          {/* Interactive Charts */}
+          {allListings.length > 0 ? (
+            <MarketCharts
+              listings={allListings}
+              displayedComparables={displayedComparables}
+              estimatedValue={estimatedValue}
+              lowRange={lowRange}
+              highRange={highRange}
+              subjectVehicle={{
+                mileage: report.mileage || 0,
+                year: autodevData?.vehicle?.year,
+                make: autodevData?.make,
+                model: autodevData?.model,
+              }}
+            />
+          ) : (
+            <div className="text-center py-12 text-slate-500">
+              No active local listings were found for this vehicle. This valuation is based on{' '}
+              {marketCheck?.totalComparablesFound ?? marketCheck?.recentComparables?.num_found ?? 0}{' '}
+              statistical comparable vehicles from recent market data.
+            </div>
+          )}
+
+          {/* Value Boxes */}
+          <div className="grid grid-cols-3 gap-6 mt-8 pt-8 border-t border-slate-200">
+            <div className="text-center p-4 bg-slate-50 rounded-lg">
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-2">Low Range</div>
+              <div className="text-2xl font-bold text-slate-900">{formatCurrency(lowRange)}</div>
+            </div>
+            <div className="text-center p-4 bg-emerald-50 rounded-lg border-2 border-emerald-200">
+              <div className="text-xs font-semibold text-emerald-600 uppercase mb-2">
+                Fair Market Value
+              </div>
+              <div className="text-2xl font-bold text-emerald-700">
+                {formatCurrency(fairMarket)}
+              </div>
+            </div>
+            <div className="text-center p-4 bg-slate-50 rounded-lg">
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-2">High Range</div>
+              <div className="text-2xl font-bold text-slate-900">{formatCurrency(highRange)}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Market Comparables */}
+        {displayedComparables.length > 0 && (
+          <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <div className="h-10 w-10 bg-blue-50 rounded-full flex items-center justify-center mr-3">
+                  <FileText className="h-5 w-5 text-blue-600" />
                 </div>
-                <div className="text-center p-4 bg-emerald-50 rounded-lg border-2 border-emerald-200">
-                  <div className="text-xs font-semibold text-emerald-600 uppercase mb-2">
-                    Fair Market Value
-                  </div>
-                  <div className="text-2xl font-bold text-emerald-700">
-                    {formatCurrency(fairMarket)}
-                  </div>
+                <h2 className="text-2xl font-bold text-slate-900">Market Comparables</h2>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-slate-500">
+                  Showing {displayedComparables.length} of {allListings.length} listings
                 </div>
-                <div className="text-center p-4 bg-slate-50 rounded-lg">
-                  <div className="text-xs font-semibold text-slate-500 uppercase mb-2">
-                    High Range
-                  </div>
-                  <div className="text-2xl font-bold text-slate-900">
-                    {formatCurrency(highRange)}
-                  </div>
+                <div className="text-xs text-slate-600 mt-1">
+                  Avg: {formatCurrency(listingsStats.avgPrice)} • Range:{' '}
+                  {formatCurrency(listingsStats.minPrice)} -{' '}
+                  {formatCurrency(listingsStats.maxPrice)}
                 </div>
               </div>
             </div>
 
-            {/* Market Comparables */}
-            {displayedComparables.length > 0 && (
-              <div className="bg-white rounded-lg border border-slate-200 p-8 mb-8">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center">
-                    <div className="h-10 w-10 bg-blue-50 rounded-full flex items-center justify-center mr-3">
-                      <FileText className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-slate-900">Market Comparables</h2>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-slate-500">
-                      Showing {displayedComparables.length} of {allListings.length} listings
-                    </div>
-                    <div className="text-xs text-slate-600 mt-1">
-                      Avg: {formatCurrency(listingsStats.avgPrice)} • Range:{' '}
-                      {formatCurrency(listingsStats.minPrice)} -{' '}
-                      {formatCurrency(listingsStats.maxPrice)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b-2 border-slate-200">
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                          Photo
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                          Vehicle Details
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                          Mileage
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                          Market Price
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                          Days on Market
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
-                          Dealer
-                        </th>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b-2 border-slate-200">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                      Photo
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                      Vehicle Details
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                      Mileage
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                      Market Price
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                      Days on Market
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">
+                      Dealer
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {displayedComparables.map((comp: any, idx: number) => {
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="py-4 px-4">
+                          {comp.photo_url ? (
+                            <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-100">
+                              <Image
+                                src={comp.photo_url as string}
+                                alt={`${comp.year} ${comp.make} ${comp.model}`}
+                                fill
+                                className="object-cover"
+                                sizes="96px"
+                                unoptimized
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-24 h-16 rounded-lg bg-slate-100 flex items-center justify-center">
+                              <Car className="h-8 w-8 text-slate-400" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="font-semibold text-slate-900">
+                            {comp.year} {comp.make} {comp.model}
+                          </div>
+                          <div className="text-sm text-slate-500">{comp.trim}</div>
+                        </td>
+                        <td className="py-4 px-4 text-sm text-slate-700">
+                          {((comp.miles || comp.mileage) as number)?.toLocaleString() || 'N/A'} mi
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="text-base font-bold text-emerald-600">
+                            {formatCurrency(comp.price as number)}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-sm text-slate-700">
+                          {
+                            (comp.dos_active ||
+                              comp.dom_180 ||
+                              comp.dom ||
+                              'N/A') as React.ReactNode
+                          }
+                        </td>
+                        <td className="py-4 px-4">
+                          {comp.vdp_url && comp.dealer_name ? (
+                            <a
+                              href={comp.vdp_url as string}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                            >
+                              {comp.dealer_name as React.ReactNode}
+                            </a>
+                          ) : (
+                            <span className="text-slate-700">
+                              {(comp.dealer_name || 'N/A') as React.ReactNode}
+                            </span>
+                          )}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      {displayedComparables.map((comp: any, idx: number) => {
-                        return (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="py-4 px-4">
-                              {comp.photo_url ? (
-                                <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-100">
-                                  <Image
-                                    src={comp.photo_url as string}
-                                    alt={`${comp.year} ${comp.make} ${comp.model}`}
-                                    fill
-                                    className="object-cover"
-                                    sizes="96px"
-                                    unoptimized
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-24 h-16 rounded-lg bg-slate-100 flex items-center justify-center">
-                                  <Car className="h-8 w-8 text-slate-400" />
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="font-semibold text-slate-900">
-                                {comp.year} {comp.make} {comp.model}
-                              </div>
-                              <div className="text-sm text-slate-500">{comp.trim}</div>
-                            </td>
-                            <td className="py-4 px-4 text-sm text-slate-700">
-                              {((comp.miles || comp.mileage) as number)?.toLocaleString() || 'N/A'}{' '}
-                              mi
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="text-base font-bold text-emerald-600">
-                                {formatCurrency(comp.price as number)}
-                              </div>
-                            </td>
-                            <td className="py-4 px-4 text-sm text-slate-700">
-                              {
-                                (comp.dos_active ||
-                                  comp.dom_180 ||
-                                  comp.dom ||
-                                  'N/A') as React.ReactNode
-                              }
-                            </td>
-                            <td className="py-4 px-4">
-                              {comp.vdp_url && comp.dealer_name ? (
-                                <a
-                                  href={comp.vdp_url as string}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                                >
-                                  {comp.dealer_name as React.ReactNode}
-                                </a>
-                              ) : (
-                                <span className="text-slate-700">
-                                  {(comp.dealer_name || 'N/A') as React.ReactNode}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-            {/* Additional Valuation Considerations */}
-            <div className="bg-slate-50 rounded-lg border border-slate-200 p-8">
-              <h3 className="text-base font-bold text-slate-900 uppercase tracking-wide mb-4 text-center">
-                Additional Valuation Considerations
-              </h3>
-              <div className="w-full text-slate-600 space-y-4 text-sm">
-                <p className="font-semibold text-slate-700 text-center">
-                  Note: The following undocumented factors can significantly impact your
-                  vehicle&apos;s actual cash value. Documenting these conditions with photos and
-                  records strengthens your position when contesting an insurance settlement offer.
-                </p>
+        {/* Additional Valuation Considerations */}
+        <div className="bg-slate-50 rounded-lg border border-slate-200 p-8">
+          <h3 className="text-base font-bold text-slate-900 uppercase tracking-wide mb-4 text-center">
+            Additional Valuation Considerations
+          </h3>
+          <div className="w-full text-slate-600 space-y-4 text-sm">
+            <p className="font-semibold text-slate-700 text-center">
+              Note: The following undocumented factors can significantly impact your vehicle&apos;s
+              actual cash value. Documenting these conditions with photos and records strengthens
+              your position when contesting an insurance settlement offer.
+            </p>
 
-                <div className="space-y-4">
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">Physical Condition:</span>{' '}
-                    Overall vehicle condition (Excellent to Poor) based on exterior paint quality,
-                    body damage, rust, interior upholstery wear, and mechanical condition of engine,
-                    transmission, and brakes.{' '}
-                    <span className="font-bold text-slate-900">
-                      Impact: -20% (poor) to +12% (excellent)
-                    </span>
-                  </p>
+            <div className="space-y-4">
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Physical Condition:</span> Overall
+                vehicle condition (Excellent to Poor) based on exterior paint quality, body damage,
+                rust, interior upholstery wear, and mechanical condition of engine, transmission,
+                and brakes.{' '}
+                <span className="font-bold text-slate-900">
+                  Impact: -20% (poor) to +12% (excellent)
+                </span>
+              </p>
 
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">Accident & Title History:</span>{' '}
-                    Clean title vs. salvage/rebuilt, documented accident history, and number of
-                    previous owners. One-owner vehicles with clean titles command premiums.{' '}
-                    <span className="font-bold text-slate-900">
-                      Impact: -50% (salvage) to +8% (1-owner clean)
-                    </span>
-                  </p>
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Accident & Title History:</span>{' '}
+                Clean title vs. salvage/rebuilt, documented accident history, and number of previous
+                owners. One-owner vehicles with clean titles command premiums.{' '}
+                <span className="font-bold text-slate-900">
+                  Impact: -50% (salvage) to +8% (1-owner clean)
+                </span>
+              </p>
 
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">Service Records:</span>{' '}
-                    Well-documented maintenance history with receipts from authorized dealers or
-                    reputable shops demonstrates proper care and increases buyer confidence.{' '}
-                    <span className="font-bold text-slate-900">Impact: +5% to +10%</span>
-                  </p>
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Service Records:</span>{' '}
+                Well-documented maintenance history with receipts from authorized dealers or
+                reputable shops demonstrates proper care and increases buyer confidence.{' '}
+                <span className="font-bold text-slate-900">Impact: +5% to +10%</span>
+              </p>
 
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">
-                      Factory Options & Equipment:
-                    </span>{' '}
-                    Premium features including navigation systems, sunroof, heated/ventilated seats,
-                    advanced safety packages, leather interior, and technology upgrades add
-                    measurable value.{' '}
-                    <span className="font-bold text-slate-900">Impact: +3% to +15%</span>
-                  </p>
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Factory Options & Equipment:</span>{' '}
+                Premium features including navigation systems, sunroof, heated/ventilated seats,
+                advanced safety packages, leather interior, and technology upgrades add measurable
+                value. <span className="font-bold text-slate-900">Impact: +3% to +15%</span>
+              </p>
 
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">
-                      Vehicle Usage & Environment:
-                    </span>{' '}
-                    Non-smoker vehicles, garage-kept storage, personal use (vs.
-                    fleet/rental/rideshare), and climate history (rust-belt vs. sun-belt) affect
-                    long-term condition and desirability.{' '}
-                    <span className="font-bold text-slate-900">
-                      Impact: -15% (smoking) to +8% (garage-kept)
-                    </span>
-                  </p>
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Vehicle Usage & Environment:</span>{' '}
+                Non-smoker vehicles, garage-kept storage, personal use (vs. fleet/rental/rideshare),
+                and climate history (rust-belt vs. sun-belt) affect long-term condition and
+                desirability.{' '}
+                <span className="font-bold text-slate-900">
+                  Impact: -15% (smoking) to +8% (garage-kept)
+                </span>
+              </p>
 
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">Documentation Quality:</span>{' '}
-                    Presence of both key fobs, owner&apos;s manual, service records, original
-                    equipment (spare tire, jack, tools), and proof of recall completion demonstrates
-                    thorough ownership.{' '}
-                    <span className="font-bold text-slate-900">Impact: +2% to +5%</span>
-                  </p>
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Documentation Quality:</span>{' '}
+                Presence of both key fobs, owner&apos;s manual, service records, original equipment
+                (spare tire, jack, tools), and proof of recall completion demonstrates thorough
+                ownership. <span className="font-bold text-slate-900">Impact: +2% to +5%</span>
+              </p>
 
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">Regional Factors:</span> 4WD/AWD
-                    commands premium in snow states, convertibles more valuable in warm climates,
-                    diesel trucks in rural areas, and fuel efficiency during high gas prices.{' '}
-                    <span className="font-bold text-slate-900">
-                      Impact: +5% to +15% (region-dependent)
-                    </span>
-                  </p>
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Regional Factors:</span> 4WD/AWD
+                commands premium in snow states, convertibles more valuable in warm climates, diesel
+                trucks in rural areas, and fuel efficiency during high gas prices.{' '}
+                <span className="font-bold text-slate-900">
+                  Impact: +5% to +15% (region-dependent)
+                </span>
+              </p>
 
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">Recent Maintenance:</span> New
-                    tires, recent brake service, fresh oil change, new battery, or completed major
-                    services (timing belt, transmission service) add immediate value.{' '}
-                    <span className="font-bold text-slate-900">Impact: +$500 to $2,000</span>
-                  </p>
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Recent Maintenance:</span> New tires,
+                recent brake service, fresh oil change, new battery, or completed major services
+                (timing belt, transmission service) add immediate value.{' '}
+                <span className="font-bold text-slate-900">Impact: +$500 to $2,000</span>
+              </p>
 
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">Special Circumstances:</span>{' '}
-                    Limited edition models, performance variants, anniversary editions, remaining
-                    factory warranty, prepaid maintenance plans, and unrepaired recall status all
-                    affect market value.{' '}
-                    <span className="font-bold text-slate-900">Impact: varies significantly</span>
-                  </p>
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Special Circumstances:</span> Limited
+                edition models, performance variants, anniversary editions, remaining factory
+                warranty, prepaid maintenance plans, and unrepaired recall status all affect market
+                value.{' '}
+                <span className="font-bold text-slate-900">Impact: varies significantly</span>
+              </p>
 
-                  <p className="text-justify">
-                    <span className="font-semibold text-slate-900">Aftermarket Modifications:</span>{' '}
-                    Quality additions like remote start or premium audio can add value, while
-                    excessive modifications, lowering kits, or poor-quality work typically decrease
-                    value. <span className="font-bold text-slate-900">Impact: -10% to +5%</span>
-                  </p>
-                </div>
+              <p className="text-justify">
+                <span className="font-semibold text-slate-900">Aftermarket Modifications:</span>{' '}
+                Quality additions like remote start or premium audio can add value, while excessive
+                modifications, lowering kits, or poor-quality work typically decrease value.{' '}
+                <span className="font-bold text-slate-900">Impact: -10% to +5%</span>
+              </p>
+            </div>
 
-                <p className="pt-4 border-t border-slate-300 font-semibold text-slate-900 text-justify">
-                  Recommendation: Photograph and document all positive factors listed above. For
-                  professional assistance with appraisals, inspections, or claims support, visit our{' '}
-                  <Link
-                    href="/services"
-                    className="text-emerald-600 hover:text-emerald-700 underline"
-                  >
-                    Professional Services Directory
-                  </Link>
-                  .
-                </p>
-              </div>
+            <p className="pt-4 border-t border-slate-300 font-semibold text-slate-900 text-justify">
+              Recommendation: Photograph and document all positive factors listed above. For
+              professional assistance with appraisals, inspections, or claims support, visit our{' '}
+              <Link href="/services" className="text-emerald-600 hover:text-emerald-700 underline">
+                Professional Services Directory
+              </Link>
+              .
+            </p>
+          </div>
 
-              {/* Action Plan CTA — the token must ride along, or an anonymous buyer
+          {/* Action Plan CTA — the token must ride along, or an anonymous buyer
                   lands on a page that cannot tell they own this report (BL-129) */}
-              <div className="mt-12 mb-8 flex justify-center">
-                <Link
-                  href={
-                    token
-                      ? `/reports/${id}/action-plan?token=${token}`
-                      : `/reports/${id}/action-plan`
-                  }
-                  className="inline-flex items-center px-8 py-4 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors shadow-lg text-lg"
-                >
-                  <FileText className="h-6 w-6 mr-2" />
-                  View Your Next Steps Action Plan
-                </Link>
-              </div>
+          <div className="mt-12 mb-8 flex justify-center">
+            <Link
+              href={
+                token ? `/reports/${id}/action-plan?token=${token}` : `/reports/${id}/action-plan`
+              }
+              className="inline-flex items-center px-8 py-4 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors shadow-lg text-lg"
+            >
+              <FileText className="h-6 w-6 mr-2" />
+              View Your Next Steps Action Plan
+            </Link>
+          </div>
 
-              <div className="mt-8 pt-6 border-t border-slate-300 text-xs text-slate-500 space-y-2">
-                <p>
-                  This valuation report is intended for informational purposes only and does not
-                  constitute a professional appraisal, legal advice, or binding offer. Valuations
-                  use proprietary algorithms aggregating data from Auto.dev and MarketCheck. Vehicle
-                  market values are subject to rapid change based on local demand, condition
-                  variances, and economic fluctuations. Consult with a certified appraiser or
-                  insurance adjuster for final settlement figures.
-                </p>
-                <div className="flex items-center justify-between pt-4">
-                  <div>© 2024 ELITE VALUATION SERVICES</div>
-                  <div className="flex space-x-4">
-                    <Link href="/terms" className="hover:text-slate-700">
-                      TERMS OF SERVICE
-                    </Link>
-                    <Link href="/privacy" className="hover:text-slate-700">
-                      PRIVACY POLICY
-                    </Link>
-                    <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-slate-700">
-                      {SUPPORT_EMAIL}
-                    </a>
-                  </div>
-                </div>
+          <div className="mt-8 pt-6 border-t border-slate-300 text-xs text-slate-500 space-y-2">
+            <p>
+              This valuation report is intended for informational purposes only and does not
+              constitute a professional appraisal, legal advice, or binding offer. Valuations use
+              proprietary algorithms aggregating data from Auto.dev and MarketCheck. Vehicle market
+              values are subject to rapid change based on local demand, condition variances, and
+              economic fluctuations. Consult with a certified appraiser or insurance adjuster for
+              final settlement figures.
+            </p>
+            <div className="flex items-center justify-between pt-4">
+              <div>© 2024 ELITE VALUATION SERVICES</div>
+              <div className="flex space-x-4">
+                <Link href="/terms" className="hover:text-slate-700">
+                  TERMS OF SERVICE
+                </Link>
+                <Link href="/privacy" className="hover:text-slate-700">
+                  PRIVACY POLICY
+                </Link>
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-slate-700">
+                  {SUPPORT_EMAIL}
+                </a>
               </div>
             </div>
-          </>
-        )}
+          </div>
+        </div>
 
         {/* Token access banner — shown only for anonymous token users */}
         {isTokenAccess && token && (

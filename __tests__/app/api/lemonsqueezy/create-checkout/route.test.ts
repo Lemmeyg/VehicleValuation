@@ -18,7 +18,9 @@ const mockGetUser = getUser as jest.MockedFunction<typeof getUser>
 const mockSingle = jest.fn()
 const mockEq = jest.fn(() => ({ single: mockSingle }))
 const mockSelect = jest.fn(() => ({ eq: mockEq }))
-const mockFrom = jest.fn(() => ({ select: mockSelect }))
+const mockUpdateEq = jest.fn().mockResolvedValue({ error: null })
+const mockUpdate = jest.fn(() => ({ eq: mockUpdateEq }))
+const mockFrom = jest.fn(() => ({ select: mockSelect, update: mockUpdate }))
 
 beforeEach(() => {
   jest.clearAllMocks()
@@ -106,7 +108,7 @@ describe('POST /api/lemonsqueezy/create-checkout', () => {
   })
 
   describe('checkout=complete on successUrl (BL-85 abandonment-marker fix)', () => {
-    it('carries checkout=complete on the authenticated-user success URL', async () => {
+    it('sends an authenticated buyer to /view, not /success (PRD §10, D13)', async () => {
       mockGetUser.mockResolvedValue({ id: 'user-1' } as never)
       mockSingle.mockResolvedValue({
         data: {
@@ -124,7 +126,7 @@ describe('POST /api/lemonsqueezy/create-checkout', () => {
 
       expect(mockCreateCheckout).toHaveBeenCalledWith(
         expect.objectContaining({
-          successUrl: 'https://example.com/reports/report-1/success?checkout=complete',
+          successUrl: 'https://example.com/reports/report-1/view?checkout=complete',
         })
       )
     })
@@ -138,6 +140,40 @@ describe('POST /api/lemonsqueezy/create-checkout', () => {
       expect(mockCreateCheckout).toHaveBeenCalledWith(
         expect.objectContaining({
           successUrl: 'https://example.com/reports/report-1/view?token=token-abc&checkout=complete',
+        })
+      )
+    })
+
+    it('generates a fresh access_token for an anonymous buyer whose report has none yet (PRD §10)', async () => {
+      mockSingle.mockResolvedValue({
+        data: {
+          id: 'report-1',
+          vin: '1HGBH41JXMN109186',
+          user_id: null,
+          price_paid: null,
+          access_token: null,
+        },
+        error: null,
+      })
+
+      const req = makeRequest({ reportId: 'report-1', reportType: 'BASIC' })
+      await POST(req)
+
+      // A token was written back to the report before the checkout was created.
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          access_token: expect.any(String),
+          access_token_expires_at: expect.any(String),
+        })
+      )
+      expect(mockUpdateEq).toHaveBeenCalledWith('id', 'report-1')
+
+      // And that same token rides on the successUrl — no anonymous buyer with a
+      // dead session should ever land on /view with no token at all.
+      const generatedToken = mockUpdate.mock.calls[0][0].access_token
+      expect(mockCreateCheckout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          successUrl: `https://example.com/reports/report-1/view?token=${generatedToken}&checkout=complete`,
         })
       )
     })

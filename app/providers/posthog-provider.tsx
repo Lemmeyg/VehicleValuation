@@ -41,7 +41,12 @@ function initPostHog() {
   }
 
   posthog.init(posthogKey, {
-    api_host: posthogHost,
+    // Same-origin path, proxied via next.config.ts rewrites -- not posthogHost directly.
+    // Ad blockers block posthog.com by domain name; routing through our own domain
+    // means there's no third-party domain for a blocklist to match. ui_host keeps
+    // the real host for links back into the PostHog app (toolbar, "view in PostHog").
+    api_host: '/ingest',
+    ui_host: posthogHost,
     person_profiles: 'identified_only', // Only create profiles for identified users
     capture_pageview: false, // We'll capture pageviews manually in a layout
     capture_pageleave: true, // Track when users leave pages
