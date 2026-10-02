@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { addContactToList } from '@/lib/zoho-campaigns'
+import { addContactToList, isTestAddress } from '@/lib/zoho-campaigns'
 
 describe('addContactToList (Zoho Campaigns)', () => {
   const ORIG_ID = process.env.ZOHO_CAMPAIGNS_CLIENT_ID
@@ -208,5 +208,43 @@ describe('addContactToList (Zoho Campaigns)', () => {
     const resultPromise = addContactToList({ listKey: 'list-key-1', email: 'user@example.com' })
     await expect(resultPromise).resolves.not.toThrow()
     expect(await resultPromise).toBe(false)
+  })
+
+  // BL-267: product-qa submits the live report form as qa-test@totallosstoolkit.com.
+  // That address must never reach a real Zoho list (e.g. the abandoned-report drip).
+  it('never contacts Zoho for a QA test address, on either endpoint', async () => {
+    const plain = await addContactToList({
+      listKey: 'list-key-1',
+      email: 'qa-test@totallosstoolkit.com',
+    })
+    const withFields = await addContactToList({
+      listKey: 'list-key-1',
+      email: 'QA-Test@TotalLossToolkit.com',
+      customFields: { ReportId: 'abc' },
+    })
+
+    expect(plain).toBe(false)
+    expect(withFields).toBe(false)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('isTestAddress', () => {
+  it.each([
+    'qa-test@totallosstoolkit.com',
+    'QA-TEST@totallosstoolkit.com',
+    'qa-test+2@totallosstoolkit.com',
+    ' qa-test@totallosstoolkit.com',
+  ])('treats %s as a test address', email => {
+    expect(isTestAddress(email)).toBe(true)
+  })
+
+  it.each([
+    'user@example.com',
+    'jane.doe@gmail.com',
+    'notqa-test@gmail.com',
+    'support@totallosstoolkit.com',
+  ])('treats %s as a real address', email => {
+    expect(isTestAddress(email)).toBe(false)
   })
 })

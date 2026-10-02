@@ -131,10 +131,23 @@ async function callAddListSubscribersInBulk(
   return true
 }
 
+// The workspace's product-qa check submits the live report form as
+// qa-test@totallosstoolkit.com. Nothing else stops that report from being
+// enrolled in a real list (e.g. the abandoned-report drip ~2h later), which
+// sends real email and skews the drip's numbers (BL-267). Kept deliberately
+// narrow: tests use user@example.com, and real end-to-end Zoho checks use
+// real inboxes, so neither may be blocked here.
+export function isTestAddress(email: string): boolean {
+  return /^qa-test(\+[^@]*)?@/i.test(email.trim())
+}
+
 // Fire-and-forget: adds a contact to a Zoho Campaigns list. The list itself
 // drives delivery via a Workflow Automation configured in the Zoho Campaigns
 // console — this function's only job is enrollment, never throws.
 export async function addContactToList(params: AddContactToListParams): Promise<boolean> {
+  // Reported as "not enrolled", so callers never stamp a test address as emailed.
+  if (isTestAddress(params.email)) return false
+
   try {
     const accessToken = await getAccessToken()
     if (!accessToken) return false
