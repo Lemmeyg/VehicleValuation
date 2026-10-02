@@ -8,6 +8,7 @@ import * as autodev from '@/lib/api/autodev-client'
 import * as pdfGenerator from '@/lib/services/pdf-generator'
 import { validateListingUrls } from '@/lib/utils/url-validator'
 import { supplementComparables } from '@/lib/utils/comparables-supplementer'
+import { enrollHeldReportBuyer } from '@/lib/services/report-held-email'
 
 jest.mock('@/lib/api/api-call-logger', () => ({
   logApiCall: jest.fn().mockResolvedValue(undefined),
@@ -25,6 +26,9 @@ jest.mock('@/lib/utils/url-validator', () => ({
 }))
 jest.mock('@/lib/utils/comparables-supplementer', () => ({
   supplementComparables: jest.fn(),
+}))
+jest.mock('@/lib/services/report-held-email', () => ({
+  enrollHeldReportBuyer: jest.fn().mockResolvedValue('enrolled'),
 }))
 
 const mockAdmin = supabaseAdmin as jest.Mocked<typeof supabaseAdmin>
@@ -249,6 +253,35 @@ describe('runReportPipeline — QA gate', () => {
     expect(pdfGenerator.generateAndUploadPDF).not.toHaveBeenCalled()
   })
 
+  it('enrols the buyer in the Report Held email on a hold, passing the payment context', async () => {
+    ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
+      success: true,
+      data: {
+        predictedPrice: 25000,
+        priceRange: { min: 22000, max: 28000 },
+        recentComparables: { num_found: 0, listings: [] },
+      },
+    })
+    mockReportsTable({
+      vin: '1HGBH41JXMN109186',
+      mileage: 35000,
+      zip_code: '90210',
+      vehicle_data: null,
+      marketcheck_valuation: null,
+    })
+
+    const outcome = await runReportPipeline('report-1', {
+      payment: { amount: 2500, orderId: 'order-1', customerEmail: 'buyer@example.com' },
+    })
+
+    expect(outcome).toBe('held')
+    expect(enrollHeldReportBuyer).toHaveBeenCalledTimes(1)
+    expect(enrollHeldReportBuyer).toHaveBeenCalledWith('report-1', {
+      paid: true,
+      fallbackEmail: 'buyer@example.com',
+    })
+  })
+
   it('holds as needs_review with valuation_complete failed when priceRange is missing (the ±10% fallback trap)', async () => {
     ;(marketcheck.fetchMarketCheckData as jest.Mock).mockResolvedValue({
       success: true,
@@ -325,6 +358,8 @@ describe('runReportPipeline — QA gate', () => {
     ])
     expect(releaseUpdate.qa_failed_checks).toEqual([])
     expect(releaseUpdate.qa_evaluated_at).toBeDefined()
+    // A released report gets the ready email (Report Delivery), never the checking email.
+    expect(enrollHeldReportBuyer).not.toHaveBeenCalled()
   })
 
   it('holds as needs_review with pdf_built failed when generateAndUploadPDF returns success: false (the silent-failure bug)', async () => {

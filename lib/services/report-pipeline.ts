@@ -10,6 +10,7 @@ import { gateListings } from '@/lib/utils/comp-gates'
 import { makeScoreSortFn } from '@/lib/utils/comp-relevance-score'
 import type { ValidationStats } from '@/lib/utils/url-validator'
 import { QA_CHECKS, type QaCheckContext, type QaCheckResult } from '@/lib/services/qa-checks'
+import { enrollHeldReportBuyer } from '@/lib/services/report-held-email'
 
 const PRIMARY_DEALER_TYPE = 'franchise' as const
 
@@ -53,7 +54,8 @@ async function writeProgressStep(
 async function holdReport(
   reportId: string,
   status: HeldStatus,
-  qaResults: QaCheckResult[]
+  qaResults: QaCheckResult[],
+  payment?: RunPipelinePaymentInfo
 ): Promise<'held'> {
   const failedChecks = qaResults.filter(r => !r.passed).map(r => r.key)
   const { error } = await supabaseAdmin
@@ -82,6 +84,12 @@ async function holdReport(
       )
     }
   }
+  // "We're checking your report" email (PRD §6.4). Guarded by
+  // review_email_enrolled_at, so only the first hold enrols; never throws.
+  await enrollHeldReportBuyer(reportId, {
+    paid: !!payment,
+    fallbackEmail: payment?.customerEmail,
+  })
   return 'held'
 }
 
@@ -116,6 +124,8 @@ export async function runReportPipeline(
 ): Promise<'completed' | 'held'> {
   const { payment } = opts
   const supabase = supabaseAdmin
+  const hold = (status: HeldStatus, qaResults: QaCheckResult[]) =>
+    holdReport(reportId, status, qaResults, payment)
 
   try {
     const { data: report, error: fetchError } = await supabase
@@ -136,7 +146,7 @@ export async function runReportPipeline(
         errorMessage: fetchError?.message ?? 'report not found',
         requestData: { reportId },
       })
-      return holdReport(reportId, 'needs_review', [
+      return hold('needs_review', [
         {
           key: 'pipeline_error',
           label: 'Pipeline error',
@@ -485,7 +495,7 @@ export async function runReportPipeline(
 
     if (reportError) {
       console.error('[Webhook] Error updating report:', reportError)
-      return holdReport(reportId, 'needs_review', [
+      return hold('needs_review', [
         {
           key: 'pipeline_error',
           label: 'Pipeline error',
@@ -514,7 +524,7 @@ export async function runReportPipeline(
     if (!vehicleIdentifiedResult.passed) {
       console.warn(`[Webhook] VIN decode failed for report ${reportId} — holding for manual review`)
       console.log(`[Webhook] Report ${reportId} set to vin_decode_failed, skipping PDF`)
-      return holdReport(reportId, 'vin_decode_failed', [vehicleIdentifiedResult])
+      return hold('vin_decode_failed', [vehicleIdentifiedResult])
     }
 
     if (!marketcheckData) {
@@ -528,7 +538,7 @@ export async function runReportPipeline(
         marketcheckData: null,
         subject: qaSubject,
       })
-      return holdReport(reportId, 'valuation_failed', [vehicleIdentifiedResult, noValuationResult])
+      return hold('valuation_failed', [vehicleIdentifiedResult, noValuationResult])
     }
 
     const qaContext: QaCheckContext = {
@@ -545,7 +555,7 @@ export async function runReportPipeline(
         valuationComplete: valuationCompleteResult.passed,
         tenCompsDisplayed: tenCompsResult.passed,
       })
-      return holdReport(reportId, 'needs_review', [
+      return hold('needs_review', [
         vehicleIdentifiedResult,
         valuationCompleteResult,
         tenCompsResult,
@@ -567,7 +577,7 @@ export async function runReportPipeline(
     const pdfBuiltResult = runCheck('pdf_built', { ...qaContext, pdfResult })
     if (!pdfBuiltResult.passed) {
       console.error(`[Webhook] PDF generation failed for report ${reportId}:`, pdfResult.error)
-      return holdReport(reportId, 'needs_review', [
+      return hold('needs_review', [
         vehicleIdentifiedResult,
         valuationCompleteResult,
         tenCompsResult,
@@ -586,7 +596,7 @@ export async function runReportPipeline(
       `[Webhook] Unhandled error in post-payment processing for report ${reportId}:`,
       error
     )
-    return holdReport(reportId, 'needs_review', [
+    return hold('needs_review', [
       {
         key: 'pipeline_error',
         label: 'Pipeline error',
